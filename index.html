@@ -1,11 +1,11 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.9</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.10</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
 
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px;margin:14px 0}.control{border:1px solid #dfe7f2;background:#f9fbff;border-radius:12px;padding:13px;min-width:0}.control h3{margin:0 0 6px;font-size:1rem}.control p{margin:0 0 8px;font-size:.8rem;color:#647086}.adjust{display:grid;grid-template-columns:44px 1fr 44px 94px;gap:8px;align-items:center}.adjust button{min-width:42px;margin:0}.adjust input[type=range]{grid-column:1/-1;width:100%;min-width:0;height:36px;touch-action:pan-y}.control{min-width:0}.fine{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.fine button[aria-pressed="true"]{background:#245bd6;color:white}.control .adjust input[type=range]{width:100%}#cv{touch-action:none;cursor:crosshair}.reference{border:1px solid #d9e5fa;border-radius:12px;background:#f4f8ff;padding:14px;margin:12px 0}.reference .row{gap:12px}.reference select,.reference input{width:auto;min-width:85px}.draghelp{font-size:.9rem;color:#475569;background:#f1f5fa;padding:10px;border-radius:9px;margin:10px 0}.adjust input[type=number]{width:92px;flex:none;padding:8px;font-size:1rem;text-align:right;border-radius:7px;border:1px solid #c4d1e3}.adjust input[type=range]{accent-color:#245bd6}.control select{width:100%;padding:10px;border-radius:8px;border:1px solid #c4d1e3;background:white}.auto-panel{background:#edf5ff;border:1px solid #c9defa;border-radius:12px;padding:14px}.auto-panel button{font-weight:700}.auto-result{font-size:.9rem;margin-top:8px;white-space:pre-wrap}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}#file{width:100%;max-width:420px}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ffb74d;outline-offset:2px}@media(max-width:600px){.controls{grid-template-columns:1fr}.wrap{padding:0}body{padding:8px}.box{padding:12px}.adjust input[type=number]{width:85px}}
 .adjust input[type=range]{display:block;grid-row:2;grid-column:1/-1}.adjust input[type=number]{grid-column:3/5;width:100%}.adjust button:first-child{grid-column:1}.adjust button:nth-child(2){grid-column:2;justify-self:start}.control{min-width:0}@media(min-width:760px){.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .group{border:1px solid #d8e2f1;border-radius:12px;margin:12px 0;overflow:hidden}.group>summary{cursor:pointer;list-style:auto;padding:14px;background:#eef3fb;font-weight:700;min-height:48px}.group>.controls,.group>.reference{margin:12px}.preview{position:sticky;top:0;z-index:5;background:white;border:1px solid #dde6f4;border-radius:9px;padding:5px;margin-top:12px;max-height:42vh;overflow:hidden}.preview canvas{display:block;max-height:36vh;object-fit:contain}.shift-controls{display:grid;gap:9px}.shift-controls label{display:grid;grid-template-columns:58px minmax(0,1fr) 70px;gap:7px;align-items:center}.shift-controls input[type=range]{width:100%;min-width:0}.shift-controls input[type=number]{width:70px}.fine{flex-wrap:wrap}.fine>div{display:flex;flex-wrap:wrap}.fine button[aria-pressed="true"]{background:#245bd6;color:white}@media(max-width:600px){.preview{max-height:32vh}.preview canvas{max-height:27vh}.group>.controls{margin:8px}.fine button{font-size:.85rem}}
-.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.9</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.10</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline></video><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。まず自動位置合わせを試し、ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
 <div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button id="autofit" disabled>鍵盤に自動で合わせる</button><div id="autoResult" class="auto-result" aria-live="polite">動画の読み込み後に利用できます。</div></div>
@@ -22,7 +22,7 @@
 <details class="group"><summary>音程設定：基準鍵マーカー</summary><div class="reference"><h3>📍 基準鍵マーカー</h3><p class="muted">動画に表示されている任意の白鍵をタップしてマーカーを置き、その鍵の音名とオクターブを指定してください。左右の端が途中で切れていても設定できます。</p><div class="row"><label>基準白鍵の音名 <select id="refName"><option value="0">ド (C)</option><option value="1">レ (D)</option><option value="2">ミ (E)</option><option value="3">ファ (F)</option><option value="4">ソ (G)</option><option value="5">ラ (A)</option><option value="6">シ (B)</option></select></label><label>オクターブ <select id="refOct"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label><span id="refInfo">基準鍵 C4 / MIDI 60</span></div></div>
 </details><div class="action-row"><button id="toggle" class="secondary" disabled>上部までのガイド表示：オフ</button><button id="reset" class="secondary" disabled>初期位置に戻す</button></div>
 </section>
-<section class="box"><h2>3. ノーツ候補の抽出（背景抑制・改良版）</h2><p class="muted">鍵盤ガイドの音程レーンと動画の明るさ・色差を合わせて判定します。暗い背景を除外し、淡色のノーツも明るさの差から検出します。上部ガイド表示がオフでも検出できます。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="8"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90"></label><label>判定感度 <select id="tol"><option value="30">厳密</option><option value="20" selected>標準</option><option value="12">広め</option></select></label><label>幅許容差(%) <input id="widthtol" type="number" min="5" max="70" value="35" style="width:65px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
+<section class="box"><h2>3. ノーツ候補の抽出（鍵盤幅テンプレート方式）</h2><p class="muted">白鍵・黒鍵のガイドから2種類の候補幅を自動計算し、位置・幅・左右の輪郭・時間変化で判定します。ガイド表示のオン／オフは結果に影響しません。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="8"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90" title="ガイドから計算した幅にも上限を設定"></label><label>判定感度 <select id="tol"><option value="30">厳密</option><option value="20" selected>標準</option><option value="12">広め</option></select></label><label>幅許容差(%) <input id="widthtol" type="number" min="5" max="45" value="22" style="width:65px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
 <script>
 (()=>{
 const $=id=>document.getElementById(id),v=$('v'),cv=$('cv'),ctx=cv.getContext('2d'),src=$('source'),sx=src.getContext('2d',{willReadFrequently:true});
@@ -260,84 +260,92 @@ $('autofit').onclick=async()=>{if(!ready||busy)return;busy=true;$('autofit').dis
  $('autoResult').textContent=`位置合わせ完了（推定）\n白鍵幅 ${whiteStep.toFixed(2)}px / 横位置 ${anchorX.toFixed(2)}px / 上端 ${keyboardY.toFixed(2)}%\n一致した解析行 ${best.agreement}行・黒鍵一致 ${best.match}/${best.expected}本。鍵盤境界を確認し、左右の一致度を均等に評価し、黒鍵5種類の中心位置も個別補正しました（画像により誤差があります）。必要ならドラッグ・スライダーで微調整してください。`;
  }catch(err){$('autoResult').textContent='自動解析中にエラーが発生しました：'+err.message}finally{busy=false;$('autofit').disabled=false}};
 function seekTo(t){return new Promise(resolve=>{if(Math.abs(v.currentTime-t)<.005){resolve();return}const done=()=>{v.removeEventListener('seeked',done);resolve()};v.addEventListener('seeked',done);v.currentTime=t})}
-// Per-lane adaptive detection. Note colour is unrestricted: use local luminance/colour
-// difference against the predominantly dark background, plus vertical and horizontal shape.
+// Guided two-width note detection: match each row against the actual white/black
+// lane geometry, rather than extracting large connected dark regions.
 async function componentsAt(t,W,H,yEnd,minH,maxW){
- await seekTo(t); sx.drawImage(v,0,0,W,H);
+ await seekTo(t);sx.drawImage(v,0,0,W,H);
  const data=sx.getImageData(0,0,W,yEnd).data;
- const sensitivity=Number($('tol').value),allowed=clamp(+$('widthtol').value,5,70)/100;
+ const sensitivity=Number($('tol').value),allowed=clamp(+$('widthtol').value,5,45)/100;
  const out=[];
- const pixel=(x,y)=>{x=Math.round(clamp(x,0,W-1));y=Math.round(clamp(y,0,yEnd-1));const i=(y*W+x)*4;return [data[i],data[i+1],data[i+2]]};
- const lum=p=>.2126*p[0]+.7152*p[1]+.0722*p[2];
- const diff=(a,b)=>Math.max(Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]),Math.abs(a[2]-b[2]));
+ const rgb=(x,y)=>{x=Math.round(clamp(x,0,W-1));y=Math.round(clamp(y,0,yEnd-1));const i=(y*W+x)*4;return [data[i],data[i+1],data[i+2]]};
+ const luma=p=>.2126*p[0]+.7152*p[1]+.0722*p[2];
  const median=a=>{if(!a.length)return 0;a.sort((x,y)=>x-y);return a[Math.floor(a.length/2)]};
+ const rowAverage=(a,b,y)=>{let v=[0,0,0],n=0;for(let x=Math.round(a);x<=Math.round(b);x+=Math.max(1,Math.floor((b-a)/4))){const p=rgb(x,y);for(let k=0;k<3;k++)v[k]+=p[k];n++}return v.map(q=>q/Math.max(1,n))};
+ const dist=(a,b)=>Math.sqrt(((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)/3);
  for(const lane of lanes){
   const x=lane.x,w=lane.w;
-  if(x<2||x>=W-2||w<3||w>maxW*(1+allowed))continue;
-  // Estimate darkness directly inside this lane; prevent flat black background from
-  // qualifying simply because the next column has a slightly different RGB tint.
-  let background=[];
-  for(let y=4;y<yEnd-4;y+=Math.max(3,Math.round(yEnd/100))){
-   background.push(lum(pixel(x,y)));
-  }
-  background.sort((a,b)=>a-b);
-  const baseline=background[Math.floor(background.length*.25)]||0;
-  const requiredRise=Math.max(15,sensitivity*.78);
-  let candidates=new Uint8Array(yEnd),lefts=new Float32Array(yEnd),rights=new Float32Array(yEnd);
+  if(x<3||x>=W-3||w<3)continue;
+  // Two calibrated width classes, inherited exclusively from the fitted keyboard.
+  // A note's painted body is often a little narrower than its keyboard guide lane.
+  const target=Math.min(maxW,lane.type==='white'?w*.86:w*.94);
+  if(target<3)continue;
+  const minWidth=Math.max(3,target*(1-allowed)),maxWidth=Math.min(maxW,target*(1+allowed));
+  const centerTolerance=Math.max(2,Math.min(w*.22,5));
+  const sampleStep=Math.max(2,Math.round(yEnd/110));
+  let samples=[];
+  for(let y=3;y<yEnd-3;y+=sampleStep)samples.push(luma(rgb(x,y)));
+  const baseline=median(samples.filter(n=>Number.isFinite(n)).sort((a,b)=>a-b).slice(0,Math.max(3,Math.ceil(samples.length*.48))));
+  const rowOK=new Uint8Array(yEnd),lefts=new Float32Array(yEnd),rights=new Float32Array(yEnd),strengths=new Float32Array(yEnd);
+  // Scan candidate offsets and two small width variations. The 2 widths are always
+  // tied to keyboard geometry, never fitted freely to random background blobs.
   for(let y=2;y<yEnd-2;y++){
-   // Find the bright interior in a small horizontal neighborhood. This tolerates
-   // slightly imperfect guide alignment and anti-aliased pale note edges.
-   let bestX=x,bestL=-1,bestP=null;
-   for(let dx=-Math.min(3,w*.18);dx<=Math.min(3,w*.18);dx+=Math.max(1,w*.08)){
-    const xx=x+dx,p=pixel(xx,y),L=lum(p);
-    if(L>bestL){bestL=L;bestP=p;bestX=xx}
+   let best=null;
+   const widths=[target*(1-allowed*.7),target,target*(1+allowed*.7)];
+   for(const tw of widths){
+    if(tw<minWidth||tw>maxWidth)continue;
+    for(let dx=-centerTolerance;dx<=centerTolerance+.01;dx+=Math.max(1,centerTolerance/2)){
+     const cx=x+dx,half=tw/2;
+     if(cx-half-4<0||cx+half+4>=W)continue;
+     const center=rowAverage(cx-half*.65,cx+half*.65,y);
+     const innerL=rowAverage(cx-half*.90,cx-half*.40,y),innerR=rowAverage(cx+half*.40,cx+half*.90,y);
+     const margin=Math.max(2,tw*.17);
+     const outerL=rowAverage(cx-half-margin*2,cx-half-margin,y);
+     const outerR=rowAverage(cx+half+margin,cx+half+margin*2,y);
+     const edgeL=dist(innerL,outerL),edgeR=dist(innerR,outerR);
+     const bright=luma(center)-baseline;
+     const exterior=luma(center)-Math.max(luma(outerL),luma(outerR));
+     // Reject flat dark background: two genuine side edges, or one strong edge
+     // plus substantial brightness above the lane's dark baseline.
+     const pair=Math.min(edgeL,edgeR),side=Math.max(edgeL,edgeR);
+     const required=Math.max(8,sensitivity*.52);
+     if(bright<Math.max(11,sensitivity*.62))continue;
+     if(!(pair>required*.77 || (side>required*1.85&&exterior>required*.8)))continue;
+     const contrast=(edgeL+edgeR)*.56+Math.max(0,exterior)*.28+Math.max(0,bright)*.11;
+     const score=contrast-Math.abs(dx)*.65-Math.abs(tw-target)*.45;
+     if(!best||score>best.score)best={score,l:cx-half,r:cx+half,contrast};
+    }
    }
-   if(bestL<Math.max(35,baseline+requiredRise))continue;
-   const leftBg=pixel(x-w*.78,y),rightBg=pixel(x+w*.78,y);
-   const localEdge=Math.max(diff(bestP,leftBg),diff(bestP,rightBg));
-   // Adjacent colored notes are permitted; only one clean side is needed.
-   if(localEdge<Math.max(10,sensitivity*.65) && bestL<baseline+requiredRise*1.8)continue;
-   // Grow over a row using the pixel's similarity to its own bright interior.
-   let lx=bestX,rx=bestX;
-   const simThreshold=Math.max(14,sensitivity*1.12);
-   while(lx>Math.max(1,x-w*(1+allowed)*.55) && diff(pixel(lx-1,y),bestP)<=simThreshold && lum(pixel(lx-1,y))>=baseline+requiredRise*.55)lx--;
-   while(rx<Math.min(W-2,x+w*(1+allowed)*.55) && diff(pixel(rx+1,y),bestP)<=simThreshold && lum(pixel(rx+1,y))>=baseline+requiredRise*.55)rx++;
-   const width=rx-lx+1;
-   // Allow partial anti-aliased boundaries, but reject giant uniform areas.
-   if(width<w*(1-allowed)*.62||width>w*(1+allowed))continue;
-   if(Math.abs((lx+rx)/2-x)>Math.max(3,w*.25))continue;
-   // Uniformly dark or low-contrast strips are background, not note bars.
-   const inside=lum(pixel((lx+rx)/2,y));
-   if(inside<baseline+requiredRise*.85)continue;
-   candidates[y]=1;lefts[y]=lx;rights[y]=rx;
+   if(!best)continue;
+   rowOK[y]=1;lefts[y]=best.l;rights[y]=best.r;strengths[y]=best.contrast;
   }
   let start=-1,gap=0;
   const emit=end=>{
-   if(start<0)return;
-   const h=end-start;if(h<minH)return;
-   const xs=[],xe=[];let count=0;
-   for(let y=start;y<end;y++)if(candidates[y]){xs.push(lefts[y]);xe.push(rights[y]);count++}
-   if(count/h<.63||count<Math.max(4,minH*.65))return;
-   const lx=median(xs),rx=median(xe),width=rx-lx+1;
-   if(width<Math.max(3,w*(1-allowed)*.6)||width>w*(1+allowed)||h/width<.55)return;
-   let stable=0;for(let y=start;y<end;y++)if(candidates[y]&&Math.abs(lefts[y]-lx)<w*.28&&Math.abs(rights[y]-rx)<w*.28)stable++;
-   if(stable/count<.65)return;
-   // Require the object to be visibly different from the dark lane baseline.
-   if(lum(pixel(x,Math.round((start+end)*.5)))<baseline+requiredRise*.8)return;
-   out.push({x:lx,y:start,w:width,h,pitchX:x,pitch:lane.pitch,laneType:lane.type});
+   if(start<0)return;const h=end-start;if(h<minH)return;
+   const xs=[],xe=[],ss=[];
+   for(let y=start;y<end;y++)if(rowOK[y]){xs.push(lefts[y]);xe.push(rights[y]);ss.push(strengths[y])}
+   if(xs.length/h<.65||xs.length<Math.max(4,minH*.7))return;
+   const lx=median(xs),rx=median(xe),width=rx-lx;
+   if(width<minWidth-.5||width>maxWidth+.5)return;
+   if(Math.abs((lx+rx)/2-x)>centerTolerance+1)return;
+   let stable=0;for(let y=start;y<end;y++)if(rowOK[y]&&Math.abs(lefts[y]-lx)<Math.max(2,w*.16)&&Math.abs(rights[y]-rx)<Math.max(2,w*.16))stable++;
+   if(stable/xs.length<.72)return;
+   if(median(ss)<Math.max(11,sensitivity*.78))return;
+   // Luminous FX often have varying edges and interrupted rows; solid bars do not.
+   if(h/Math.max(1,width)<.54)return;
+   out.push({x:lx,y:start,w:width,h,pitchX:x,pitch:lane.pitch,laneType:lane.type,score:median(ss)});
   };
   for(let y=2;y<yEnd;y++){
-   if(candidates[y]){if(start<0)start=y;gap=0}
-   else if(start>=0){gap++;if(gap>3){emit(y-gap+1);start=-1;gap=0}}
+   if(rowOK[y]){if(start<0)start=y;gap=0}
+   else if(start>=0){gap++;if(gap>2){emit(y-gap+1);start=-1;gap=0}}
   }
   if(start>=0)emit(yEnd);
  }
- // When white and black guides overlap, choose the closest width/centre match.
- out.sort((a,b)=>b.h*b.w-a.h*a.w);
+ // Conflicts between overlapping white and black guides: keep the strongest edge match.
+ out.sort((a,b)=>b.score-a.score);
  const kept=[];
- for(const b of out){if(!kept.some(o=>Math.abs((o.x+o.w/2)-(b.x+b.w/2))<Math.min(o.w,b.w)*.4&&Math.max(o.y,b.y)<Math.min(o.y+o.h,b.y+b.h)-Math.min(o.h,b.h)*.45))kept.push(b)}
+ for(const b of out){if(!kept.some(o=>Math.abs((o.x+o.w/2)-(b.x+b.w/2))<Math.min(o.w,b.w)*.46&&Math.max(o.y,b.y)<Math.min(o.y+o.h,b.y+b.h)-Math.min(o.h,b.h)*.42))kept.push(b)}
  return kept;
 }
-$('notes').onclick=async()=>{if(!ready||busy)return;if(!lanes.length){$('noteresult').textContent='鍵盤ガイドを配置してください。';return;}busy=true;$('notes').disabled=true;$('noteresult').textContent='前後フレームを確認中…';let original=v.currentTime,W=src.width,H=src.height,yEnd=Math.round(H*keyboardY/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300),dt=.16;try{let sets=[];for(let t of [Math.max(0,original-dt),original,Math.min(v.duration,original+dt)])sets.push(await componentsAt(t,W,H,yEnd,minH,maxW));let center=sets[1],near=[...sets[0],...sets[2]];boxes=center.filter(b=>near.some(n=>{let overlap=Math.max(0,Math.min(b.x+b.w,n.x+n.w)-Math.max(b.x,n.x));return overlap/Math.max(1,Math.min(b.w,n.w))>=.55&&Math.abs(b.w-n.w)<=Math.max(5,b.w*.35)}));await seekTo(original);frame();$('noteresult').textContent=`明暗・色差と音程レーンから抽出した候補：${center.length}個\n前後フレームとの位置・幅の整合：${boxes.length}個（黄色枠）\n暗い背景の除外と淡色ノーツの抽出を強化しました。ノーツが背景とほぼ同じ色の場合や強い発光エフェクトがある場合は、誤判定が残ることがあります。`}catch(e){$('noteresult').textContent='解析中にエラーが発生しました。動画を読み込み直して再試行してください。';await seekTo(original);frame()}finally{busy=false;$('notes').disabled=false}};
+$('notes').onclick=async()=>{if(!ready||busy)return;if(!lanes.length){$('noteresult').textContent='鍵盤ガイドを配置してください。';return;}busy=true;$('notes').disabled=true;$('noteresult').textContent='前後フレームを確認中…';let original=v.currentTime,W=src.width,H=src.height,yEnd=Math.round(H*keyboardY/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300),dt=.16;try{let sets=[];for(let t of [Math.max(0,original-dt),original,Math.min(v.duration,original+dt)])sets.push(await componentsAt(t,W,H,yEnd,minH,maxW));let center=sets[1],near=[...sets[0],...sets[2]];boxes=center.filter(b=>near.some(n=>{let overlap=Math.max(0,Math.min(b.x+b.w,n.x+n.w)-Math.max(b.x,n.x));return overlap/Math.max(1,Math.min(b.w,n.w))>=.55&&Math.abs(b.w-n.w)<=Math.max(5,b.w*.35)}));await seekTo(original);frame();$('noteresult').textContent=`鍵盤ガイドから算出した白鍵・黒鍵の2種類の幅で抽出した候補：${center.length}個\n前後フレームとの位置・幅の整合：${boxes.length}個（黄色枠）\n鍵盤位置・2種類の幅・輪郭の両側コントラスト・縦方向の安定性で判定しました。ノーツが背景とほぼ同じ色の場合や強い発光エフェクトがある場合は、誤判定が残ることがあります。`}catch(e){$('noteresult').textContent='解析中にエラーが発生しました。動画を読み込み直して再試行してください。';await seekTo(original);frame()}finally{busy=false;$('notes').disabled=false}};
 })();
 </script></main></body></html>
