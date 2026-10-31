@@ -1,58 +1,113 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.1</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
-</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.1</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline></video><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
-<section class="box"><h2>2. 鍵盤領域の検出</h2><p class="muted">上下端をボタンで1%ずつ調整できます。</p><div class="row"><label>上端 <span class="stepper"><button class="secondary" id="topMinus" disabled>−</button><output id="topVal">72%</output><button class="secondary" id="topPlus" disabled>＋</button></span></label><label>下端 <span class="stepper"><button class="secondary" id="bottomMinus" disabled>−</button><output id="bottomVal">98%</output><button class="secondary" id="bottomPlus" disabled>＋</button></span></label><button id="key" disabled>鍵盤境界を検出</button><button id="clear" class="secondary" disabled>クリア</button></div><canvas id="cv" width="960" height="540"></canvas><div id="keyresult" class="status">未検出</div></section>
-<section class="box"><h2>3. ノーツ候補の抽出（改善版・試験機能）</h2><p class="muted">彩度や色相に依存せず、近いRGB色の連結領域と縦長の四角形状・前後フレームの一致を使います。淡色・白鍵・黒鍵・3色以上にも対応する試作です。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="14"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90"></label><label>色の許容差 <select id="tol"><option value="12">厳密</option><option value="24" selected>標準</option><option value="38">広め</option></select></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
+<section class="box"><h2>2. 鍵盤領域の検出</h2><p class="muted">文字入り鍵盤にも対応するため、鍵盤の中央〜下寄り（文字の上）から周期的な白鍵境界を推定します。</p><div class="row"><label>上端 <span class="stepper"><button class="secondary" id="topMinus" disabled>−</button><output id="topVal">72%</output><button class="secondary" id="topPlus" disabled>＋</button></span></label><label>下端 <span class="stepper"><button class="secondary" id="bottomMinus" disabled>−</button><output id="bottomVal">98%</output><button class="secondary" id="bottomPlus" disabled>＋</button></span></label><label>白鍵数（自動=0） <input id="keycount" type="number" min="0" max="100" value="0" style="width:65px"></label><button id="key" disabled>鍵盤境界を検出</button><button id="clear" class="secondary" disabled>クリア</button></div><canvas id="cv" width="960" height="540"></canvas><div id="keyresult" class="status">未検出</div></section>
+<section class="box"><h2>3. ノーツ候補の抽出（改善版・試験機能）</h2><p class="muted">鍵盤の音程レーンに位置が合う物体だけを調べます。色相・彩度による足切りはせず、幅・周囲との明暗差・時間方向の移動で判定します。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="14"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90"></label><label>判定感度 <select id="tol"><option value="12">厳密</option><option value="24" selected>標準</option><option value="38">広め</option></select></label><label>幅許容差(%) <input id="widthtol" type="number" min="5" max="70" value="35" style="width:65px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
 <script>
 (()=>{
 const $=id=>document.getElementById(id),v=$('v'),cv=$('cv'),ctx=cv.getContext('2d'),src=$('source'),sx=src.getContext('2d',{willReadFrequently:true});
-let url=null,ready=false,lines=[],boxes=[],busy=false;
+let url=null,ready=false,lines=[],boxes=[],busy=false,lanes=[],whiteStep=0;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a)),top=()=>+$('topVal').textContent.replace('%',''),bottom=()=>+$('bottomVal').textContent.replace('%','');
 function status(s){$('status').textContent=s}
-function frame(){if(!ready||!v.videoWidth)return;let r=Math.min(960/v.videoWidth,540/v.videoHeight),W=Math.round(v.videoWidth*r),H=Math.round(v.videoHeight*r);src.width=cv.width=W;src.height=cv.height=H;sx.drawImage(v,0,0,W,H);ctx.clearRect(0,0,W,H);ctx.drawImage(src,0,0);let y1=H*top()/100,y2=H*bottom()/100;ctx.strokeStyle='#20c879';ctx.lineWidth=2;ctx.strokeRect(0,y1,W,y2-y1);lines.forEach(x=>{ctx.strokeStyle='#ff5555';ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y2);ctx.stroke()});boxes.forEach(b=>{ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(b.x,b.y,b.w,b.h)});$('t').value=v.currentTime.toFixed(2)}
+function frame(){if(!ready||!v.videoWidth)return;let r=Math.min(960/v.videoWidth,540/v.videoHeight),W=Math.round(v.videoWidth*r),H=Math.round(v.videoHeight*r);src.width=cv.width=W;src.height=cv.height=H;sx.drawImage(v,0,0,W,H);ctx.clearRect(0,0,W,H);ctx.drawImage(src,0,0);let y1=H*top()/100,y2=H*bottom()/100;ctx.strokeStyle='#20c879';ctx.lineWidth=2;ctx.strokeRect(0,y1,W,y2-y1);lines.forEach(x=>{ctx.strokeStyle='#ff5555';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y2);ctx.stroke()});boxes.forEach(b=>{ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(b.x,b.y,b.w,b.h)});$('t').value=v.currentTime.toFixed(2)}
 function setPct(which,val){val=clamp(val,0,100);if(which==='top')val=Math.min(val,bottom()-1);else val=Math.max(val,top()+1);$(which+'Val').textContent=val+'%';frame()}
 function enable(){['prev','next','seek','key','clear','notes','topMinus','topPlus','bottomMinus','bottomPlus'].forEach(id=>$(id).disabled=false)}
-$('file').onchange=e=>{let f=e.target.files[0];if(!f)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);v.src=url;ready=false;status('動画を読み込み中…');v.onloadedmetadata=()=>{ready=true;enable();frame();status(`読み込み完了：${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)};v.onerror=()=>status('読み込み失敗。ブラウザで再生できる動画形式を選んでください。')};
+$('file').onchange=e=>{let f=e.target.files[0];if(!f)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);v.src=url;ready=false;lines=[];lanes=[];boxes=[];status('動画を読み込み中…');v.onloadedmetadata=()=>{ready=true;enable();frame();status(`読み込み完了：${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)};v.onerror=()=>status('読み込み失敗。ブラウザで再生できる動画形式を選んでください。')};
 v.onseeked=frame;v.ontimeupdate=()=>{if(v.paused)frame()};$('prev').onclick=()=>v.currentTime=Math.max(0,v.currentTime-1/30);$('next').onclick=()=>v.currentTime=Math.min(v.duration,v.currentTime+1/30);$('seek').onclick=()=>v.currentTime=clamp(+$('t').value,0,v.duration);
 $('topMinus').onclick=()=>setPct('top',top()-1);$('topPlus').onclick=()=>setPct('top',top()+1);$('bottomMinus').onclick=()=>setPct('bottom',bottom()-1);$('bottomPlus').onclick=()=>setPct('bottom',bottom()+1);
-$('key').onclick=()=>{if(!ready)return;const W=src.width,H=src.height,y1=Math.round(H*top()/100),y2=Math.round(H*bottom()/100),im=sx.getImageData(0,y1,W,Math.max(1,y2-y1)).data;let scores=new Float32Array(W);for(let x=1;x<W;x++){let sum=0,n=0,step=Math.max(1,Math.floor((y2-y1)/80));for(let y=0;y<y2-y1;y+=step){let a=(y*W+x)*4,b=(y*W+x-1)*4;sum+=Math.abs(im[a]-im[b])+Math.abs(im[a+1]-im[b+1])+Math.abs(im[a+2]-im[b+2]);n++}scores[x]=sum/Math.max(1,n)}let avg=0;for(let x=1;x<W;x++)avg+=scores[x];avg/=Math.max(1,W-1);let threshold=Math.max(18,avg*1.5),found=[],last=-99;for(let x=2;x<W-2;x++)if(scores[x]>threshold&&scores[x]>=scores[x-1]&&scores[x]>=scores[x+1]&&x-last>5){found.push(x);last=x}lines=found;boxes=[];frame();$('keyresult').textContent=`境界候補：${lines.length}本\n区間候補：約${Math.max(0,lines.length-1)}個\n※再検出時は前回結果を置き換えます。`};
-$('clear').onclick=()=>{lines=[];boxes=[];frame();$('keyresult').textContent='検出結果をクリアしました。';$('noteresult').textContent='検出結果をクリアしました。'};
+// Detect white-key grid using multiple horizontal strips above printed labels.
+function keyGrid(){
+ const W=src.width,H=src.height,y1=Math.round(H*top()/100),y2=Math.round(H*bottom()/100),kh=y2-y1;
+ if(kh<20)throw Error('鍵盤領域が狭すぎます');
+ // At 72–86% of keyboard height black keys have usually ended, labels have not yet started.
+ const ys=[.67,.71,.75,.79,.83].map(t=>Math.min(H-1,Math.max(0,Math.round(y1+kh*t))));
+ const d=sx.getImageData(0,0,W,H).data,edge=new Float32Array(W);
+ for(let x=2;x<W-2;x++){
+  for(const y of ys){let p=(y*W+x)*4,q=(y*W+x-2)*4,r=(y*W+x+2)*4;
+   let left=(d[q]+d[q+1]+d[q+2])/3,right=(d[r]+d[r+1]+d[r+2])/3;
+   edge[x]+=Math.abs(right-left);
+  }
+ }
+ // Strong thin white-key boundaries repeat with an almost constant period.
+ // Optimize pitch+phase by edge strength, with spacing consistency; no text-region pixels used.
+ let forced=clamp(+$('keycount').value,0,100),lo=forced?W/(forced+1):Math.max(8,W/95),hi=forced?W/Math.max(2,forced-1):Math.min(65,W/18),best={score:-Infinity};
+ for(let step=lo;step<=hi;step+=.25){
+  let N=W/step;if(N<12||N>105)continue;
+  for(let phase=0;phase<step;phase+=Math.max(.5,step/22)){
+   let score=0,count=0;
+   for(let x=phase;x<W;x+=step){let xx=Math.round(x);if(xx<=2||xx>=W-3)continue;
+    let local=Math.max(edge[xx-1],edge[xx],edge[xx+1]);score+=local;count++;
+   }
+   if(!count)continue;
+   // Encourage physically plausible keyboard lengths without hardcoding 52 keys.
+   score/=count; if(forced)score-=Math.abs(N-forced)*2;
+   if(score>best.score)best={score,step,phase};
+  }
+ }
+ if(!Number.isFinite(best.step))throw Error('鍵盤の周期を検出できません');
+ whiteStep=best.step;lines=[];
+ for(let x=best.phase;x<W;x+=best.step)if(x>0&&x<W)lines.push(x);
+ // White lane centers and black-key centers extracted from top half of keyboard.
+ lanes=[];
+ const gray=(x,y)=>{x=clamp(Math.round(x),0,W-1);y=clamp(Math.round(y),0,H-1);let k=(y*W+x)*4;return (d[k]+d[k+1]+d[k+2])/3};
+ for(let i=0;i<lines.length-1;i++){
+  const x=(lines[i]+lines[i+1])/2;lanes.push({x,w:whiteStep*.78,type:'white'});
+ }
+ // For each white-key division look for a dark black key across multiple rows near keyboard top.
+ for(const x of lines){
+  let dark=0,light=0;
+  for(const yfrac of [.12,.22,.32,.42]){
+   let y=y1+kh*yfrac,at=gray(x,y),l=gray(x-whiteStep*.34,y),r=gray(x+whiteStep*.34,y);
+   dark+=at;light+=(l+r)/2;
+  }
+  if(light-dark>85)lanes.push({x,w:whiteStep*.58,type:'black'});
+ }
+ return {step:best.step,lanes:lanes.length};
+}
+$('key').onclick=()=>{if(!ready)return;try{let g=keyGrid();boxes=[];frame();$('keyresult').textContent=`推定白鍵間隔：${g.step.toFixed(1)}px\n白鍵境界：${lines.length}本 / 検出レーン：${g.lanes}個\n赤線は白鍵境界です。文字領域は解析に使用していません。\n※誤認識の場合は「白鍵数」を入力して再検出してください。`;}catch(e){$('keyresult').textContent=e.message}};
+$('clear').onclick=()=>{lines=[];lanes=[];whiteStep=0;boxes=[];frame();$('keyresult').textContent='検出結果をクリアしました。';$('noteresult').textContent='検出結果をクリアしました。'};
 function seekTo(t){return new Promise(resolve=>{if(Math.abs(v.currentTime-t)<.005){resolve();return}const done=()=>{v.removeEventListener('seeked',done);resolve()};v.addEventListener('seeked',done);v.currentTime=t})}
 async function componentsAt(t,W,H,yEnd,minH,maxW){
  await seekTo(t);sx.drawImage(v,0,0,W,H);
- const step=2,gw=Math.ceil(W/step),gh=Math.ceil(yEnd/step),d=sx.getImageData(0,0,W,yEnd).data;
- const rgb=new Uint8Array(gw*gh*3),seen=new Uint8Array(gw*gh),out=[];
- for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
-   let x=Math.min(W-1,gx*step),y=Math.min(yEnd-1,gy*step),p=(y*W+x)*4,k=(gy*gw+gx)*3;
-   rgb[k]=d[p];rgb[k+1]=d[p+1];rgb[k+2]=d[p+2];
- }
- const tolerance=Number($('tol').value),dirs=[-1,1,-gw,gw];
- for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
-  let root=gy*gw+gx;if(seen[root])continue;
-  let stack=[root],pixels=[],minx=gx,maxx=gx,miny=gy,maxy=gy;seen[root]=1;
-  // Anchor to seed color to avoid chained color drift across gradients.
-  let rk=root*3,rr=rgb[rk],rg=rgb[rk+1],rb=rgb[rk+2];
-  while(stack.length){let i=stack.pop(),x=i%gw,y=Math.floor(i/gw);pixels.push(i);
-   minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y);
-   for(let j=0;j<4;j++){let nx=x+(j===0?-1:j===1?1:0),ny=y+(j===2?-1:j===3?1:0);
-    if(nx<0||ny<0||nx>=gw||ny>=gh)continue;
-    let ni=ny*gw+nx;if(seen[ni])continue;let k=ni*3;
-    if(Math.max(Math.abs(rgb[k]-rr),Math.abs(rgb[k+1]-rg),Math.abs(rgb[k+2]-rb))>tolerance)continue;
-    seen[ni]=1;stack.push(ni);
-   }
+ const d=sx.getImageData(0,0,W,yEnd).data,threshold=Number($('tol').value),allowed=clamp(+$('widthtol').value,5,70)/100;
+ const color=(x,y)=>{x=Math.round(clamp(x,0,W-1));y=Math.round(clamp(y,0,yEnd-1));let k=(y*W+x)*4;return [d[k],d[k+1],d[k+2]]};
+ const dist=(a,b)=>Math.max(Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]),Math.abs(a[2]-b[2]));
+ const out=[];
+ for(const lane of lanes){
+  const x=lane.x,expected=lane.w;
+  if(expected<3||expected>maxW*(1+allowed))continue;
+  let mask=new Uint8Array(yEnd),lefts=new Float32Array(yEnd),rights=new Float32Array(yEnd);
+  // Contrast with neighboring regions at each row; dark stationary backgrounds usually do not form narrow blocks.
+  for(let y=2;y<yEnd-2;y+=2){
+   const center=color(x,y),ll=color(x-expected*.7,y),rr=color(x+expected*.7,y);
+   const cDiff=Math.min(dist(center,ll),dist(center,rr));
+   if(cDiff<threshold)continue;
+   // Check horizontal width by identifying candidate's two edges relative to its centre.
+   let lx=x,rx=x;
+   while(lx>x-expected*(1+allowed)/2-3 && lx>1 && dist(color(lx-1,y),center)<threshold*.9)lx--;
+   while(rx<x+expected*(1+allowed)/2+3 && rx<W-2 && dist(color(rx+1,y),center)<threshold*.9)rx++;
+   const width=rx-lx+1;
+   if(width<expected*(1-allowed)||width>expected*(1+allowed))continue;
+   mask[y]=1;mask[y+1]=1;lefts[y]=lx;rights[y]=rx;
   }
-  let bw=(maxx-minx+1)*step,bh=(maxy-miny+1)*step,fill=pixels.length/((maxx-minx+1)*(maxy-miny+1));
-  if(bh<minH||bw<4||bw>maxW||bh/bw<1.12||fill<.56||pixels.length<8||bh>yEnd*.88)continue;
-  // The main body must be substantially filled; rounded corners are allowed.
-  let inner=0,innerTotal=0,occupied=new Set(pixels);
-  for(let yy=miny+1;yy<maxy;yy++)for(let xx=minx+1;xx<maxx;xx++){innerTotal++;if(occupied.has(yy*gw+xx))inner++}
-  if(innerTotal>0&&inner/innerTotal<.58)continue;
-  out.push({x:minx*step,y:miny*step,w:bw,h:bh});
+  let start=-1,gap=0;
+  function emit(end){if(start<0)return;let ys=[],L=[],R=[];for(let yy=start;yy<end;yy++)if(mask[yy]){ys.push(yy);L.push(lefts[yy]||lefts[yy-1]);R.push(rights[yy]||rights[yy-1])};
+   let hh=end-start;if(hh<minH||ys.length<hh*.55||L.length<4)return;
+   L.sort((a,b)=>a-b);R.sort((a,b)=>a-b);let lx=L[Math.floor(L.length/2)],rx=R[Math.floor(R.length/2)],width=rx-lx+1;
+   if(width<expected*(1-allowed)||width>expected*(1+allowed)||hh/width<.7)return;
+   // reject regions with unstable horizontal edges (textures/background waves).
+   let stable=0;for(let j=0;j<L.length;j++)if(Math.abs(L[j]-lx)<expected*.3&&Math.abs(R[j]-rx)<expected*.3)stable++;
+   if(stable/L.length<.65)return;
+   out.push({x:lx,y:start,w:width,h:hh,pitchX:x});
+  }
+  for(let y=2;y<yEnd;y+=2){if(mask[y]){if(start<0)start=y;gap=0}else if(start>=0){gap+=2;if(gap>4){emit(y-gap+2);start=-1;gap=0}}}
+  if(start>=0)emit(yEnd);
  }
- return out;
+ // Remove duplicate proposals from overlapping white / black lanes.
+ return out.filter((b,i)=>!out.some((o,j)=>j<i&&Math.abs(o.x+o.w/2-b.x-b.w/2)<Math.min(o.w,b.w)*.35&&Math.abs(o.y-b.y)<8));
 }
-$('notes').onclick=async()=>{if(!ready||busy)return;busy=true;$('notes').disabled=true;$('noteresult').textContent='前後フレームを確認中…';let original=v.currentTime,W=src.width,H=src.height,yEnd=Math.round(H*top()/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300),dt=.08;try{let sets=[];for(let t of [Math.max(0,original-dt),original,Math.min(v.duration,original+dt)])sets.push(await componentsAt(t,W,H,yEnd,minH,maxW));let center=sets[1],near=[...sets[0],...sets[2]];boxes=center.filter(b=>near.some(n=>{let overlap=Math.max(0,Math.min(b.x+b.w,n.x+n.w)-Math.max(b.x,n.x));return overlap/Math.max(1,Math.min(b.w,n.w))>=.55&&Math.abs(b.w-n.w)<=Math.max(8,b.w*.65)}));await seekTo(original);frame();$('noteresult').textContent=`色に依存しない形状候補：${center.length}個\n前後フレームでも横位置・幅が一致：${boxes.length}個（黄色枠）\n一時的な光や粒子状エフェクトを減らしますが、持続する背景模様は残る可能性があります。`}catch(e){$('noteresult').textContent='解析中にエラーが発生しました。動画を読み込み直して再試行してください。';await seekTo(original);frame()}finally{busy=false;$('notes').disabled=false}};
+$('notes').onclick=async()=>{if(!ready||busy)return;if(!lanes.length){$('noteresult').textContent='先に「鍵盤境界を検出」を実行してください。';return;}busy=true;$('notes').disabled=true;$('noteresult').textContent='前後フレームを確認中…';let original=v.currentTime,W=src.width,H=src.height,yEnd=Math.round(H*top()/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300),dt=.08;try{let sets=[];for(let t of [Math.max(0,original-dt),original,Math.min(v.duration,original+dt)])sets.push(await componentsAt(t,W,H,yEnd,minH,maxW));let center=sets[1],near=[...sets[0],...sets[2]];boxes=center.filter(b=>near.some(n=>{let overlap=Math.max(0,Math.min(b.x+b.w,n.x+n.w)-Math.max(b.x,n.x));return overlap/Math.max(1,Math.min(b.w,n.w))>=.55&&Math.abs(b.w-n.w)<=Math.max(5,b.w*.35)}));await seekTo(original);frame();$('noteresult').textContent=`音程レーン上の形状候補：${center.length}個\n前後フレームでも横位置・幅が一致：${boxes.length}個（黄色枠）\n鍵盤幅・中心位置・周囲とのコントラストで背景を抑制します。静止背景や淡色ノーツは動画によって誤判定する場合があります。`}catch(e){$('noteresult').textContent='解析中にエラーが発生しました。動画を読み込み直して再試行してください。';await seekTo(original);frame()}finally{busy=false;$('notes').disabled=false}};
 })();
 </script></main></body></html>
