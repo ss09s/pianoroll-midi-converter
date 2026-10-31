@@ -1,22 +1,32 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.3</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.4</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
-</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.3</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px;margin:14px 0}.control{border:1px solid #dfe7f2;background:#f9fbff;border-radius:12px;padding:13px;min-width:0}.control h3{margin:0 0 6px;font-size:1rem}.control p{margin:0 0 8px;font-size:.8rem;color:#647086}.adjust{display:flex;gap:5px;align-items:center}.adjust button{min-width:38px;margin:0}.adjust input[type=number]{width:92px;flex:none;padding:8px;font-size:1rem;text-align:right;border-radius:7px;border:1px solid #c4d1e3}.adjust input[type=range]{width:100%;min-width:25px;accent-color:#245bd6;touch-action:pan-y}.control select{width:100%;padding:10px;border-radius:8px;border:1px solid #c4d1e3;background:white}.auto-panel{background:#edf5ff;border:1px solid #c9defa;border-radius:12px;padding:14px}.auto-panel button{font-weight:700}.auto-result{font-size:.9rem;margin-top:8px;white-space:pre-wrap}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}#file{width:100%;max-width:420px}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ffb74d;outline-offset:2px}@media(max-width:600px){.controls{grid-template-columns:1fr}.wrap{padding:0}body{padding:8px}.box{padding:12px}.adjust input[type=number]{width:85px}}
+</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.4</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline></video><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
-<section class="box"><h2>2. 鍵盤ガイドの手動調整</h2><p class="muted">自動認識を廃止しました。白鍵・黒鍵の規則的なガイドを、動画の鍵盤に重ねてください。<strong>横位置・白鍵幅・鍵盤の上下位置・高さ</strong>を調整できます。赤線は白鍵の境界、青枠は黒鍵の範囲です。</p>
-<div class="row"><label>横移動(px) <span class="stepper"><button class="secondary" id="xMinus" disabled>−</button><output id="xVal">0</output><button class="secondary" id="xPlus" disabled>＋</button></span></label><label>白鍵幅(px) <span class="stepper"><button class="secondary" id="wMinus" disabled>−</button><output id="wVal">24</output><button class="secondary" id="wPlus" disabled>＋</button></span></label><label>開始音 <select id="phase"><option value="0">ド (C)</option><option value="1">レ (D)</option><option value="2">ミ (E)</option><option value="3">ファ (F)</option><option value="4">ソ (G)</option><option value="5">ラ (A)</option><option value="6">シ (B)</option></select></label></div>
-<div class="row"><label>縦移動 <span class="stepper"><button class="secondary" id="yMinus" disabled>↑</button><output id="yVal">0%</output><button class="secondary" id="yPlus" disabled>↓</button></span></label><label>鍵盤の高さ <span class="stepper"><button class="secondary" id="hMinus" disabled>−</button><output id="hVal">27%</output><button class="secondary" id="hPlus" disabled>＋</button></span></label><label>黒鍵の長さ(鍵盤高の%) <input id="blackHeight" type="number" min="25" max="85" value="65" style="width:65px"></label><label>黒鍵の幅(白鍵幅の%) <input id="blackWidth" type="number" min="30" max="90" value="58" style="width:65px"></label></div>
-<div class="row"><button id="init" disabled>ガイドを配置</button><button id="toggle" class="secondary" disabled>上部への延長：オフ</button><button id="reset" class="secondary" disabled>ガイドを初期位置に戻す</button></div>
+<section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。まず自動位置合わせを試し、ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。</p>
+<div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button id="autofit" disabled>鍵盤に自動で合わせる</button><div id="autoResult" class="auto-result" aria-live="polite">動画の読み込み後に利用できます。</div></div>
+<div class="controls">
+<div class="control"><h3>↔ 横位置</h3><p>鍵盤ガイド全体を左右へ移動（px）</p><div class="adjust"><button class="secondary" data-step="anchorX:-.05" disabled>−</button><input id="anchorXSlider" type="range" min="-80" max="100" step="0.01"><button class="secondary" data-step="anchorX:.05" disabled>＋</button><input id="anchorXNumber" type="number" step="0.01" aria-label="横位置 px"></div></div>
+<div class="control"><h3>↔ 白鍵1本の幅</h3><p>白鍵と黒鍵の横方向の間隔（px）</p><div class="adjust"><button class="secondary" data-step="whiteStep:-.05" disabled>−</button><input id="whiteStepSlider" type="range" min="4" max="80" step="0.01"><button class="secondary" data-step="whiteStep:.05" disabled>＋</button><input id="whiteStepNumber" type="number" min="4" max="100" step="0.01" aria-label="白鍵幅 px"></div></div>
+<div class="control"><h3>↕ 鍵盤の上端</h3><p>鍵盤が始まる高さ（画面上からの％）</p><div class="adjust"><button class="secondary" data-step="keyboardY:-.1" disabled>−</button><input id="keyboardYSlider" type="range" min="0" max="97" step="0.01"><button class="secondary" data-step="keyboardY:.1" disabled>＋</button><input id="keyboardYNumber" type="number" min="0" max="97" step="0.01" aria-label="上端 %"></div></div>
+<div class="control"><h3>↕ 鍵盤の高さ</h3><p>ガイド下端の位置を調整（％）</p><div class="adjust"><button class="secondary" data-step="keyboardHeight:-.1" disabled>−</button><input id="keyboardHeightSlider" type="range" min="3" max="100" step="0.01"><button class="secondary" data-step="keyboardHeight:.1" disabled>＋</button><input id="keyboardHeightNumber" type="number" min="3" max="100" step="0.01" aria-label="鍵盤の高さ %"></div></div>
+<div class="control"><h3>♯ 黒鍵の幅</h3><p>白鍵幅に対する比率（％）</p><div class="adjust"><button class="secondary" data-step="blackWidth:-.1" disabled>−</button><input id="blackWidthSlider" type="range" min="30" max="90" step="0.1"><button class="secondary" data-step="blackWidth:.1" disabled>＋</button><input id="blackWidthNumber" type="number" min="30" max="90" step="0.1" aria-label="黒鍵幅 %"></div></div>
+<div class="control"><h3>♯ 黒鍵の長さ</h3><p>鍵盤の高さに対する比率（％）</p><div class="adjust"><button class="secondary" data-step="blackHeight:-.1" disabled>−</button><input id="blackHeightSlider" type="range" min="25" max="85" step="0.1"><button class="secondary" data-step="blackHeight:.1" disabled>＋</button><input id="blackHeightNumber" type="number" min="25" max="85" step="0.1" aria-label="黒鍵の長さ %"></div></div>
+<div class="control"><h3>🎹 左端の白鍵の音名</h3><p>黒鍵の並び方が合わない場合に変更</p><select id="phase"><option value="0">ド (C)</option><option value="1">レ (D)</option><option value="2">ミ (E)</option><option value="3">ファ (F)</option><option value="4">ソ (G)</option><option value="5">ラ (A)</option><option value="6">シ (B)</option></select></div>
+</div>
+<div class="action-row"><button id="toggle" class="secondary" disabled>上部までのガイド表示：オフ</button><button id="reset" class="secondary" disabled>初期位置に戻す</button></div>
 <canvas id="cv" width="960" height="540"></canvas><div id="keyresult" class="status">動画を読み込むとガイドが表示されます。</div></section>
-<section class="box"><h2>3. ノーツ候補の抽出（改善版・試験機能）</h2><p class="muted">手動で合わせた白鍵・黒鍵のガイドを画面上部まで内部的に延長し、その音程レーンを使って検出します。ガイド延長の表示がオフでも検出には反映されます。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="14"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90"></label><label>判定感度 <select id="tol"><option value="12">厳密</option><option value="24" selected>標準</option><option value="38">広め</option></select></label><label>幅許容差(%) <input id="widthtol" type="number" min="5" max="70" value="35" style="width:65px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
+<section class="box"><h2>3. ノーツ候補の抽出（改善版・試験機能）</h2><p class="muted">自動または手動で合わせた白鍵・黒鍵のガイドを画面上部まで内部的に延長し、その音程レーンを使って検出します。ガイド延長の表示がオフでも検出には反映されます。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="14"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90"></label><label>判定感度 <select id="tol"><option value="12">厳密</option><option value="24" selected>標準</option><option value="38">広め</option></select></label><label>幅許容差(%) <input id="widthtol" type="number" min="5" max="70" value="35" style="width:65px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
 <script>
 (()=>{
 const $=id=>document.getElementById(id),v=$('v'),cv=$('cv'),ctx=cv.getContext('2d'),src=$('source'),sx=src.getContext('2d',{willReadFrequently:true});
 let url=null,ready=false,lines=[],blackKeys=[],boxes=[],busy=false,lanes=[],whiteStep=24;
-let anchorX=0,keyboardY=73,keyboardHeight=27,showExtended=false,manualReady=false;
+let anchorX=0,keyboardY=73,keyboardHeight=27,showExtended=false,manualReady=false;let blackWidthPct=58,blackHeightPct=65;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a));
 function status(s){$('status').textContent=s}
-function updateLabels(){ $('xVal').textContent=anchorX.toFixed(1);$('wVal').textContent=whiteStep.toFixed(1);$('yVal').textContent=keyboardY+'%';$('hVal').textContent=keyboardHeight+'%';$('toggle').textContent='上部への延長：'+(showExtended?'オン':'オフ'); }
+function updateLabels(){let vals={anchorX,whiteStep,keyboardY,keyboardHeight,blackWidth:blackWidthPct,blackHeight:blackHeightPct};for(const [key,value] of Object.entries(vals)){const slider=$(key+'Slider'),num=$(key+'Number');if(slider){slider.value=String(value);num.value=value.toFixed(2)}}$('toggle').textContent='上部までのガイド表示：'+(showExtended?'オン':'オフ');}
 // For a leftmost white key of chosen pitch, only C, D, F, G, A have black keys to their right.
 // Black key centers are near the boundary to the next white key; actual key dimensions vary by instrument.
 const hasSharp=[true,true,false,true,true,true,false];
@@ -25,8 +35,8 @@ function computeGuides(){
  const W=src.width,H=src.height,y1=H*keyboardY/100,y2=H*Math.min(100,keyboardY+keyboardHeight)/100;
  lines=[];blackKeys=[];lanes=[];
  let pitch=Number($('phase').value)||0;
- let kw=whiteStep, bw=kw*clamp(Number($('blackWidth').value),30,90)/100;
- let bh=(y2-y1)*clamp(Number($('blackHeight').value),25,85)/100;
+ let kw=whiteStep, bw=kw*blackWidthPct/100;
+ let bh=(y2-y1)*blackHeightPct/100;
  // Anchor marks the LEFT edge of a white key of selected pitch. Indices can be negative.
  const first=Math.floor((0-anchorX)/kw)-2,last=Math.ceil((W-anchorX)/kw)+2;
  for(let i=first;i<=last;i++){
@@ -40,7 +50,7 @@ function computeGuides(){
   }
  }
  manualReady=true;updateLabels();
- $('keyresult').textContent=`手動ガイド：白鍵幅 ${kw.toFixed(1)}px / 横オフセット ${anchorX.toFixed(1)}px\n白鍵レーン ${lanes.filter(l=>l.type==='white').length}個・黒鍵レーン ${lanes.filter(l=>l.type==='black').length}個\n赤線＝白鍵境界、青枠＝黒鍵。どちらも動画に重なるまで調整してください。\n延長表示：${showExtended?'オン':'オフ'}（ノーツ検出では常に全レーンを使用）`;
+ $('keyresult').textContent=`鍵盤ガイド：白鍵幅 ${kw.toFixed(2)}px / 横位置 ${anchorX.toFixed(2)}px\n白鍵レーン ${lanes.filter(l=>l.type==='white').length}個・黒鍵レーン ${lanes.filter(l=>l.type==='black').length}個\n赤線＝白鍵境界、青枠＝黒鍵。どちらも動画に重なるまで調整してください。\n延長表示：${showExtended?'オン':'オフ'}（ノーツ検出では常に全レーンを使用）`;
 }
 function frame(){if(!ready||!v.videoWidth)return;let r=Math.min(960/v.videoWidth,540/v.videoHeight),W=Math.round(v.videoWidth*r),H=Math.round(v.videoHeight*r);src.width=cv.width=W;src.height=cv.height=H;sx.drawImage(v,0,0,W,H);computeGuides();ctx.clearRect(0,0,W,H);ctx.drawImage(src,0,0);
  const y1=H*keyboardY/100,y2=H*Math.min(100,keyboardY+keyboardHeight)/100;
@@ -49,17 +59,54 @@ function frame(){if(!ready||!v.videoWidth)return;let r=Math.min(960/v.videoWidth
  blackKeys.forEach(k=>{ctx.strokeStyle='#23b9ff';ctx.lineWidth=1.5;ctx.strokeRect(k.x,k.y,k.w,k.h);if(showExtended){ctx.strokeStyle='rgba(35,185,255,.73)';ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(k.x,0);ctx.lineTo(k.x,k.y);ctx.moveTo(k.x+k.w,0);ctx.lineTo(k.x+k.w,k.y);ctx.stroke()}});
  boxes.forEach(b=>{ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(b.x,b.y,b.w,b.h)});$('t').value=v.currentTime.toFixed(2);
 }
-function enable(){['prev','next','seek','notes','xMinus','xPlus','wMinus','wPlus','yMinus','yPlus','hMinus','hPlus','init','toggle','reset'].forEach(id=>$(id).disabled=false)}
+function enable(){['prev','next','seek','notes','autofit','toggle','reset'].forEach(id=>$(id).disabled=false);document.querySelectorAll('[data-step]').forEach(b=>b.disabled=false)}
 function refresh(){if(!ready)return;boxes=[];frame();}
-function initialGuide(){keyboardY=73;keyboardHeight=27;anchorX=0;whiteStep=clamp(Math.round(src.width/40*2)/2,6,90);$('phase').value='0';updateLabels();refresh()}
-$('file').onchange=e=>{let f=e.target.files[0];if(!f)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);v.src=url;ready=false;boxes=[];status('動画を読み込み中…');v.onloadedmetadata=()=>{ready=true;enable();let r=Math.min(960/v.videoWidth,540/v.videoHeight);src.width=Math.round(v.videoWidth*r);src.height=Math.round(v.videoHeight*r);initialGuide();status(`読み込み完了：${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)};v.onerror=()=>status('読み込み失敗。ブラウザで再生できる動画形式を選んでください。')};
+function applyParam(key,value){if(!Number.isFinite(value))return;switch(key){case 'anchorX':anchorX=clamp(value,-src.width,src.width);break;case 'whiteStep':whiteStep=clamp(value,4,100);break;case 'keyboardY':keyboardY=clamp(value,0,97);keyboardHeight=Math.min(keyboardHeight,100-keyboardY);break;case 'keyboardHeight':keyboardHeight=clamp(value,3,100-keyboardY);break;case 'blackWidth':blackWidthPct=clamp(value,30,90);break;case 'blackHeight':blackHeightPct=clamp(value,25,85);break;}refresh()}
+for(const key of ['anchorX','whiteStep','keyboardY','keyboardHeight','blackWidth','blackHeight']){const slider=$(key+'Slider'),num=$(key+'Number');slider.addEventListener('input',()=>applyParam(key,Number(slider.value)));num.addEventListener('change',()=>applyParam(key,Number(num.value)));}
+document.querySelectorAll('[data-step]').forEach(button=>{button.onclick=()=>{const [key,delta]=button.dataset.step.split(':');const value={anchorX,whiteStep,keyboardY,keyboardHeight,blackWidth:blackWidthPct,blackHeight:blackHeightPct}[key];applyParam(key,Math.round((value+Number(delta))*100)/100)}});
+function initialGuide(){keyboardY=73;keyboardHeight=27;anchorX=0;whiteStep=clamp(src.width/40,6,90);blackWidthPct=58;blackHeightPct=65;$('phase').value='0';refresh()}
+$('file').onchange=e=>{let f=e.target.files[0];if(!f)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);v.src=url;ready=false;boxes=[];status('動画を読み込み中…');v.onloadedmetadata=()=>{ready=true;enable();let r=Math.min(960/v.videoWidth,540/v.videoHeight);src.width=Math.round(v.videoWidth*r);src.height=Math.round(v.videoHeight*r);$('anchorXSlider').max=src.width;$('anchorXSlider').min=-src.width;initialGuide();status(`読み込み完了：${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)};v.onerror=()=>status('読み込み失敗。ブラウザで再生できる動画形式を選んでください。')};
 v.onseeked=frame;v.ontimeupdate=()=>{if(v.paused)frame()};$('prev').onclick=()=>v.currentTime=Math.max(0,v.currentTime-1/30);$('next').onclick=()=>v.currentTime=Math.min(v.duration,v.currentTime+1/30);$('seek').onclick=()=>v.currentTime=clamp(+$('t').value,0,v.duration);
-$('xMinus').onclick=()=>{anchorX-=1;refresh()};$('xPlus').onclick=()=>{anchorX+=1;refresh()};
-$('wMinus').onclick=()=>{whiteStep=clamp(whiteStep-.5,4,100);refresh()};$('wPlus').onclick=()=>{whiteStep=clamp(whiteStep+.5,4,100);refresh()};
-$('yMinus').onclick=()=>{keyboardY=clamp(keyboardY-1,0,100-keyboardHeight);refresh()};$('yPlus').onclick=()=>{keyboardY=clamp(keyboardY+1,0,100-keyboardHeight);refresh()};
-$('hMinus').onclick=()=>{keyboardHeight=clamp(keyboardHeight-1,3,100-keyboardY);refresh()};$('hPlus').onclick=()=>{keyboardHeight=clamp(keyboardHeight+1,3,100-keyboardY);refresh()};
-$('phase').onchange=refresh;$('blackHeight').onchange=refresh;$('blackWidth').onchange=refresh;
-$('init').onclick=refresh;$('reset').onclick=initialGuide;$('toggle').onclick=()=>{showExtended=!showExtended;frame()};
+$('phase').onchange=refresh;$('reset').onclick=()=>{initialGuide();$('autoResult').textContent='手動で初期位置に戻しました。'};$('toggle').onclick=()=>{showExtended=!showExtended;frame()};
+// Auto alignment: detect dark rectangular black-key segments against bright white keys.
+// Search several horizontal rows in lower portion; fit the 2+3 key pattern geometrically.
+function findDarkRuns(data,W,H,y){const lum=x=>{let p=(y*W+x)*4;return .2126*data[p]+.7152*data[p+1]+.0722*data[p+2]};let runs=[],start=-1;for(let x=0;x<=W;x++){let dark=x<W&&lum(x)<93;if(dark&&start<0)start=x;if(!dark&&start>=0){let len=x-start;if(len>=3&&len<=W*.065){let outer=(lum(Math.max(0,start-3))+lum(Math.min(W-1,x+2)))/2;if(outer>135)runs.push({c:(start+x)/2,w:len,l:outer});}start=-1}}return runs}
+function darkScore(data,W,y,x,w){let off=Math.round(y*W)*4;let avg=(from,to)=>{let s=0,n=0;for(let i=Math.max(0,Math.round(from));i<Math.min(W,Math.round(to));i+=2){let k=off+i*4;s+=.2126*data[k]+.7152*data[k+1]+.0722*data[k+2];n++}return n?s/n:0};let mid=avg(x-w*.26,x+w*.26),outside=(avg(x-w*.85,x-w*.57)+avg(x+w*.57,x+w*.85))/2;return outside-mid}
+function estimateAtRow(data,W,H,y){let runs=findDarkRuns(data,W,H,y);if(runs.length<7)return null;let candidates=[];
+ for(let a=0;a<runs.length;a++)for(let b=a+1;b<Math.min(a+5,runs.length);b++){let d=runs[b].c-runs[a].c;if(d<6)continue;for(let q of [1,2,3,4,5,7]){let step=d/q;if(step>=7&&step<=Math.min(85,W/9))candidates.push({step,base:runs[a].c});}}
+ if(!candidates.length)return null;let best=null;
+ // Seven-note phase is implicit in the template: five black keys per seven white keys.
+ for(const c of candidates){for(let phase=0;phase<7;phase++){let step=c.step;for(let i=-1;i<8;i++){if(!hasSharp[(phase+i+70)%7])continue;let anchor=c.base-(i+1)*step;let match=0,missing=0,expected=0,offsets=[];
+ for(let j=Math.floor((-anchor)/step)-1;j<Math.ceil((W-anchor)/step)+1;j++){let p=(phase+j%7+7)%7;if(!hasSharp[p])continue;let x=anchor+(j+1)*step;if(x<5||x>W-5)continue;expected++;let nearest=null,dist=Infinity;for(const r of runs){let d=Math.abs(r.c-x);if(d<dist){dist=d;nearest=r;}}
+ if(dist<step*.27){match++;offsets.push(nearest.c-x)}else missing++;
+ }
+ if(expected<7)continue;let purity=match/expected;let quality=match-1.5*missing;if(!best||quality>best.quality){best={step,anchor,phase,quality,purity,match,expected,offsets,runs,y}}}
+ }}
+ if(!best||best.purity<.46||best.match<7)return null;
+ best.offsets.sort((a,b)=>a-b);best.anchor+=best.offsets[Math.floor(best.offsets.length/2)]||0;
+ // Refine width with detected black-key widths; reject wrong harmonic spacing.
+ let nearestWidths=[];for(let j=-2;j<W/best.step+2;j++){if(!hasSharp[(best.phase+j%7+7)%7])continue;let x=best.anchor+(j+1)*best.step;let closest=best.runs.reduce((a,b)=>Math.abs(b.c-x)<Math.abs(a.c-x)?b:a,best.runs[0]);if(Math.abs(closest.c-x)<best.step*.22)nearestWidths.push(closest.w)}
+ nearestWidths.sort((a,b)=>a-b);best.blackRatio=nearestWidths.length?clamp(nearestWidths[Math.floor(nearestWidths.length/2)]/best.step*100,30,90):58;
+ return best;
+}
+$('autofit').onclick=async()=>{if(!ready||busy)return;busy=true;$('autofit').disabled=true;$('autoResult').textContent='鍵盤の黒鍵パターンを解析しています…';try{
+ const W=src.width,H=src.height;sx.drawImage(v,0,0,W,H);const data=sx.getImageData(0,0,W,H).data;let results=[];
+ // Rows are sampled from lower half where white keys usually appear.
+ for(let y=Math.round(H*.53);y<Math.round(H*.94);y+=Math.max(3,Math.round(H*.012))){let candidate=estimateAtRow(data,W,H,y);if(candidate)results.push(candidate)}
+ if(!results.length){$('autoResult').textContent='自動位置合わせに失敗しました。鍵盤の白鍵と黒鍵が見えるフレームで再試行するか、手動調整してください。';return}
+ // Prefer consistent rows, not a single accidental pattern on the background.
+ let best=null;for(let a of results){let agreement=results.filter(b=>Math.abs(a.step-b.step)<a.step*.08&&Math.abs((a.anchor-b.anchor)/a.step-Math.round((a.anchor-b.anchor)/a.step))<.18).length;let rank=agreement*2+a.quality*.3;if(!best||rank>best.rank)best={...a,rank,agreement}}
+ if(best.agreement<2){$('autoResult').textContent='黒鍵パターンが複数の高さで一致しませんでした。誤配置を避けるため、手動設定は変更していません。';return}
+ // Look for the top of the black key: brightness directly around fitted black centers rises above it.
+ let upper=best.y;for(let y=best.y;y>Math.max(0,H*.48);y-=2){let count=0,bright=0;for(let j=-2;j<W/best.step+2;j++){let p=(best.phase+j%7+7)%7;if(!hasSharp[p])continue;let x=Math.round(best.anchor+(j+1)*best.step);if(x<2||x>=W-2)continue;let k=(y*W+x)*4;bright+=.2126*data[k]+.7152*data[k+1]+.0722*data[k+2];count++}if(count>5&&bright/count>135){upper=Math.min(H-1,y+2);break}upper=y}
+ let newY=clamp(upper/H*100,0,97);if(newY<48||newY>92)newY=keyboardY;
+ // Normalize anchor so it remains close to the left edge while preserving phase.
+ let anchor=best.anchor,phase=best.phase;while(anchor>best.step){anchor-=best.step;phase=(phase+1)%7}while(anchor<0){anchor+=best.step;phase=(phase+6)%7}
+ anchorX=anchor;whiteStep=best.step;keyboardY=newY;keyboardHeight=clamp(100-keyboardY,3,100-keyboardY);blackWidthPct=best.blackRatio;$('phase').value=String(phase);refresh();
+ $('autoResult').textContent=`位置合わせ完了（推定）
+白鍵幅 ${whiteStep.toFixed(2)}px / 横位置 ${anchorX.toFixed(2)}px / 上端 ${keyboardY.toFixed(2)}%
+一致した解析行 ${best.agreement}行・黒鍵一致 ${best.match}/${best.expected}本。赤線・青枠が合うか確認し、必要なら下のスライダーで微調整してください。`;
+ }catch(err){$('autoResult').textContent='自動解析中にエラーが発生しました：'+err.message}finally{busy=false;$('autofit').disabled=false}};
 function seekTo(t){return new Promise(resolve=>{if(Math.abs(v.currentTime-t)<.005){resolve();return}const done=()=>{v.removeEventListener('seeked',done);resolve()};v.addEventListener('seeked',done);v.currentTime=t})}
 async function componentsAt(t,W,H,yEnd,minH,maxW){
  await seekTo(t);sx.drawImage(v,0,0,W,H);
