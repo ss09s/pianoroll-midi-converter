@@ -1,98 +1,65 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.2</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.3</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
-</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.2</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.3</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline></video><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
-<section class="box"><h2>2. 鍵盤領域の検出</h2><p class="muted">上端から黒鍵の形を解析し、黒鍵が終わる高さで解析を止めます。白鍵・黒鍵を別々に表示します。</p><div class="row"><label>上端 <span class="stepper"><button class="secondary" id="topMinus" disabled>−</button><output id="topVal">72%</output><button class="secondary" id="topPlus" disabled>＋</button></span></label><label>下端 <span class="stepper"><button class="secondary" id="bottomMinus" disabled>−</button><output id="bottomVal">98%</output><button class="secondary" id="bottomPlus" disabled>＋</button></span></label><label>白鍵数（補助・自動=0） <input id="keycount" type="number" min="0" max="100" value="0" style="width:65px"></label><button id="key" disabled>鍵盤境界を検出</button><button id="clear" class="secondary" disabled>クリア</button></div><canvas id="cv" width="960" height="540"></canvas><div id="keyresult" class="status">未検出</div></section>
-<section class="box"><h2>3. ノーツ候補の抽出（改善版・試験機能）</h2><p class="muted">鍵盤の音程レーンに位置が合う物体だけを調べます。色相・彩度による足切りはせず、幅・周囲との明暗差・時間方向の移動で判定します。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="14"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90"></label><label>判定感度 <select id="tol"><option value="12">厳密</option><option value="24" selected>標準</option><option value="38">広め</option></select></label><label>幅許容差(%) <input id="widthtol" type="number" min="5" max="70" value="35" style="width:65px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
+<section class="box"><h2>2. 鍵盤ガイドの手動調整</h2><p class="muted">自動認識を廃止しました。白鍵・黒鍵の規則的なガイドを、動画の鍵盤に重ねてください。<strong>横位置・白鍵幅・鍵盤の上下位置・高さ</strong>を調整できます。赤線は白鍵の境界、青枠は黒鍵の範囲です。</p>
+<div class="row"><label>横移動(px) <span class="stepper"><button class="secondary" id="xMinus" disabled>−</button><output id="xVal">0</output><button class="secondary" id="xPlus" disabled>＋</button></span></label><label>白鍵幅(px) <span class="stepper"><button class="secondary" id="wMinus" disabled>−</button><output id="wVal">24</output><button class="secondary" id="wPlus" disabled>＋</button></span></label><label>開始音 <select id="phase"><option value="0">ド (C)</option><option value="1">レ (D)</option><option value="2">ミ (E)</option><option value="3">ファ (F)</option><option value="4">ソ (G)</option><option value="5">ラ (A)</option><option value="6">シ (B)</option></select></label></div>
+<div class="row"><label>縦移動 <span class="stepper"><button class="secondary" id="yMinus" disabled>↑</button><output id="yVal">0%</output><button class="secondary" id="yPlus" disabled>↓</button></span></label><label>鍵盤の高さ <span class="stepper"><button class="secondary" id="hMinus" disabled>−</button><output id="hVal">27%</output><button class="secondary" id="hPlus" disabled>＋</button></span></label><label>黒鍵の長さ(鍵盤高の%) <input id="blackHeight" type="number" min="25" max="85" value="65" style="width:65px"></label><label>黒鍵の幅(白鍵幅の%) <input id="blackWidth" type="number" min="30" max="90" value="58" style="width:65px"></label></div>
+<div class="row"><button id="init" disabled>ガイドを配置</button><button id="toggle" class="secondary" disabled>上部への延長：オフ</button><button id="reset" class="secondary" disabled>ガイドを初期位置に戻す</button></div>
+<canvas id="cv" width="960" height="540"></canvas><div id="keyresult" class="status">動画を読み込むとガイドが表示されます。</div></section>
+<section class="box"><h2>3. ノーツ候補の抽出（改善版・試験機能）</h2><p class="muted">手動で合わせた白鍵・黒鍵のガイドを画面上部まで内部的に延長し、その音程レーンを使って検出します。ガイド延長の表示がオフでも検出には反映されます。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="14"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90"></label><label>判定感度 <select id="tol"><option value="12">厳密</option><option value="24" selected>標準</option><option value="38">広め</option></select></label><label>幅許容差(%) <input id="widthtol" type="number" min="5" max="70" value="35" style="width:65px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div id="noteresult" class="status">動画を読み込んでください。</div></section><canvas id="source" hidden></canvas></main>
 <script>
 (()=>{
 const $=id=>document.getElementById(id),v=$('v'),cv=$('cv'),ctx=cv.getContext('2d'),src=$('source'),sx=src.getContext('2d',{willReadFrequently:true});
-let url=null,ready=false,lines=[],blackKeys=[],boxes=[],busy=false,lanes=[],whiteStep=0;
-const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a)),top=()=>+$('topVal').textContent.replace('%',''),bottom=()=>+$('bottomVal').textContent.replace('%','');
+let url=null,ready=false,lines=[],blackKeys=[],boxes=[],busy=false,lanes=[],whiteStep=24;
+let anchorX=0,keyboardY=73,keyboardHeight=27,showExtended=false,manualReady=false;
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,Number.isFinite(n)?n:a));
 function status(s){$('status').textContent=s}
-function frame(){if(!ready||!v.videoWidth)return;let r=Math.min(960/v.videoWidth,540/v.videoHeight),W=Math.round(v.videoWidth*r),H=Math.round(v.videoHeight*r);src.width=cv.width=W;src.height=cv.height=H;sx.drawImage(v,0,0,W,H);ctx.clearRect(0,0,W,H);ctx.drawImage(src,0,0);let y1=H*top()/100,y2=H*bottom()/100;ctx.strokeStyle='#20c879';ctx.lineWidth=2;ctx.strokeRect(0,y1,W,y2-y1);lines.forEach(x=>{ctx.strokeStyle='#ff5555';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y2);ctx.stroke()});blackKeys.forEach(k=>{ctx.strokeStyle='#23b9ff';ctx.lineWidth=1.5;ctx.strokeRect(k.x,k.y,k.w,k.h)});boxes.forEach(b=>{ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(b.x,b.y,b.w,b.h)});$('t').value=v.currentTime.toFixed(2)}
-function setPct(which,val){val=clamp(val,0,100);if(which==='top')val=Math.min(val,bottom()-1);else val=Math.max(val,top()+1);$(which+'Val').textContent=val+'%';frame()}
-function enable(){['prev','next','seek','key','clear','notes','topMinus','topPlus','bottomMinus','bottomPlus'].forEach(id=>$(id).disabled=false)}
-$('file').onchange=e=>{let f=e.target.files[0];if(!f)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);v.src=url;ready=false;lines=[];blackKeys=[];lanes=[];boxes=[];status('動画を読み込み中…');v.onloadedmetadata=()=>{ready=true;enable();frame();status(`読み込み完了：${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)};v.onerror=()=>status('読み込み失敗。ブラウザで再生できる動画形式を選んでください。')};
-v.onseeked=frame;v.ontimeupdate=()=>{if(v.paused)frame()};$('prev').onclick=()=>v.currentTime=Math.max(0,v.currentTime-1/30);$('next').onclick=()=>v.currentTime=Math.min(v.duration,v.currentTime+1/30);$('seek').onclick=()=>v.currentTime=clamp(+$('t').value,0,v.duration);
-$('topMinus').onclick=()=>setPct('top',top()-1);$('topPlus').onclick=()=>setPct('top',top()+1);$('bottomMinus').onclick=()=>setPct('bottom',bottom()-1);$('bottomPlus').onclick=()=>setPct('bottom',bottom()+1);
-// Locate black-key rectangles FROM THE TOP. Labels below black keys are never sampled.
-function keyGrid(){
- const W=src.width,H=src.height,y1=Math.round(H*top()/100),y2=Math.round(H*bottom()/100),kh=y2-y1;
- if(kh<22)throw Error('鍵盤領域が狭すぎます');
- const raw=sx.getImageData(0,0,W,H).data;
- const gray=(x,y)=>{x=clamp(Math.round(x),0,W-1);y=clamp(Math.round(y),0,H-1);let k=(y*W+x)*4;return .2126*raw[k]+.7152*raw[k+1]+.0722*raw[k+2]};
- // Black keys usually occupy roughly the top 45–70% of the keyboard height.
- // Detect their lower edge from the change in dark-pixel coverage, stopping BEFORE lettering.
- let begin=y1+Math.max(2,Math.round(kh*.09)),finish=y1+Math.round(kh*.76);
- let cover=[];
- for(let y=begin;y<=finish;y+=2){let dark=0;for(let x=3;x<W-3;x+=3)if(gray(x,y)<92)dark++;cover.push({y,n:dark/Math.max(1,Math.floor((W-6)/3))})}
- let baseline=cover.slice(0,Math.max(2,Math.floor(cover.length*.3))).map(r=>r.n).sort((a,b)=>a-b);
- let mid=baseline[Math.floor(baseline.length/2)]||.3;
- let blackEnd=y1+Math.round(kh*.56),foundEnd=false;
- // Near the black key tips, coverage of dark pixels drops markedly.
- for(let i=Math.max(4,Math.round(cover.length*.24));i<cover.length-3;i++){
-  if(cover[i].n<mid*.62&&cover[i+1].n<mid*.7&&cover[i+2].n<mid*.75){blackEnd=cover[i].y;foundEnd=true;break}
+function updateLabels(){ $('xVal').textContent=anchorX.toFixed(1);$('wVal').textContent=whiteStep.toFixed(1);$('yVal').textContent=keyboardY+'%';$('hVal').textContent=keyboardHeight+'%';$('toggle').textContent='上部への延長：'+(showExtended?'オン':'オフ'); }
+// For a leftmost white key of chosen pitch, only C, D, F, G, A have black keys to their right.
+// Black key centers are near the boundary to the next white key; actual key dimensions vary by instrument.
+const hasSharp=[true,true,false,true,true,true,false];
+function computeGuides(){
+ if(!ready)return;
+ const W=src.width,H=src.height,y1=H*keyboardY/100,y2=H*Math.min(100,keyboardY+keyboardHeight)/100;
+ lines=[];blackKeys=[];lanes=[];
+ let pitch=Number($('phase').value)||0;
+ let kw=whiteStep, bw=kw*clamp(Number($('blackWidth').value),30,90)/100;
+ let bh=(y2-y1)*clamp(Number($('blackHeight').value),25,85)/100;
+ // Anchor marks the LEFT edge of a white key of selected pitch. Indices can be negative.
+ const first=Math.floor((0-anchorX)/kw)-2,last=Math.ceil((W-anchorX)/kw)+2;
+ for(let i=first;i<=last;i++){
+  let left=anchorX+i*kw,whitePitch=((pitch+i)%7+7)%7;
+  if(left>=-1&&left<=W+1)lines.push(left);
+  if(left+kw>0&&left<W){lanes.push({x:left+kw*.5,w:kw*.79,type:'white',pitch:12*i+whitePitch});}
+  if(hasSharp[whitePitch]){
+   let center=left+kw,offset=kw*(whitePitch===0?-.02:whitePitch===1?-.045:whitePitch===3?.045:whitePitch===4?.015:.035);
+   center+=offset;
+   if(center+bw/2>0&&center-bw/2<W){blackKeys.push({x:center-bw/2,y:y1,w:bw,h:bh});lanes.push({x:center,w:bw*.92,type:'black',pitch:i});}
+  }
  }
- blackEnd=Math.round(clamp(blackEnd,y1+kh*.30,y1+kh*.72));
- // Sample multiple rows only within the black-key section, avoiding glows at the very top.
- let sampleYs=[.23,.36,.48,.59,.70].map(f=>Math.round(begin+(blackEnd-begin)*f));
- const mask=new Uint8Array(W);
- for(let x=1;x<W-1;x++){
-  let votes=0;for(const y of sampleYs)if(gray(x,y)<108)votes++;
-  if(votes>=3)mask[x]=1;
- }
- // Fill tiny gaps (glowing keys may introduce 1–2px holes).
- for(let x=2;x<W-2;x++)if(!mask[x]&&mask[x-1]&&mask[x+1])mask[x]=1;
- const runs=[];let start=-1;
- for(let x=0;x<=W;x++){
-  if(x<W&&mask[x]){if(start<0)start=x}
-  else if(start>=0){let width=x-start;if(width>=3&&width<W*.052)runs.push({left:start,right:x,cx:(start+x)/2,width});start=-1}
- }
- if(runs.length<9)throw Error('黒鍵を十分に検出できません。上端を黒鍵の始まりに合わせ、鍵盤の上部を含めてください。');
- // Neighboring black keys are normally one white-key pitch apart, while E–F / B–C gaps
- // produce approximately 1.5× the usual black-key-center spacing.
- let gaps=[];
- for(let i=1;i<runs.length;i++){let g=runs[i].cx-runs[i-1].cx;if(g>=5&&g<W/12)gaps.push(g)}
- let best={score:Infinity,step:0};
- const forced=clamp(+$('keycount').value,0,100);
- for(let st=Math.max(6,W/110);st<=Math.min(65,W/12);st+=.12){
-  let err=0,used=0;
-  for(let g of gaps){let q=Math.min(3,Math.max(1,Math.round(g/st)));let deviation=Math.min(Math.abs(g-st),Math.abs(g-1.5*st),Math.abs(g-2*st));if(deviation<st*.42){err+=Math.min((deviation/st)**2,.5);used++}}
-  if(used<Math.max(7,gaps.length*.48))continue;
-  err=err/used+(gaps.length-used)/Math.max(1,gaps.length)*.4;
-  // Typical measured black-key width is about 0.5–0.75 white-key pitch.
-  let widths=runs.map(r=>r.width).sort((a,b)=>a-b),medW=widths[Math.floor(widths.length/2)];
-  err+=Math.abs(medW/st-.59)*.25;
-  if(forced)err+=Math.abs(W/st-forced)/forced*.55;
-  if(err<best.score)best={score:err,step:st};
- }
- if(!best.step)throw Error('黒鍵の間隔を推定できませんでした。鍵盤領域を調整してください。');
- let step=best.step;
- // Align a regular white-key grid with the observed black-key centres.
- let phaseBest={score:-Infinity,p:0};
- for(let p=0;p<step;p+=Math.max(.15,step/80)){
-  let score=0;
-  for(const r of runs){let dist=Math.abs((r.cx-p+step*.5)%step-step*.5);score+=Math.max(-1,1-dist/(step*.30))}
-  if(score>phaseBest.score)phaseBest={score,p};
- }
- let phase=phaseBest.p;
- whiteStep=step;lines=[];lanes=[];blackKeys=[];
- for(let x=phase;x<W;x+=step)if(x>=0&&x<W)lines.push(x);
- // White keys have centres between adjacent boundaries, black keys lie at boundaries.
- for(let x=phase-step/2;x<W;x+=step)if(x>0&&x<W)lanes.push({x,w:step*.78,type:'white'});
- for(const r of runs){
-  let nearest=phase+Math.round((r.cx-phase)/step)*step;
-  if(Math.abs(nearest-r.cx)>step*.31)continue;
-  blackKeys.push({x:r.left,y:y1,w:r.width,h:blackEnd-y1});
-  lanes.push({x:r.cx,w:r.width,type:'black'});
- }
- if(blackKeys.length<8)throw Error('黒鍵の位置が確定できませんでした。');
- return {step,black:blackKeys.length,white:lanes.filter(l=>l.type==='white').length,blackEnd,foundEnd};
+ manualReady=true;updateLabels();
+ $('keyresult').textContent=`手動ガイド：白鍵幅 ${kw.toFixed(1)}px / 横オフセット ${anchorX.toFixed(1)}px\n白鍵レーン ${lanes.filter(l=>l.type==='white').length}個・黒鍵レーン ${lanes.filter(l=>l.type==='black').length}個\n赤線＝白鍵境界、青枠＝黒鍵。どちらも動画に重なるまで調整してください。\n延長表示：${showExtended?'オン':'オフ'}（ノーツ検出では常に全レーンを使用）`;
 }
-$('key').onclick=()=>{if(!ready)return;try{let g=keyGrid();boxes=[];frame();$('keyresult').textContent=`推定白鍵間隔：${g.step.toFixed(1)}px\n白鍵レーン：${g.white} / 検出黒鍵：${g.black}\n赤線＝白鍵境界、青枠＝画像から検出した黒鍵。\n黒鍵解析の終了位置：画像の縦${(g.blackEnd/src.height*100).toFixed(1)}%（${g.foundEnd?'自動推定':'予備値'}）\n※下部のドレミ文字は解析対象外です。`; }catch(e){lines=[];blackKeys=[];lanes=[];frame();$('keyresult').textContent='検出失敗：'+e.message}};
-$('clear').onclick=()=>{lines=[];blackKeys=[];lanes=[];whiteStep=0;boxes=[];frame();$('keyresult').textContent='検出結果をクリアしました。';$('noteresult').textContent='検出結果をクリアしました。'};
+function frame(){if(!ready||!v.videoWidth)return;let r=Math.min(960/v.videoWidth,540/v.videoHeight),W=Math.round(v.videoWidth*r),H=Math.round(v.videoHeight*r);src.width=cv.width=W;src.height=cv.height=H;sx.drawImage(v,0,0,W,H);computeGuides();ctx.clearRect(0,0,W,H);ctx.drawImage(src,0,0);
+ const y1=H*keyboardY/100,y2=H*Math.min(100,keyboardY+keyboardHeight)/100;
+ ctx.strokeStyle='#16bd80';ctx.lineWidth=1.5;ctx.strokeRect(.5,y1+.5,W-1,Math.max(0,y2-y1));
+ lines.forEach(x=>{ctx.strokeStyle='rgba(255,74,83,.9)';ctx.lineWidth=1.1;ctx.beginPath();ctx.moveTo(x,showExtended?0:y1);ctx.lineTo(x,y2);ctx.stroke()});
+ blackKeys.forEach(k=>{ctx.strokeStyle='#23b9ff';ctx.lineWidth=1.5;ctx.strokeRect(k.x,k.y,k.w,k.h);if(showExtended){ctx.strokeStyle='rgba(35,185,255,.73)';ctx.lineWidth=.9;ctx.beginPath();ctx.moveTo(k.x,0);ctx.lineTo(k.x,k.y);ctx.moveTo(k.x+k.w,0);ctx.lineTo(k.x+k.w,k.y);ctx.stroke()}});
+ boxes.forEach(b=>{ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(b.x,b.y,b.w,b.h)});$('t').value=v.currentTime.toFixed(2);
+}
+function enable(){['prev','next','seek','notes','xMinus','xPlus','wMinus','wPlus','yMinus','yPlus','hMinus','hPlus','init','toggle','reset'].forEach(id=>$(id).disabled=false)}
+function refresh(){if(!ready)return;boxes=[];frame();}
+function initialGuide(){keyboardY=73;keyboardHeight=27;anchorX=0;whiteStep=clamp(Math.round(src.width/40*2)/2,6,90);$('phase').value='0';updateLabels();refresh()}
+$('file').onchange=e=>{let f=e.target.files[0];if(!f)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);v.src=url;ready=false;boxes=[];status('動画を読み込み中…');v.onloadedmetadata=()=>{ready=true;enable();let r=Math.min(960/v.videoWidth,540/v.videoHeight);src.width=Math.round(v.videoWidth*r);src.height=Math.round(v.videoHeight*r);initialGuide();status(`読み込み完了：${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)};v.onerror=()=>status('読み込み失敗。ブラウザで再生できる動画形式を選んでください。')};
+v.onseeked=frame;v.ontimeupdate=()=>{if(v.paused)frame()};$('prev').onclick=()=>v.currentTime=Math.max(0,v.currentTime-1/30);$('next').onclick=()=>v.currentTime=Math.min(v.duration,v.currentTime+1/30);$('seek').onclick=()=>v.currentTime=clamp(+$('t').value,0,v.duration);
+$('xMinus').onclick=()=>{anchorX-=1;refresh()};$('xPlus').onclick=()=>{anchorX+=1;refresh()};
+$('wMinus').onclick=()=>{whiteStep=clamp(whiteStep-.5,4,100);refresh()};$('wPlus').onclick=()=>{whiteStep=clamp(whiteStep+.5,4,100);refresh()};
+$('yMinus').onclick=()=>{keyboardY=clamp(keyboardY-1,0,100-keyboardHeight);refresh()};$('yPlus').onclick=()=>{keyboardY=clamp(keyboardY+1,0,100-keyboardHeight);refresh()};
+$('hMinus').onclick=()=>{keyboardHeight=clamp(keyboardHeight-1,3,100-keyboardY);refresh()};$('hPlus').onclick=()=>{keyboardHeight=clamp(keyboardHeight+1,3,100-keyboardY);refresh()};
+$('phase').onchange=refresh;$('blackHeight').onchange=refresh;$('blackWidth').onchange=refresh;
+$('init').onclick=refresh;$('reset').onclick=initialGuide;$('toggle').onclick=()=>{showExtended=!showExtended;frame()};
 function seekTo(t){return new Promise(resolve=>{if(Math.abs(v.currentTime-t)<.005){resolve();return}const done=()=>{v.removeEventListener('seeked',done);resolve()};v.addEventListener('seeked',done);v.currentTime=t})}
 async function componentsAt(t,W,H,yEnd,minH,maxW){
  await seekTo(t);sx.drawImage(v,0,0,W,H);
@@ -133,6 +100,6 @@ async function componentsAt(t,W,H,yEnd,minH,maxW){
  // Remove duplicate proposals from overlapping white / black lanes.
  return out.filter((b,i)=>!out.some((o,j)=>j<i&&Math.abs(o.x+o.w/2-b.x-b.w/2)<Math.min(o.w,b.w)*.35&&Math.abs(o.y-b.y)<8));
 }
-$('notes').onclick=async()=>{if(!ready||busy)return;if(!lanes.length){$('noteresult').textContent='先に「鍵盤境界を検出」を実行してください。';return;}busy=true;$('notes').disabled=true;$('noteresult').textContent='前後フレームを確認中…';let original=v.currentTime,W=src.width,H=src.height,yEnd=Math.round(H*top()/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300),dt=.08;try{let sets=[];for(let t of [Math.max(0,original-dt),original,Math.min(v.duration,original+dt)])sets.push(await componentsAt(t,W,H,yEnd,minH,maxW));let center=sets[1],near=[...sets[0],...sets[2]];boxes=center.filter(b=>near.some(n=>{let overlap=Math.max(0,Math.min(b.x+b.w,n.x+n.w)-Math.max(b.x,n.x));return overlap/Math.max(1,Math.min(b.w,n.w))>=.55&&Math.abs(b.w-n.w)<=Math.max(5,b.w*.35)}));await seekTo(original);frame();$('noteresult').textContent=`音程レーン上の形状候補：${center.length}個\n前後フレームでも横位置・幅が一致：${boxes.length}個（黄色枠）\n鍵盤幅・中心位置・周囲とのコントラストで背景を抑制します。静止背景や淡色ノーツは動画によって誤判定する場合があります。`}catch(e){$('noteresult').textContent='解析中にエラーが発生しました。動画を読み込み直して再試行してください。';await seekTo(original);frame()}finally{busy=false;$('notes').disabled=false}};
+$('notes').onclick=async()=>{if(!ready||busy)return;if(!lanes.length){$('noteresult').textContent='鍵盤ガイドを配置してください。';return;}busy=true;$('notes').disabled=true;$('noteresult').textContent='前後フレームを確認中…';let original=v.currentTime,W=src.width,H=src.height,yEnd=Math.round(H*keyboardY/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300),dt=.08;try{let sets=[];for(let t of [Math.max(0,original-dt),original,Math.min(v.duration,original+dt)])sets.push(await componentsAt(t,W,H,yEnd,minH,maxW));let center=sets[1],near=[...sets[0],...sets[2]];boxes=center.filter(b=>near.some(n=>{let overlap=Math.max(0,Math.min(b.x+b.w,n.x+n.w)-Math.max(b.x,n.x));return overlap/Math.max(1,Math.min(b.w,n.w))>=.55&&Math.abs(b.w-n.w)<=Math.max(5,b.w*.35)}));await seekTo(original);frame();$('noteresult').textContent=`音程レーン上の形状候補：${center.length}個\n前後フレームでも横位置・幅が一致：${boxes.length}個（黄色枠）\n手動ガイドの幅・中心位置・周囲とのコントラストで背景を抑制します。静止背景や淡色ノーツは動画によって誤判定する場合があります。`}catch(e){$('noteresult').textContent='解析中にエラーが発生しました。動画を読み込み直して再試行してください。';await seekTo(original);frame()}finally{busy=false;$('notes').disabled=false}};
 })();
 </script></main></body></html>
