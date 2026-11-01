@@ -216,16 +216,87 @@
    return buffer;
   }finally{decoder.close();}
  }
+
+ // Safari rejects QuickTime v1 mp4a sample descriptions and often cannot decode raw ADTS.
+ // Rewrap AAC frames as a normal version-0 audio-only ISO MP4 (without re-encoding).
+ function be16(n){return Uint8Array.of((n>>>8)&255,n&255)}
+ function be32(n){return Uint8Array.of((n/16777216)&255,(n>>>16)&255,(n>>>8)&255,n&255)}
+ function str(s){return Uint8Array.from([...s].map(c=>c.charCodeAt(0)))}
+ function concat(...arr){const len=arr.reduce((s,a)=>s+a.length,0),r=new Uint8Array(len);let at=0;for(const a of arr){r.set(a,at);at+=a.length;}return r}
+ function box(type,...parts){const data=concat(...parts),n=data.length+8;if(n>0xffffffff)throw Error('音声トラックが4GBを超えています');return concat(be32(n),str(type),data)}
+ function full(version=0,flags=0){return Uint8Array.of(version,(flags>>>16)&255,(flags>>>8)&255,flags&255)}
+ function descriptor(tag,contents){let n=contents.length,bytes=[n&127];n>>>=7;while(n){bytes.unshift((n&127)|128);n>>>=7;}return concat(Uint8Array.of(tag,...bytes),contents)}
+ function audioEsds(config){
+  const asc=config.asc;
+  const dsi=descriptor(5,asc);
+  const dcd=descriptor(4,concat(Uint8Array.of(0x40,0x15,0,0,0),be32(256000),be32(128000),dsi));
+  const sl=descriptor(6,Uint8Array.of(2));
+  const es=descriptor(3,concat(be16(1),Uint8Array.of(0),dcd,sl));
+  return box('esds',full(),es);
+ }
+ function remuxAudioMP4(packets,track){
+  const rate=[96000,88200,64000,48000,44100,32000,24000,22050,16000,12000,11025,8000,7350][track.config.rateIndex];
+  if(!rate||rate>=65536)throw Error('このサンプルレートではMP4への変換ができません');
+  if(track.config.aot!==2&&track.config.aot!==1)throw Error('このAACプロファイルはMP4再構成の対象外です');
+  let ticks=0,remaining=0,entry=0,per=1024;
+  const durations=[];
+  for(let i=0;i<packets.length;i++){
+   if(!remaining){if(entry>=track.durations.length)throw Error('AACの時間情報が不足しています');remaining=track.durations[entry][0];per=track.durations[entry][1];entry++;}
+   durations.push(per);ticks+=per;remaining--;
+  }
+  if(ticks>0xffffffff)throw Error('音声が長すぎます');
+  const sizeList=concat(...packets.map(p=>be32(p.length)));
+  const sttsRuns=[];for(const d of durations){const r=sttsRuns[sttsRuns.length-1];if(r&&r[1]===d)r[0]++;else sttsRuns.push([1,d]);}
+  const stts=box('stts',full(),be32(sttsRuns.length),...sttsRuns.map(([cnt,d])=>concat(be32(cnt),be32(d))));
+  const sampleEntry=box('mp4a',new Uint8Array(6),be16(1),be16(0),be16(0),be32(0),be16(track.config.channels),be16(16),be16(0),be16(0),be32(rate*65536),audioEsds(track.config));
+  const stsd=box('stsd',full(),be32(1),sampleEntry);
+  const stsc=box('stsc',full(),be32(1),be32(1),be32(packets.length),be32(1));
+  const stsz=box('stsz',full(),be32(0),be32(packets.length),sizeList);
+  const stco=offset=>box('stco',full(),be32(1),be32(offset));
+  const durationMovie=Math.round(ticks*1000/track.timescale);
+  const matrix=concat(be32(65536),be32(0),be32(0),be32(0),be32(65536),be32(0),be32(0),be32(0),be32(0x40000000));
+  const mvhd=box('mvhd',full(),be32(0),be32(0),be32(1000),be32(durationMovie),be32(65536),be16(256),be16(0),new Uint8Array(8),matrix,new Uint8Array(24),be32(2));
+  const tkhd=box('tkhd',full(0,7),be32(0),be32(0),be32(1),be32(0),be32(durationMovie),new Uint8Array(8),be16(0),be16(0),be16(256),be16(0),matrix,be32(0),be32(0));
+  const mdhd=box('mdhd',full(),be32(0),be32(0),be32(track.timescale),be32(ticks),be16(0x55c4),be16(0));
+  const hdlr=box('hdlr',full(),be32(0),str('soun'),new Uint8Array(12),str('SoundHandler\0'));
+  const smhd=box('smhd',full(),be16(0),be16(0));
+  const dref=box('dref',full(),be32(1),box('url ',full(0,1)));
+  const dinf=box('dinf',dref);
+  const makeMoov=offset=>{
+   const stbl=box('stbl',stsd,stts,stsc,stsz,stco(offset));
+   const minf=box('minf',smhd,dinf,stbl);
+   const mdia=box('mdia',mdhd,hdlr,minf);
+   return box('moov',mvhd,box('trak',tkhd,mdia));
+  };
+  const ftyp=box('ftyp',str('isom'),be32(0x200),str('isom'),str('iso2'),str('mp41'));
+  const moov0=makeMoov(0),audioBytes=packets.reduce((n,p)=>n+p.length,0);
+  if(ftyp.length+moov0.length+8>0xffffffff||audioBytes>200e6)throw Error('音声データが大きすぎます');
+  const moov=makeMoov(ftyp.length+moov0.length+8);
+  const out=new Uint8Array(ftyp.length+moov.length+8+audioBytes);
+  out.set(ftyp,0);out.set(moov,ftyp.length);
+  let pos=ftyp.length+moov.length;
+  out.set(be32(audioBytes+8),pos);out.set(str('mdat'),pos+4);pos+=8;
+  for(const p of packets){out.set(p,pos);pos+=p.length;}
+  return out.buffer;
+ }
+ async function tryRemux(context,packets,track,status){
+  status('QuickTime音声をSafari対応の音声専用MP4に再構成しています…');
+  const mp4=remuxAudioMP4(packets,track);
+  status('再構成したMP4音声をデコードしています…');
+  return await context.decodeAudioData(mp4);
+ }
+
  async function decode(file,context,{cancelled=()=>false,status=()=>{}}={}){
   const track=await getTrack(file,cancelled,status);
   const packets=await samplePackets(file,track,cancelled,status);
   if(cancelled())throw Error('中止しました');
   let failure='';
-  // Safari commonly decodes AAC/ADTS; WebCodecs is a second, independent decoder path.
-  try{return await tryADTS(context,packets,track.config,status);}catch(e){failure='ADTS: '+e.message;}
+  // Rewrap into MP4 first: iOS Safari often rejects both QuickTime v1 entries and ADTS.
+  try{return await tryRemux(context,packets,track,status);}catch(e){failure='MP4再構成: '+e.message;}
   if(cancelled())throw Error('中止しました');
   try{return await tryWebCodecs(context,packets,track,cancelled,status);}catch(e){failure+=' / WebCodecs: '+e.message;}
+  try{return await tryADTS(context,packets,track.config,status);}catch(e){failure+=' / ADTS: '+e.message;}
   throw Error('AACは抽出できましたがデコードに失敗しました。'+failure);
  }
- global.MovAudioExtractor={decode,_test:{boxes,parseTrack,findEsds,adtsPacket,getTrack,samplePackets}};
+ global.MovAudioExtractor={decode,_test:{boxes,parseTrack,findEsds,adtsPacket,getTrack,samplePackets,remuxAudioMP4}};
 })(window);
