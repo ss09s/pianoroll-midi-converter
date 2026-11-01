@@ -1,11 +1,11 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.4.13</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.5</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
 
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px;margin:14px 0}.control{border:1px solid #dfe7f2;background:#f9fbff;border-radius:12px;padding:13px;min-width:0}.control h3{margin:0 0 6px;font-size:1rem}.control p{margin:0 0 8px;font-size:.8rem;color:#647086}.adjust{display:grid;grid-template-columns:44px 1fr 44px 94px;gap:8px;align-items:center}.adjust button{min-width:42px;margin:0}.adjust input[type=range]{grid-column:1/-1;width:100%;min-width:0;height:36px;touch-action:pan-y}.control{min-width:0}.fine{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.fine button[aria-pressed="true"]{background:#245bd6;color:white}.control .adjust input[type=range]{width:100%}#cv{touch-action:none;cursor:crosshair}.reference{border:1px solid #d9e5fa;border-radius:12px;background:#f4f8ff;padding:14px;margin:12px 0}.reference .row{gap:12px}.reference select,.reference input{width:auto;min-width:85px}.draghelp{font-size:.9rem;color:#475569;background:#f1f5fa;padding:10px;border-radius:9px;margin:10px 0}.adjust input[type=number]{width:92px;flex:none;padding:8px;font-size:1rem;text-align:right;border-radius:7px;border:1px solid #c4d1e3}.adjust input[type=range]{accent-color:#245bd6}.control select{width:100%;padding:10px;border-radius:8px;border:1px solid #c4d1e3;background:white}.auto-panel{background:#edf5ff;border:1px solid #c9defa;border-radius:12px;padding:14px}.auto-panel button{font-weight:700}.auto-result{font-size:.9rem;margin-top:8px;white-space:pre-wrap}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}#file{width:100%;max-width:420px}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ffb74d;outline-offset:2px}@media(max-width:600px){.controls{grid-template-columns:1fr}.wrap{padding:0}body{padding:8px}.box{padding:12px}.adjust input[type=number]{width:85px}}
 .adjust input[type=range]{display:block;grid-row:2;grid-column:1/-1}.adjust input[type=number]{grid-column:3/5;width:100%}.adjust button:first-child{grid-column:1}.adjust button:nth-child(2){grid-column:2;justify-self:start}.control{min-width:0}@media(min-width:760px){.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .group{border:1px solid #d8e2f1;border-radius:12px;margin:12px 0;overflow:hidden}.group>summary{cursor:pointer;list-style:auto;padding:14px;background:#eef3fb;font-weight:700;min-height:48px}.group>.controls,.group>.reference{margin:12px}.preview{position:sticky;top:0;z-index:5;background:white;border:1px solid #dde6f4;border-radius:9px;padding:5px;margin-top:12px;max-height:42vh;overflow:hidden}.preview canvas{display:block;max-height:36vh;object-fit:contain}.shift-controls{display:grid;gap:9px}.shift-controls label{display:grid;grid-template-columns:58px minmax(0,1fr) 70px;gap:7px;align-items:center}.shift-controls input[type=range]{width:100%;min-width:0}.shift-controls input[type=number]{width:70px}.fine{flex-wrap:wrap}.fine>div{display:flex;flex-wrap:wrap}.fine button[aria-pressed="true"]{background:#245bd6;color:white}@media(max-width:600px){.preview{max-height:32vh}.preview canvas{max-height:27vh}.group>.controls{margin:8px}.fine button{font-size:.85rem}}
-.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.4.14</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.5</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline></video><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。まず自動位置合わせを試し、ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
 <div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button id="autofit" disabled>鍵盤に自動で合わせる</button><div id="autoResult" class="auto-result" aria-live="polite">動画の読み込み後に利用できます。</div></div>
@@ -31,7 +31,14 @@
 <p><b>内部塗りつぶし率 (%)</b>：各高さで、レーンの内部が背景より十分明るいと判定された画素の割合の下限。高いほど穴や粒があるエフェクトを弾きますが、縁がぼけたノーツにも厳しくなります。なお現状は縦方向の集計でも追加の余裕を要求しています。</p>
 <p><b>レーン重複：あり</b>：白鍵・黒鍵の検査範囲を互いに切り取らず使います。<b>なし</b>：黒鍵の領域を優先して白鍵側を削ります。後者では白鍵の有効幅が狭く分断され、塗りつぶし率や輪郭検査が不安定になり得ます。</p>
 <p><b>上部までのガイド表示</b>：線を見せるかどうかだけの設定。非表示でもノーツ検出にはガイドを使用します。</p>
-</div></details></section><canvas id="source" hidden></canvas></main>
+</div></details></section>
+<section class="box" id="bpmPanel"><h2>4. BPM推定・ノーツ追跡（Ver.0.5 試験機能）</h2>
+<p class="muted">鍵盤ガイドとノーツ検出設定を使って複数フレームを解析し、同じ音程レーンで下に移動するノーツを追跡します。ノーツが鍵盤に到達する時刻の周期性からBPM候補を推定します。動画にグリッド・拍子がない場合、BPMを一意に決められないことがあります。</p>
+<div class="row"><label>解析開始 (秒) <input id="scanStart" type="number" min="0" step="0.1" value="0"></label><label>解析時間 (秒) <input id="scanLength" type="number" min="3" max="20" step="1" value="12"></label><label>解析間隔 <select id="scanFPS"><option value="5">軽量 (5fps)</option><option value="8" selected>標準 (8fps)</option><option value="12">精密 (12fps)</option></select></label><button id="scanBPM" disabled>動きを解析してBPM候補を探す</button><button id="cancelScan" class="secondary" disabled>中止</button></div>
+<div class="row"><label>BPM（手動修正可） <input id="bpmValue" type="number" min="30" max="320" step="0.01" value="120"></label><button id="halfBPM" class="secondary">÷2</button><button id="doubleBPM" class="secondary">×2</button><span class="muted">推定値は候補です。拍子・グリッドの解析は次のバージョンで実装予定。</span></div>
+<div id="bpmResult" class="status" aria-live="polite">動画を読み込んでから実行してください。解析には動画内でノーツが動いている区間を選んでください。</div>
+<details class="group"><summary>今回の解析の意味と限界</summary><div style="padding:10px 14px;line-height:1.7"><p>同じ音程レーンのノーツが複数フレームで下に移動したとき、その速度と現在位置から鍵盤に到達する推定時刻を計算します。ノーツの到達間隔に4分・8分・16分の周期性があると仮定してテンポを比べます。</p><p>映像の発光、途中で消えるノーツ、繰り返しの同音、スウィング、変拍子、テンポ変化などは推定を乱します。BPM 80 と 160 のような倍・半分の曖昧さは残ります。ここではMIDI出力はまだ行いません。</p></div></details>
+</section><canvas id="source" hidden></canvas></main>
 <script>
 (()=>{
 const $=id=>document.getElementById(id),v=$('v'),cv=$('cv'),ctx=cv.getContext('2d'),src=$('source'),sx=src.getContext('2d',{willReadFrequently:true});
@@ -126,7 +133,7 @@ function frame(){if(!ready||!v.videoWidth)return;let r=Math.min(960/v.videoWidth
  ctx.fillText('下端 ↓',6,Math.min(H-4,y2-5));
  boxes.forEach(b=>{ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(b.x,b.y,b.w,b.h)});$('t').value=v.currentTime.toFixed(2);
 }
-function enable(){['prev','next','seek','notes','autofit','toggle','reset','coarseMode','fineMode','slowMode'].forEach(id=>$(id).disabled=false);document.querySelectorAll('[data-step]').forEach(b=>b.disabled=false)}
+function enable(){['prev','next','seek','notes','autofit','toggle','reset','coarseMode','fineMode','slowMode','scanBPM'].forEach(id=>$(id).disabled=false);document.querySelectorAll('[data-step]').forEach(b=>b.disabled=false)}
 function refresh(){if(!ready)return;boxes=[];frame();}
 function updateSliderRanges(){
  const values={anchorX,whiteStep,keyboardY,keyboardHeight,blackWidth:blackWidthPct,blackHeight:blackHeightPct};
@@ -398,6 +405,130 @@ async function componentsAt(t,W,H,yEnd,minH,maxW){
  for(const b of out){if(!kept.some(o=>Math.abs(o.pitchX-b.pitchX)<Math.min(o.w,b.w)*.4&&Math.max(o.y,b.y)<Math.min(o.y+o.h,b.y+b.h)-Math.min(o.h,b.h)*.45))kept.push(b);}
  return kept;
 }
+
+// v0.5: bounded temporal tracking. Kept separate from the stable key-guide workflow.
+let cancelTemporal=false;
+const bpmText=s=>$('bpmResult').textContent=s;
+function tracksFromSamples(samples,yEnd){
+ const tracks=[],active=new Map();
+ for(const sample of samples){
+  const grouped=new Map();
+  for(const note of sample.notes){
+   const key=note.laneType+':'+Math.round(note.pitchX*2)/2;
+   if(!grouped.has(key))grouped.set(key,[]);
+   grouped.get(key).push(note);
+  }
+  for(const [key,notes] of grouped){
+   let prior=active.get(key)||[];const next=[];
+   for(const n of notes.sort((a,b)=>a.y-b.y)){
+    const head=n.y, bottom=n.y+n.h;
+    let best=null,dist=1e9;
+    for(const tr of prior){
+     if(tr.taken)continue;
+     const last=tr.points[tr.points.length-1];
+     const dt=sample.t-last.t;
+     const vy=tr.points.length>1?(last.y-tr.points[tr.points.length-2].y)/(last.t-tr.points[tr.points.length-2].t):40;
+     const prediction=last.y+Math.max(0,vy)*dt;
+     const diff=Math.abs(head-prediction);
+     if(diff<Math.max(16,n.h*.7,dt*140)&&diff<dist){best=tr;dist=diff;}
+    }
+    if(!best){best={key,points:[],taken:false,pitch:n.pitch,confirmed:false};tracks.push(best);}
+    best.points.push({t:sample.t,y:head,h:n.h});best.taken=true;next.push(best);
+   }
+  }
+  // Avoid matching stale notes to later repeated notes.
+  active.clear();
+  for(const tr of tracks)tr.taken=false;
+  for(const [key,list] of grouped){
+   const possible=tracks.filter(tr=>tr.key===key&&tr.points[tr.points.length-1].t===sample.t);
+   active.set(key,possible);
+  }
+ }
+ const events=[];
+ for(const tr of tracks){
+  if(tr.points.length<3)continue;
+  const p=tr.points;
+  const t0=p[0].t, t1=p[p.length-1].t,dt=t1-t0;
+  if(dt<.18)continue;
+  // Linear regression averages pixel noise rather than extrapolating two frames.
+  let mt=0,my=0;for(const z of p){mt+=z.t;my+=z.y}mt/=p.length;my/=p.length;
+  let num=0,den=0;for(const z of p){num+=(z.t-mt)*(z.y-my);den+=(z.t-mt)**2}
+  const vel=num/Math.max(1e-9,den);
+  if(vel<8||vel>1600)continue;
+  let rss=0;for(const z of p)rss+=(z.y-my-vel*(z.t-mt))**2;
+  const rms=Math.sqrt(rss/p.length);
+  if(rms>Math.max(7,vel*.13))continue;
+  const hit=mt+(yEnd-my)/vel;
+  // Only extrapolate reasonably nearby hits and avoid clips not approaching the keys.
+  if(hit<t0-.12||hit>t1+2.4||p[p.length-1].y<yEnd*.20)continue;
+  events.push({t:hit,pitch:tr.pitch,velocity:vel,frames:p.length,rms});
+ }
+ events.sort((a,b)=>a.t-b.t);
+ const cleaned=[];
+ for(const e of events){if(cleaned.some(o=>o.pitch===e.pitch&&Math.abs(o.t-e.t)<.11))continue;cleaned.push(e)}
+ return {tracks,events:cleaned};
+}
+function inferTempo(events){
+ if(events.length<5)return [];
+ const times=events.map(e=>e.t);
+ // For each BPM, pairwise onset intervals near 1/4-beat multiples count as evidence.
+ // Penalize very high BPM candidates that fit arbitrary subdivisions trivially.
+ const candidates=[];
+ for(let bpm=50;bpm<=220;bpm+=.5){
+  const beat=60/bpm;let score=0,weight=0,matched=0;
+  for(let i=0;i<times.length;i++)for(let j=i+1;j<Math.min(times.length,i+18);j++){
+   const diff=times[j]-times[i];if(diff<.095||diff>4)continue;
+   // Require a nontrivial interval, quantized to 8th or 16th beats.
+   const units=diff/(beat/4),nearest=Math.round(units);
+   if(nearest<1||nearest>32)continue;
+   const error=Math.abs(units-nearest),w=1/Math.sqrt(j-i);
+   weight+=w;score+=w*Math.exp(-.5*(error/.16)**2)*(nearest%2===0?1:.82);
+   if(error<.16)matched++;
+  }
+  if(weight) candidates.push({bpm,score:score/weight,matched});
+ }
+ candidates.sort((a,b)=>b.score-a.score);
+ const unique=[];
+ for(const item of candidates){if(unique.every(c=>Math.abs(c.bpm-item.bpm)>4))unique.push(item);if(unique.length>=5)break;}
+ return unique;
+}
+$('halfBPM').onclick=()=>{$('bpmValue').value=(clamp(+$('bpmValue').value,30,640)/2).toFixed(2)};
+$('doubleBPM').onclick=()=>{$('bpmValue').value=(clamp(+$('bpmValue').value,15,320)*2).toFixed(2)};
+$('cancelScan').onclick=()=>{cancelTemporal=true;bpmText('中止しています…')};
+$('scanBPM').onclick=async()=>{
+ if(!ready||busy||!Number.isFinite(v.duration))return;
+ const duration=v.duration;
+ const start=clamp(+$('scanStart').value,0,Math.max(0,duration-.5));
+ const length=clamp(+$('scanLength').value,3,20);
+ const fps=clamp(+$('scanFPS').value,5,12);
+ const end=Math.min(duration-.03,start+length);
+ if(end-start<2.5){bpmText('解析には少なくとも約3秒の動画区間が必要です。');return}
+ const original=v.currentTime,wasPlaying=!v.paused;
+ v.pause();busy=true;cancelTemporal=false;$('scanBPM').disabled=true;$('notes').disabled=true;$('autofit').disabled=true;$('cancelScan').disabled=false;
+ const W=src.width,H=src.height,yEnd=Math.round(H*keyboardY/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300);
+ const samples=[];let failure=null;
+ try{
+  const count=Math.floor((end-start)*fps)+1;
+  for(let i=0;i<count;i++){
+   if(cancelTemporal)break;
+   const t=Math.min(end,start+i/fps);
+   const notes=await componentsAt(t,W,H,yEnd,minH,maxW);
+   samples.push({t,notes});
+   if(i%4===0||i===count-1){bpmText(`動画を解析中：${i+1}/${count} フレーム（${Math.round((i+1)/count*100)}%）\nこの解析は端末内で実行されます。`);await new Promise(r=>setTimeout(r,0));}
+  }
+  if(cancelTemporal){bpmText(`中止しました（${samples.length}フレームまで解析）。`);return;}
+  const result=tracksFromSamples(samples,yEnd),tempos=inferTempo(result.events);
+  if(tempos.length){$('bpmValue').value=tempos[0].bpm.toFixed(2)}
+  const hits=result.events.slice(0,10).map(e=>`${e.t.toFixed(2)}秒 (${Number.isFinite(e.pitch)?'MIDI '+e.pitch:'音程未確定'})`).join('、');
+  bpmText(`解析済み：${samples.length}フレーム / 追跡した形状 ${result.tracks.length}件\n移動が確認できたノーツ・推定到達時刻：${result.events.length}件\n${tempos.length?'BPM候補：'+tempos.map(c=>c.bpm.toFixed(1)+'（周期一致度'+Math.round(c.score*100)+'%）').join(' / '):'BPMを推定できませんでした。移動するノーツが多い区間を選び、必要なら検出感度を調整してください。'}\n${hits?'到達時刻の例：'+hits+'\n':''}※周期一致度は統計的な確信度ではありません。半分・倍のBPMにも注意してください。ここではノーツを継続追跡するための試験解析です。`);
+ }catch(e){failure=e;bpmText('解析エラー：'+(e?.message||String(e)))}
+ finally{
+  try{await seekTo(original)}catch(e){}
+  frame();busy=false;$('scanBPM').disabled=false;$('notes').disabled=false;$('autofit').disabled=false;$('cancelScan').disabled=true;
+  if(wasPlaying&&!failure&&!cancelTemporal)v.play().catch(()=>{});
+ }
+};
+
 $('exclusive').onclick=()=>{exclusiveLanes=!exclusiveLanes;$('exclusive').textContent=exclusiveLanes?'🎹 レーン重複：なし（黒鍵優先）':'🎹 レーン重複：あり（従来方式）';$('exclusive').setAttribute('aria-pressed',String(exclusiveLanes));boxes=[];frame();$('noteresult').textContent='レーン設定を変更しました。再度ノーツ候補を検出してください。';};
 $('notes').onclick=async()=>{if(!ready||busy)return;if(!lanes.length){$('noteresult').textContent='鍵盤ガイドを配置してください。';return;}busy=true;$('notes').disabled=true;$('noteresult').textContent='前後フレームを確認中…';let original=v.currentTime,W=src.width,H=src.height,yEnd=Math.round(H*keyboardY/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300),dt=.16;try{let sets=[];for(let t of [Math.max(0,original-dt),original,Math.min(v.duration,original+dt)])sets.push(await componentsAt(t,W,H,yEnd,minH,maxW));let center=sets[1],near=[...sets[0],...sets[2]];boxes=center.filter(b=>near.some(n=>{if(b.laneType!==n.laneType||Math.abs(b.pitchX-n.pitchX)>1.5)return false;let overlap=Math.max(0,Math.min(b.x+b.w,n.x+n.w)-Math.max(b.x,n.x));return overlap/Math.max(1,Math.min(b.w,n.w))>=.75&&Math.abs(b.w-n.w)<=Math.max(5,b.w*.35)}));await seekTo(original);frame();$('noteresult').textContent=`内部の塗りつぶし・暗部抑制・固定レーンで抽出した候補：${center.length}個\n前後フレームとの位置・幅の整合：${boxes.length}個（黄色枠）\n選択したレーン重複設定・背景に対する明るさ・内部塗りつぶし率・輪郭・縦方向の安定性で判定しました。ノーツが背景とほぼ同じ色の場合や強い発光エフェクトがある場合は、誤判定が残ることがあります。`}catch(e){$('noteresult').textContent='解析中にエラーが発生しました。動画を読み込み直して再試行してください。';await seekTo(original);frame()}finally{busy=false;$('notes').disabled=false}};
 })();
