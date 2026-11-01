@@ -6,7 +6,7 @@
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px;margin:14px 0}.control{border:1px solid #dfe7f2;background:#f9fbff;border-radius:12px;padding:13px;min-width:0}.control h3{margin:0 0 6px;font-size:1rem}.control p{margin:0 0 8px;font-size:.8rem;color:#647086}.adjust{display:grid;grid-template-columns:44px 1fr 44px 94px;gap:8px;align-items:center}.adjust button{min-width:42px;margin:0}.adjust input[type=range]{grid-column:1/-1;width:100%;min-width:0;height:36px;touch-action:pan-y}.control{min-width:0}.fine{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.fine button[aria-pressed="true"]{background:#245bd6;color:white}.control .adjust input[type=range]{width:100%}#cv{touch-action:none;cursor:crosshair}.reference{border:1px solid #d9e5fa;border-radius:12px;background:#f4f8ff;padding:14px;margin:12px 0}.reference .row{gap:12px}.reference select,.reference input{width:auto;min-width:85px}.draghelp{font-size:.9rem;color:#475569;background:#f1f5fa;padding:10px;border-radius:9px;margin:10px 0}.adjust input[type=number]{width:92px;flex:none;padding:8px;font-size:1rem;text-align:right;border-radius:7px;border:1px solid #c4d1e3}.adjust input[type=range]{accent-color:#245bd6}.control select{width:100%;padding:10px;border-radius:8px;border:1px solid #c4d1e3;background:white}.auto-panel{background:#edf5ff;border:1px solid #c9defa;border-radius:12px;padding:14px}.auto-panel button{font-weight:700}.auto-result{font-size:.9rem;margin-top:8px;white-space:pre-wrap}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}#file{width:100%;max-width:420px}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ffb74d;outline-offset:2px}@media(max-width:600px){.controls{grid-template-columns:1fr}.wrap{padding:0}body{padding:8px}.box{padding:12px}.adjust input[type=number]{width:85px}}
 .adjust input[type=range]{display:block;grid-row:2;grid-column:1/-1}.adjust input[type=number]{grid-column:3/5;width:100%}.adjust button:first-child{grid-column:1}.adjust button:nth-child(2){grid-column:2;justify-self:start}.control{min-width:0}@media(min-width:760px){.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .group{border:1px solid #d8e2f1;border-radius:12px;margin:12px 0;overflow:hidden}.group>summary{cursor:pointer;list-style:auto;padding:14px;background:#eef3fb;font-weight:700;min-height:48px}.group>.controls,.group>.reference{margin:12px}.preview{position:sticky;top:0;z-index:5;background:white;border:1px solid #dde6f4;border-radius:9px;padding:5px;margin-top:12px;max-height:42vh;overflow:hidden}.preview canvas{display:block;max-height:36vh;object-fit:contain}.shift-controls{display:grid;gap:9px}.shift-controls label{display:grid;grid-template-columns:58px minmax(0,1fr) 70px;gap:7px;align-items:center}.shift-controls input[type=range]{width:100%;min-width:0}.shift-controls input[type=number]{width:70px}.fine{flex-wrap:wrap}.fine>div{display:flex;flex-wrap:wrap}.fine button[aria-pressed="true"]{background:#245bd6;color:white}@media(max-width:600px){.preview{max-height:32vh}.preview canvas{max-height:27vh}.group>.controls{margin:8px}.fine button{font-size:.85rem}}
-.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.tempoOptions{margin-top:10px}.tempoOptions label{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tempoOptions select{padding:8px;max-width:170px}.tempoSegments{display:grid;gap:8px;margin:12px 0}.tempoSegment{display:grid;grid-template-columns:minmax(100px,1fr) 95px 95px 52px;gap:7px;align-items:center;padding:9px;background:#f4f7fd;border-radius:9px}.tempoSegment input{width:100%;font-size:16px}.tempoSegment button{margin:0}.tempoSegment small{font-size:.8rem;color:#596579}@media(max-width:520px){.tempoSegment{grid-template-columns:minmax(65px,1fr) 72px 78px 43px;gap:4px;padding:6px}.tempoSegment input{padding:5px}.tempoSegment button{padding:5px}}#tempoChart{max-height:260px;aspect-ratio:960/260;object-fit:contain}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.5.5</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.tempoOptions{margin-top:10px}.tempoOptions label{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tempoOptions select{padding:8px;max-width:170px}.tempoSegments{display:grid;gap:8px;margin:12px 0}.tempoSegment{display:grid;grid-template-columns:minmax(100px,1fr) 95px 95px 52px;gap:7px;align-items:center;padding:9px;background:#f4f7fd;border-radius:9px}.tempoSegment input{width:100%;font-size:16px}.tempoSegment button{margin:0}.tempoSegment small{font-size:.8rem;color:#596579}@media(max-width:520px){.tempoSegment{grid-template-columns:minmax(65px,1fr) 72px 78px 43px;gap:4px;padding:6px}.tempoSegment input{padding:5px}.tempoSegment button{padding:5px}}#tempoChart{max-height:none;aspect-ratio:1100/350;object-fit:contain;touch-action:pan-y;cursor:crosshair}.tempoToolbar{background:#f2f6fc;padding:12px;border-radius:10px;margin:12px 0}.tempoPan{display:grid;gap:7px;margin-top:10px}.tempoPan input{width:100%}.tempoToolbar select{padding:8px;max-width:100%}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.5.8</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*,.mov,video/quicktime"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline preload="metadata"></video><p class="muted" id="videoHelp">MOVは内部の映像コーデックによって再生可否が異なります。ファイルを選択したあと、読み込み状況とエラーをここに表示します。</p><button type="button" id="retryVideo" class="secondary" hidden>同じファイルを再試行</button><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。まず自動位置合わせを試し、ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
 <div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button id="autofit" disabled>鍵盤に自動で合わせる</button><div id="autoResult" class="auto-result" aria-live="polite">動画の読み込み後に利用できます。</div></div>
@@ -33,12 +33,16 @@
 <p><b>レーン重複：あり</b>：白鍵・黒鍵の検査範囲を互いに切り取らず使います。<b>なし</b>：黒鍵の領域を優先して白鍵側を削ります。後者では白鍵の有効幅が狭く分断され、塗りつぶし率や輪郭検査が不安定になり得ます。</p>
 <p><b>上部までのガイド表示</b>：線を見せるかどうかだけの設定。非表示でもノーツ検出にはガイドを使用します。</p>
 </div></details></section>
-<section class="box" id="bpmPanel"><h2>4. BPM推定（音声メイン・映像補助）</h2>
-<p class="muted">基本は音声のオンセット強度・局所自己相関・動的計画法によって解析します。映像からの推定は補助機能として残しています。曲全体の音声を初期設定で解析します。長い曲でもBPMマップを最後まで作成します。音声がデコードできない場合は別途音声ファイルを指定できます。</p>
-<div class="auto-panel" id="audioTempoPanel"><strong>🎵 音声からBPMを推定（メイン）</strong><p class="muted">読み込んだ動画の音声を解析します。MP4・MOVを含む動画ファイルを試します。MOV/MP4は動画全体をメモリへ読み込まずAAC音声トラックを分離し、Safari対応MP4へ再構成して解析します。対応しないコーデックでは動画の再生による音声取得を試します。iOS/Safariの対応状況によって制限があります。すべて端末内で処理します。</p><div class="row"><label><input id="audioWhole" type="checkbox" checked style="width:auto;accent-color:#245bd6"> 音声を全区間解析（推奨）</label><label>代替音声ファイル（任意） <input id="audioFile" type="file" accept="audio/*"></label><button type="button" id="analyzeAudio">音声からBPMを計測</button><button type="button" id="abortAudio" class="secondary" disabled>中止</button></div><p class="muted">全区間オフの場合のみ、下の映像補助解析の「解析開始・解析時間」を音声にも適用します。BPMマップの変更点は推定値です。曲全体のグリッド整合や拍位置の検証が必要です。</p><div id="audioStatus" class="status" aria-live="polite">動画を読み込むか、代替音声ファイルを選んでください。</div></div><details class="group"><summary>映像からのBPM推定（補助機能）</summary><div style="padding:12px 16px"><p class="muted">ノーツ認識を使った従来の推定です。主に音声推定が曖昧な場合の比較に利用してください。</p><div class="row"><label>解析開始 (秒) <input id="scanStart" type="number" min="0" step="0.1" value="0"></label><label>解析時間 (秒) <input id="scanLength" type="number" min="3" max="180" step="1" value="20"></label><label>解析間隔 <select id="scanFPS"><option value="5">軽量 (5fps)</option><option value="8" selected>標準 (8fps)</option><option value="12">精密 (12fps)</option></select></label><button id="scanBPM" disabled>映像から補助推定する</button><button id="cancelScan" class="secondary" disabled>中止</button></div></div></details>
+<section class="box" id="bpmPanel"><h2>4. BPM・テンポマップ（音声解析）</h2>
+<p class="muted">音声のオンセット強度・局所自己相関・動的計画法で曲全体を解析します。曲全体の音声を初期設定で解析します。長い曲でもBPMマップを最後まで作成します。音声がデコードできない場合は別途音声ファイルを指定できます。</p>
+<div class="auto-panel" id="audioTempoPanel"><strong>🎵 音声からBPMを推定（メイン）</strong><p class="muted">読み込んだ動画の音声を解析します。MP4・MOVを含む動画ファイルを試します。MOV/MP4は動画全体をメモリへ読み込まずAAC音声トラックを分離し、Safari対応MP4へ再構成して解析します。対応しないコーデックでは動画の再生による音声取得を試します。iOS/Safariの対応状況によって制限があります。すべて端末内で処理します。</p><div class="row"><label><input id="audioWhole" type="checkbox" checked style="width:auto;accent-color:#245bd6"> 音声を全区間解析（推奨）</label><label>代替音声ファイル（任意） <input id="audioFile" type="file" accept="audio/*"></label><button type="button" id="analyzeAudio">音声からBPMを計測</button><button type="button" id="abortAudio" class="secondary" disabled>中止</button></div><p class="muted">BPM全区間解析が初期設定です。部分解析では下の開始・長さを使用します。結果は推定値であり、DAW用には拍位置とテンポ変化時刻の検証が必要です。</p><div class="row"><label>部分解析開始 (秒) <input id="scanStart" type="number" min="0" step="0.1" value="0"></label><label>部分解析長さ (秒) <input id="scanLength" type="number" min="3" max="180" step="1" value="20"></label></div><div id="audioStatus" class="status" aria-live="polite">動画を読み込むか、代替音声ファイルを選んでください。</div></div>
 <div class="row"><label>BPM（手動修正可） <input id="bpmValue" type="number" min="30" max="320" step="0.01" value="120"></label><button id="halfBPM" class="secondary">÷2</button><button id="doubleBPM" class="secondary">×2</button><span class="muted">推定値は候補です。拍子・グリッドの解析は次のバージョンで実装予定。</span></div>
-<div class="row tempoOptions"><label>局所解析窓 <select id="tempoWindow"><option value="4">4秒（変化に敏感）</option><option value="6">6秒</option><option value="8" selected>8秒（標準）</option><option value="12">12秒（安定重視）</option></select></label><label>BPM探索 <select id="tempoRange"><option value="40,300" selected>40～300</option><option value="60,220">60～220</option></select></label><label>変化への追従 <select id="tempoAgility"><option value="stable">安定重視</option><option value="balanced" selected>標準</option><option value="agile">変化に敏感</option></select></label></div><div id="bpmResult" class="status" aria-live="polite">音声解析は曲全体が初期設定です。映像からのBPM推定は補助として利用できます。</div>
-<div id="tempoVisualization" hidden><h3>推定BPMの時間変化</h3><canvas id="tempoChart" width="960" height="260" aria-label="時間ごとの推定BPMグラフ"></canvas><p class="muted">灰色：局所推定、青：時間的な整合性を考慮した推定。音声解析を行った場合は音声が優先されます。時間軸は動画の秒数。線の位置は推定であり、確定値ではありません。</p><h3>テンポ区間（手動修正可能）</h3><div class="row"><button type="button" id="addTempoPoint" class="secondary">テンポ変更点を追加</button><button type="button" id="clearTempoEdits" class="secondary">自動推定に戻す</button><button type="button" id="exportTempo" class="secondary">テンポマップをJSON出力</button></div><div id="tempoSegments" class="tempoSegments"></div><p class="muted">変更点の時刻とBPMを手動入力できます。これはテンポの候補マップです。実際のMIDI出力は今後のバージョンで統合します。</p></div><details class="group"><summary>今回の解析の意味と限界</summary><div style="padding:10px 14px;line-height:1.7"><p>同じ音程レーンのノーツが複数フレームで下に移動したとき、その速度と現在位置から鍵盤に到達する推定時刻を計算します。ノーツの到達間隔に4分・8分・16分の周期性があると仮定してテンポを比べます。</p><p>映像の発光、途中で消えるノーツ、繰り返しの同音、スウィングや変拍子、BPM変化が速い区間では推定誤差が生じます。BPM 80 と 160 のような倍・半分の曖昧さは残ります。ここではMIDI出力はまだ行いません。</p></div></details>
+<div class="row tempoOptions"><label>局所解析窓 <select id="tempoWindow"><option value="4">4秒（変化に敏感）</option><option value="6">6秒</option><option value="8" selected>8秒（標準）</option><option value="12">12秒（安定重視）</option></select></label><label>BPM探索 <select id="tempoRange"><option value="40,300" selected>40～300</option><option value="60,220">60～220</option></select></label><label>テンポ解釈 <select id="tempoPreference"><option value="fast" selected>標準：100〜220 BPMを優先</option><option value="neutral">中立：帯域の優先なし</option><option value="slow">低速寄り：60〜120 BPMを優先</option></select></label><label>変化への追従 <select id="tempoAgility"><option value="stable">安定重視</option><option value="balanced" selected>標準</option><option value="agile">変化に敏感</option></select></label></div><div id="bpmResult" class="status" aria-live="polite">音声解析は曲全体が初期設定です。倍・半テンポはテンポ解釈から調整できます。</div>
+<div id="tempoVisualization" hidden><h3>テンポ・タイムライン</h3>
+<div class="tempoToolbar"><div class="row"><label>横方向の表示範囲 <select id="tempoZoom"><option value="1">全曲</option><option value="0.5">50%</option><option value="0.25">25%</option><option value="0.1">10%</option></select></label><label><input type="checkbox" id="showRawTempo" checked style="width:auto"> 局所候補も表示</label></div><label class="tempoPan">表示位置 <input type="range" id="tempoPan" min="0" max="100" step="0.1" value="0" disabled></label><div class="row"><button type="button" id="tempoMapHalf" class="secondary">マップ全体 ÷2</button><button type="button" id="tempoMapDouble" class="secondary">マップ全体 ×2</button><button type="button" id="tempoAtCursor" class="secondary">選択位置に変更点追加</button></div><div id="tempoCursorInfo" class="status">グラフをタップすると時刻・BPMを表示します。</div></div>
+<canvas id="tempoChart" width="1100" height="350" aria-label="時間ごとのBPMを表示する操作可能なグラフ" role="img"></canvas>
+<p class="muted">青：編集可能なBPMマップ。灰：独立した局所推定値。グラフをタップして時刻を選び、変更点を追加できます。マップを÷2／×2しても時刻は変わりません。</p>
+<h3>テンポ区間（手動修正可能）</h3><div class="row"><button type="button" id="addTempoPoint" class="secondary">中央に変更点追加</button><button type="button" id="clearTempoEdits" class="secondary">自動推定に戻す</button><button type="button" id="exportTempo" class="secondary">テンポマップをJSON出力</button></div><div id="tempoSegments" class="tempoSegments"></div><p class="muted">曲中の変更時刻とBPMを小数第2位まで編集できます。拍グリッドへの同期とMIDI出力は今後実装します。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
 </section><canvas id="source" hidden></canvas></main>
 <script>
 (()=>{
@@ -134,7 +138,7 @@ function frame(){if(!ready||!v.videoWidth||v.readyState<2)return;let r=Math.min(
  ctx.fillText('下端 ↓',6,Math.min(H-4,y2-5));
  boxes.forEach(b=>{ctx.strokeStyle='#ffd34d';ctx.lineWidth=2;ctx.strokeRect(b.x,b.y,b.w,b.h)});$('t').value=v.currentTime.toFixed(2);
 }
-function enable(){['prev','next','seek','notes','autofit','toggle','reset','coarseMode','fineMode','slowMode','scanBPM'].forEach(id=>$(id).disabled=false);document.querySelectorAll('[data-step]').forEach(b=>b.disabled=false)}
+function enable(){['prev','next','seek','notes','autofit','toggle','reset','coarseMode','fineMode','slowMode'].forEach(id=>$(id).disabled=false);document.querySelectorAll('[data-step]').forEach(b=>b.disabled=false)}
 function refresh(){if(!ready)return;boxes=[];frame();}
 function updateSliderRanges(){
  const values={anchorX,whiteStep,keyboardY,keyboardHeight,blackWidth:blackWidthPct,blackHeight:blackHeightPct};
@@ -639,7 +643,7 @@ function mapToPoints(result,lo,hi){
  let last=arr[0],lastChange=lo;
  for(let i=1;i<arr.length;i++){
   const b=arr[i];
-  if(Math.abs(b-last)<Math.max(2,last*.025))continue;
+  if(Math.abs(b-last)<Math.max(1.5,last*.015))continue;
   const t=(ws[i-1].t+ws[i].t)/2;
   if(t-lastChange<1.5){continue;}
   points.push({t,bpm:b,quality:ws[i].quality});last=b;lastChange=t;
@@ -647,19 +651,28 @@ function mapToPoints(result,lo,hi){
  return points;
 }
 function tempoAt(t){let b=tempoPoints[0]?.bpm||120;for(const p of tempoPoints)if(p.t<=t)b=p.bpm;return b}
+let tempoSelectedTime=null,chartView=[0,1];
+function tempoVisibleRange(){const [lo,hi]=tempoAnalysisRange||[0,1],zoom=Number($('tempoZoom').value)||1,span=(hi-lo)*zoom,offset=Number($('tempoPan').value)/100;return [lo+(hi-lo-span)*offset,lo+(hi-lo-span)*offset+span];}
 function chartTempo(){
  const can=$('tempoChart'),g=can.getContext('2d'),W=can.width,H=can.height;
  g.clearRect(0,0,W,H);g.fillStyle='#fff';g.fillRect(0,0,W,H);
  if(!tempoAnalysisRange||!tempoWindows.length)return;
- const [lo,hi]=tempoAnalysisRange,all=tempoWindows.map(w=>w.raw).concat(tempoPoints.map(p=>p.bpm));
- const ymin=Math.max(20,Math.floor((Math.min(...all)-15)/20)*20),ymax=Math.max(ymin+40,Math.ceil((Math.max(...all)+15)/20)*20);
- const x=t=>50+(W-65)*(t-lo)/Math.max(.1,hi-lo),y=b=>H-35-(H-55)*(b-ymin)/(ymax-ymin);
- g.strokeStyle='#e0e6ef';g.fillStyle='#536071';g.font='15px system-ui';
- for(let i=0;i<=4;i++){const b=ymin+(ymax-ymin)*i/4;g.beginPath();g.moveTo(45,y(b));g.lineTo(W-10,y(b));g.stroke();g.fillText(String(Math.round(b)),4,y(b)+5);}
- for(let i=0;i<=5;i++){const t=lo+(hi-lo)*i/5;g.fillText(t.toFixed(1)+'s',Math.max(48,x(t)-15),H-8);}
- g.strokeStyle='#a8b0bd';g.lineWidth=2;g.beginPath();tempoWindows.forEach((w,i)=>{i?g.lineTo(x(w.t),y(w.raw)):g.moveTo(x(w.t),y(w.raw))});g.stroke();
- g.strokeStyle='#2369d8';g.lineWidth=3;g.beginPath();
- if(tempoPoints.length){g.moveTo(x(lo),y(tempoAt(lo)));for(let i=1;i<tempoPoints.length;i++){const p=tempoPoints[i];g.lineTo(x(p.t),y(tempoPoints[i-1].bpm));g.lineTo(x(p.t),y(p.bpm));}g.lineTo(x(hi),y(tempoAt(hi)));}g.stroke();
+ const [lo,hi]=tempoVisibleRange();chartView=[lo,hi];
+ const samples=tempoWindows.filter(w=>w.t>=lo&&w.t<=hi);
+ const all=(($('showRawTempo').checked?samples.map(w=>w.raw):[]).concat(tempoPoints.filter(p=>p.t<=hi&&p.t>=lo).map(p=>p.bpm),[tempoAt(lo),tempoAt(hi)]));
+ const ymin=Math.max(20,Math.floor((Math.min(...all)-8)/10)*10),ymax=Math.max(ymin+20,Math.ceil((Math.max(...all)+8)/10)*10);
+ const L=65,R=20,T=20,B=42,x=t=>L+(W-L-R)*(t-lo)/Math.max(.001,hi-lo),y=b=>H-B-(H-T-B)*(b-ymin)/(ymax-ymin);
+ g.strokeStyle='#e3eaf3';g.lineWidth=1;g.fillStyle='#48566b';g.font='16px system-ui';
+ for(let i=0;i<=5;i++){const b=ymin+(ymax-ymin)*i/5;g.beginPath();g.moveTo(L,y(b));g.lineTo(W-R,y(b));g.stroke();g.fillText(b.toFixed(b%1?1:0),6,y(b)+5)}
+ for(let i=0;i<=6;i++){const t=lo+(hi-lo)*i/6;g.beginPath();g.moveTo(x(t),T);g.lineTo(x(t),H-B);g.stroke();g.fillText(t.toFixed(1)+'s',Math.max(L,x(t)-18),H-12)}
+ g.save();g.beginPath();g.rect(L,T,W-L-R,H-T-B);g.clip();
+ if($('showRawTempo').checked){g.strokeStyle='#a2abba';g.lineWidth=2;g.beginPath();samples.forEach((w,i)=>{i?g.lineTo(x(w.t),y(w.raw)):g.moveTo(x(w.t),y(w.raw))});g.stroke()}
+ g.strokeStyle='#1965db';g.lineWidth=4;g.beginPath();g.moveTo(x(lo),y(tempoAt(lo)));
+ for(const p of tempoPoints){if(p.t<=lo||p.t>=hi)continue;g.lineTo(x(p.t),y(tempoAt(p.t-1e-5)));g.lineTo(x(p.t),y(p.bpm));}
+ g.lineTo(x(hi),y(tempoAt(hi)));g.stroke();
+ for(const p of tempoPoints){if(p.t<lo||p.t>hi)continue;g.fillStyle='#1965db';g.beginPath();g.arc(x(p.t),y(p.bpm),6,0,Math.PI*2);g.fill()}
+ if(tempoSelectedTime!==null&&tempoSelectedTime>=lo&&tempoSelectedTime<=hi){g.strokeStyle='#ed8f18';g.lineWidth=2;g.beginPath();g.moveTo(x(tempoSelectedTime),T);g.lineTo(x(tempoSelectedTime),H-B);g.stroke()}
+ g.restore();
 }
 function renderTempoPoints(){
  const host=$('tempoSegments');host.replaceChildren();tempoPoints.sort((a,b)=>a.t-b.t);
@@ -667,66 +680,31 @@ function renderTempoPoints(){
   const p=tempoPoints[i],row=document.createElement('div');row.className='tempoSegment';
   const label=document.createElement('small');label.textContent=i===0?'開始':'変更 '+i;
   const t=document.createElement('input');t.type='number';t.step='.01';t.min=tempoAnalysisRange[0];t.max=tempoAnalysisRange[1];t.value=p.t.toFixed(2);t.setAttribute('aria-label','変更時刻（秒）');t.disabled=i===0;
-  const bpm=document.createElement('input');bpm.type='number';bpm.min='30';bpm.max='350';bpm.step='.1';bpm.value=p.bpm.toFixed(1);bpm.setAttribute('aria-label','BPM');
+  const bpm=document.createElement('input');bpm.type='number';bpm.min='30';bpm.max='350';bpm.step='.01';bpm.value=p.bpm.toFixed(2);bpm.setAttribute('aria-label','BPM');
   const del=document.createElement('button');del.type='button';del.textContent='削除';del.className='secondary';del.disabled=i===0;
-  t.onchange=()=>{p.t=clamp(+t.value,tempoAnalysisRange[0],tempoAnalysisRange[1]);renderTempoPoints();chartTempo();};
-  bpm.onchange=()=>{p.bpm=clamp(+bpm.value,30,350);bpm.value=p.bpm.toFixed(1);chartTempo();};
-  del.onclick=()=>{tempoPoints.splice(i,1);renderTempoPoints();chartTempo();};
+  t.onchange=()=>{p.t=clamp(+t.value,tempoAnalysisRange[0],tempoAnalysisRange[1]);renderTempoPoints()};
+  bpm.onchange=()=>{p.bpm=clamp(+bpm.value,30,350);bpm.value=p.bpm.toFixed(2);chartTempo()};
+  del.onclick=()=>{tempoPoints.splice(i,1);renderTempoPoints()};
   row.append(label,t,bpm,del);host.append(row);
  }
  chartTempo();
 }
-$('addTempoPoint').onclick=()=>{if(!tempoAnalysisRange)return;const [lo,hi]=tempoAnalysisRange;const mid=(lo+hi)/2;tempoPoints.push({t:mid,bpm:tempoAt(mid),quality:0});renderTempoPoints()};
+$('tempoZoom').onchange=()=>{$('tempoPan').disabled=$('tempoZoom').value==='1';chartTempo()};
+$('tempoPan').oninput=chartTempo;$('showRawTempo').onchange=chartTempo;
+$('tempoChart').addEventListener('pointerdown',e=>{
+ if(!tempoAnalysisRange)return;const r=$('tempoChart').getBoundingClientRect(),relative=(e.clientX-r.left)/Math.max(1,r.width),fraction=clamp((relative-65/1100)/(1-85/1100),0,1);
+ const [lo,hi]=chartView;tempoSelectedTime=lo+(hi-lo)*fraction;
+ $('tempoCursorInfo').textContent=`選択：${tempoSelectedTime.toFixed(2)}秒 / ${tempoAt(tempoSelectedTime).toFixed(2)} BPM（手動変更点は下から編集）`;
+ chartTempo();
+});
+$('tempoAtCursor').onclick=()=>{if(!tempoAnalysisRange)return;const t=tempoSelectedTime??(tempoVisibleRange()[0]+tempoVisibleRange()[1])/2;tempoPoints.push({t,bpm:tempoAt(t)});renderTempoPoints()};
+$('addTempoPoint').onclick=()=>{if(!tempoAnalysisRange)return;const [lo,hi]=tempoVisibleRange(),mid=(lo+hi)/2;tempoPoints.push({t:mid,bpm:tempoAt(mid),quality:0});renderTempoPoints()};
+$('tempoMapHalf').onclick=()=>{tempoPoints.forEach(p=>p.bpm=Math.round(clamp(p.bpm/2,30,350)*100)/100);renderTempoPoints()};
+$('tempoMapDouble').onclick=()=>{tempoPoints.forEach(p=>p.bpm=Math.round(clamp(p.bpm*2,30,350)*100)/100);renderTempoPoints()};
 $('clearTempoEdits').onclick=()=>{tempoPoints=tempoAutomatic.map(p=>({...p}));renderTempoPoints()};
-$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.5.4',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.5.8',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 $('halfBPM').onclick=()=>{$('bpmValue').value=(clamp(+$('bpmValue').value,30,640)/2).toFixed(2)};
 $('doubleBPM').onclick=()=>{$('bpmValue').value=(clamp(+$('bpmValue').value,15,320)*2).toFixed(2)};
-$('cancelScan').onclick=()=>{cancelTemporal=true;bpmText('中止しています…')};
-$('scanBPM').onclick=async()=>{
- if(!ready||busy||!Number.isFinite(v.duration))return;
- const duration=v.duration;
- const start=clamp(+$('scanStart').value,0,Math.max(0,duration-.5));
- const length=clamp(+$('scanLength').value,3,180);
- const fps=clamp(+$('scanFPS').value,5,12);
- const end=Math.min(duration-.03,start+length);
- if(end-start<2.5){bpmText('解析には少なくとも約3秒の動画区間が必要です。');return}
- const original=v.currentTime,wasPlaying=!v.paused;
- v.pause();busy=true;cancelTemporal=false;$('scanBPM').disabled=true;$('notes').disabled=true;$('autofit').disabled=true;$('cancelScan').disabled=false;
- const W=src.width,H=src.height,yEnd=Math.round(H*keyboardY/100),minH=clamp(+$('minh').value,3,300),maxW=clamp(+$('maxw').value,3,300);
- const samples=[];let failure=null;
- try{
-  const count=Math.floor((end-start)*fps)+1;
-  for(let i=0;i<count;i++){
-   if(cancelTemporal)break;
-   const t=Math.min(end,start+i/fps);
-   const notes=await componentsAt(t,W,H,yEnd,minH,maxW);
-   samples.push({t,notes});
-   if(i%4===0||i===count-1){bpmText(`動画を解析中：${i+1}/${count} フレーム（${Math.round((i+1)/count*100)}%）\nこの映像解析は端末内で実行されます。`);await new Promise(r=>setTimeout(r,0));}
-  }
-  if(cancelTemporal){bpmText(`中止しました（${samples.length}フレームまで解析）。`);return;}
-  const result=tracksFromSamples(samples,yEnd);
-  const win=+$('tempoWindow').value,rng=$('tempoRange').value.split(',').map(Number);
-  const inferred=localTempoMap(result.events,start,end,win,rng,$('tempoAgility').value);
-  tempoWindows=inferred.windows;tempoAnalysisRange=[start,end];
-  tempoAutomatic=mapToPoints(inferred,start,end);tempoPoints=tempoAutomatic.map(p=>({...p}));
-  $('tempoVisualization').hidden=!tempoPoints.length;
-  if(tempoPoints.length){$('bpmValue').value=tempoPoints[0].bpm.toFixed(2);renderTempoPoints();}
-  const hits=result.events.slice(0,10).map(e=>`${e.t.toFixed(2)}秒 (${Number.isFinite(e.pitch)?'MIDI '+e.pitch:'音程未確定'})`).join('、');
-  const quality=tempoWindows.filter(w=>w.informative);
-  bpmText(`解析済み：${samples.length}フレーム / 追跡した形状 ${result.tracks.length}件
-移動が確認できたノーツ・推定到達時刻：${result.events.length}件
-有効な局所解析窓：${quality.length}/${tempoWindows.length}
-${tempoPoints.length?'推定テンポ区間：'+tempoPoints.map(p=>p.t.toFixed(1)+'秒→'+p.bpm.toFixed(1)+' BPM').join(' / '):'推定不可：ノーツ到達時刻の情報が不足しています。解析時間を延ばすかノーツが多い区間を試してください。'}
-${hits?'到達時刻の例：'+hits+'\n':''}※グラフの適合度は正解確率ではありません。倍・半テンポや連続的な加速の判定には限界があります。区間は手動補正できます。`);
- }catch(e){failure=e;bpmText('解析エラー：'+(e?.message||String(e)))}
- finally{
-  try{await seekTo(original)}catch(e){}
-  frame();busy=false;$('scanBPM').disabled=false;$('notes').disabled=false;$('autofit').disabled=false;$('cancelScan').disabled=true;
-  if(wasPlaying&&!failure&&!cancelTemporal)v.play().catch(()=>{});
- }
-};
-
-
 // Audio-first tempo analysis: spectral-flux onset envelope, local autocorrelation,
 // and a Viterbi-style dynamic tempo path. All computation stays on device.
 // This is a new implementation inspired by common onset/beat tracking concepts;
@@ -780,31 +758,40 @@ async function audioOnsetEnvelope(buffer,from,to){
 function audioTempoMap(env,windowSec,range,agility){
  const {onset,frameRate,start,end}=env;
  const [minB,maxB]=range,bpms=[];for(let b=minB;b<=maxB;b+=2)bpms.push(b);
- const N=onset.length, win=Math.max(80,Math.round(windowSec*frameRate)),step=Math.max(1,Math.round(frameRate));
- const windows=[];
+ const N=onset.length,win=Math.max(80,Math.round(windowSec*frameRate)),step=Math.max(1,Math.round(frameRate));
+ const windows=[],pref=$('tempoPreference').value;
+ // At half-time ambiguity, prefer the intended pulse region rather than a systematic 80 BPM result.
+ function prior(b){
+  if(pref==='neutral')return 0;
+  if(pref==='slow')return -.065*Math.abs(Math.log2(b/90));
+  return -.065*Math.abs(Math.log2(b/155));
+ }
+ function correlation(l,r,b){
+  const base=frameRate*60/b;let score=0,wsum=0;
+  // Sum autocorrelation across beat, half-beat and double-beat distances.
+  for(const [mult,weight] of [[1,1],[.5,.33],[2,.18]]){
+   const lag=base*mult,whole=Math.floor(lag),frac=lag-whole;
+   if(whole<2||lag>(r-l)*.7)continue;
+   let dot=0,a2=0,b2=0;
+   for(let j=l+whole+1;j<r;j++){
+    const a=onset[j],b0=onset[j-whole],b1=onset[j-whole-1],other=b0*(1-frac)+b1*frac;
+    dot+=a*other;a2+=a*a;b2+=other*other;
+   }
+   score+=weight*dot/(Math.sqrt(a2*b2)+1e-8);wsum+=weight;
+  }
+  return (wsum?score/wsum:0)+prior(b);
+ }
  for(let mid=0;mid<N;mid+=step){
-  const l=Math.max(0,Math.min(N-Math.min(N,win),Math.floor(mid-win/2))),r=Math.min(N,l+win),length=r-l;
+  if(audioAbort)throw Error('中止しました');
+  const l=Math.max(0,Math.min(N-Math.min(N,win),Math.floor(mid-win/2))),r=Math.min(N,l+win);
   const scores=new Float64Array(bpms.length),center=start+mid/frameRate;
   let energy=0;for(let j=l;j<r;j++)energy+=onset[j]*onset[j];
-  for(let k=0;k<bpms.length;k++){
-   const bpm=bpms[k],lag=frameRate*60/bpm;
-   let best=0;
-   // 1x, 2x, 1/2x rhythmic evidence, with weaker multiples to reduce ambiguity.
-   for(const [mult,weight] of [[1,1],[.5,.38],[2,.28]]){
-    const shift=Math.round(lag*mult);if(shift<2||shift>length*.7)continue;
-    let dot=0,a2=0,b2=0;
-    for(let j=l+shift;j<r;j++){const a=onset[j],b=onset[j-shift];dot+=a*b;a2+=a*a;b2+=b*b;}
-    const correlation=dot/(Math.sqrt(a2*b2)+1e-6);
-    best+=weight*correlation;
-   }
-   // Very broad tempo prior: soft preference for conventional range, not a hard clamp.
-   scores[k]=Math.min(1,best/1.66) - .035*Math.abs(Math.log2(bpm/125));
-  }
+  for(let k=0;k<bpms.length;k++)scores[k]=correlation(l,r,bpms[k]);
   let rawIndex=0;for(let k=1;k<scores.length;k++)if(scores[k]>scores[rawIndex])rawIndex=k;
-  windows.push({t:center,scores,raw:bpms[rawIndex],quality:scores[rawIndex],events:0,pairs:0,informative:energy/Math.max(1,length)>.015});
+  windows.push({t:center,l,r,scores,raw:bpms[rawIndex],quality:scores[rawIndex],informative:energy/Math.max(1,r-l)>.015});
  }
  if(!windows.some(w=>w.informative))return {windows,path:[],bpms};
- // Viterbi: permit true jumps when local evidence outweighs change penalty.
+ // Coarse Viterbi keeps CPU costs tractable on iPhone while maintaining tempo continuity.
  const M=bpms.length,back=[];let prev=new Float64Array(M);
  for(let k=0;k<M;k++)prev[k]=windows[0].scores[k];back.push(null);
  const cost={stable:.40,balanced:.24,agile:.12}[agility]??.24;
@@ -813,18 +800,37 @@ function audioTempoMap(env,windowSec,range,agility){
   for(let k=0;k<M;k++){
    let best=-1e20,bi=0;
    for(let j=0;j<M;j++){
-    let ratio=Math.abs(Math.log2(bpms[k]/bpms[j]));
+    const ratio=Math.abs(Math.log2(bpms[k]/bpms[j]));
     let penalty=cost*(ratio<.08?ratio*.7:.12+ratio*1.3);
-    if(ratio>.85&&ratio<1.15)penalty+=cost*.65; // discourage sporadic 2x flips
-    const s=prev[j]-penalty;if(s>best){best=s;bi=j;}
+    if(ratio>.85&&ratio<1.15)penalty+=cost*.65;
+    const score=prev[j]-penalty;if(score>best){best=score;bi=j;}
    }
    next[k]=best+(w.informative?w.scores[k]:w.scores[k]*.08);choices[k]=bi;
   }
   prev=next;back.push(choices);
  }
  let ix=0;for(let k=1;k<M;k++)if(prev[k]>prev[ix])ix=k;
- const path=Array(windows.length);
- for(let i=path.length-1;i>=0;i--){path[i]=bpms[ix];if(i>0)ix=back[i][ix];}
+ const coarse=Array(windows.length);
+ for(let i=coarse.length-1;i>=0;i--){coarse[i]=bpms[ix];if(i>0)ix=back[i][ix];}
+ // Sub-BPM refinement around each tracked tempo: 0.05 BPM grid, true fractional lag.
+ // Shared within a stable segment to avoid fractional BPM jumping each second.
+ const path=coarse.slice();let begin=0;
+ while(begin<coarse.length){
+  let stop=begin+1;while(stop<coarse.length&&Math.abs(coarse[stop]-coarse[begin])<=2)stop++;
+  const indices=[];for(let k=begin;k<stop;k++)if(windows[k].informative)indices.push(k);
+  if(indices.length){
+   let optimal=coarse[begin],best=-Infinity;
+   for(let b=Math.max(minB,coarse[begin]-2);b<=Math.min(maxB,coarse[begin]+2)+1e-8;b+=.05){
+    let score=0;for(const k of indices)score+=correlation(windows[k].l,windows[k].r,b);
+    if(score>best){best=score;optimal=b;}
+   }
+   const refined=Math.round(optimal*100)/100;
+   for(let k=begin;k<stop;k++)path[k]=refined;
+  }
+  begin=stop;
+ }
+ // Local estimates likewise show decimal accuracy rather than the 2 BPM coarse bins.
+ for(const w of windows){let best=-Infinity,ref=w.raw;for(let b=Math.max(minB,w.raw-2);b<=Math.min(maxB,w.raw+2)+1e-8;b+=.2){const sc=correlation(w.l,w.r,b);if(sc>best){best=sc;ref=b;}}w.raw=Math.round(ref*100)/100;}
  return {windows,path,bpms};
 }
 // QuickTime/MOV workaround. decodeAudioData() does not demux MOV on every browser.
@@ -927,10 +933,10 @@ $('analyzeAudio').onclick=async()=>{
   tempoWindows=result.windows;tempoAnalysisRange=[start,end];
   tempoAutomatic=mapToPoints(result,start,end);tempoPoints=tempoAutomatic.map(p=>({...p}));
   $('tempoVisualization').hidden=!tempoPoints.length;
-  if(tempoPoints.length){$('bpmValue').value=tempoPoints[0].bpm.toFixed(2);renderTempoPoints();}
+  if(tempoPoints.length){$('bpmValue').value=tempoPoints[0].bpm.toFixed(2);tempoSelectedTime=null;renderTempoPoints();}
   const informative=tempoWindows.filter(w=>w.informative).length;
   $('audioStatus').textContent=tempoPoints.length?
-   `音声解析完了：${(end-start).toFixed(1)}秒（${whole?'全区間':'指定区間'}） / 有効解析窓 ${informative}/${tempoWindows.length}\n推定テンポ：${tempoPoints.slice(0,25).map(p=>p.t.toFixed(1)+'秒→'+p.bpm.toFixed(1)+' BPM').join(' / ')}${tempoPoints.length>25?' …':''}\n変更位置は局所解析窓に依存する近似です。MIDIへ正確に反映する前に、手動で変更点を確認してください。`:
+   `音声解析完了：${(end-start).toFixed(1)}秒（${whole?'全区間':'指定区間'}） / 有効解析窓 ${informative}/${tempoWindows.length}\n推定テンポ：${tempoPoints.slice(0,25).map(p=>p.t.toFixed(1)+'秒→'+p.bpm.toFixed(1)+' BPM').join(' / ')}${tempoPoints.length>25?' …':''}\n変更位置は局所解析窓に依存する近似です。BPMの倍・半分の誤判定は「テンポ解釈」またはマップ全体操作で修正してください。`:
    '有効な音声リズムが不足しており、BPM推定はできませんでした。解析区間を変えてください。';
  }catch(e){$('audioStatus').textContent='音声解析：'+(e.message||String(e))+'\nMOVに非対応の音声形式が含まれる場合は、WAV・M4Aの別ファイルを選択してください。';}
  finally{audioBusy=false;$('analyzeAudio').disabled=false;$('abortAudio').disabled=true;if(context)await context.close().catch(()=>{});}
