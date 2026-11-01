@@ -1,12 +1,12 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.5.3</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.5.4</title>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
 
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:12px;margin:14px 0}.control{border:1px solid #dfe7f2;background:#f9fbff;border-radius:12px;padding:13px;min-width:0}.control h3{margin:0 0 6px;font-size:1rem}.control p{margin:0 0 8px;font-size:.8rem;color:#647086}.adjust{display:grid;grid-template-columns:44px 1fr 44px 94px;gap:8px;align-items:center}.adjust button{min-width:42px;margin:0}.adjust input[type=range]{grid-column:1/-1;width:100%;min-width:0;height:36px;touch-action:pan-y}.control{min-width:0}.fine{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}.fine button[aria-pressed="true"]{background:#245bd6;color:white}.control .adjust input[type=range]{width:100%}#cv{touch-action:none;cursor:crosshair}.reference{border:1px solid #d9e5fa;border-radius:12px;background:#f4f8ff;padding:14px;margin:12px 0}.reference .row{gap:12px}.reference select,.reference input{width:auto;min-width:85px}.draghelp{font-size:.9rem;color:#475569;background:#f1f5fa;padding:10px;border-radius:9px;margin:10px 0}.adjust input[type=number]{width:92px;flex:none;padding:8px;font-size:1rem;text-align:right;border-radius:7px;border:1px solid #c4d1e3}.adjust input[type=range]{accent-color:#245bd6}.control select{width:100%;padding:10px;border-radius:8px;border:1px solid #c4d1e3;background:white}.auto-panel{background:#edf5ff;border:1px solid #c9defa;border-radius:12px;padding:14px}.auto-panel button{font-weight:700}.auto-result{font-size:.9rem;margin-top:8px;white-space:pre-wrap}.action-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}#file{width:100%;max-width:420px}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #ffb74d;outline-offset:2px}@media(max-width:600px){.controls{grid-template-columns:1fr}.wrap{padding:0}body{padding:8px}.box{padding:12px}.adjust input[type=number]{width:85px}}
 .adjust input[type=range]{display:block;grid-row:2;grid-column:1/-1}.adjust input[type=number]{grid-column:3/5;width:100%}.adjust button:first-child{grid-column:1}.adjust button:nth-child(2){grid-column:2;justify-self:start}.control{min-width:0}@media(min-width:760px){.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .group{border:1px solid #d8e2f1;border-radius:12px;margin:12px 0;overflow:hidden}.group>summary{cursor:pointer;list-style:auto;padding:14px;background:#eef3fb;font-weight:700;min-height:48px}.group>.controls,.group>.reference{margin:12px}.preview{position:sticky;top:0;z-index:5;background:white;border:1px solid #dde6f4;border-radius:9px;padding:5px;margin-top:12px;max-height:42vh;overflow:hidden}.preview canvas{display:block;max-height:36vh;object-fit:contain}.shift-controls{display:grid;gap:9px}.shift-controls label{display:grid;grid-template-columns:58px minmax(0,1fr) 70px;gap:7px;align-items:center}.shift-controls input[type=range]{width:100%;min-width:0}.shift-controls input[type=number]{width:70px}.fine{flex-wrap:wrap}.fine>div{display:flex;flex-wrap:wrap}.fine button[aria-pressed="true"]{background:#245bd6;color:white}@media(max-width:600px){.preview{max-height:32vh}.preview canvas{max-height:27vh}.group>.controls{margin:8px}.fine button{font-size:.85rem}}
-.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.tempoOptions{margin-top:10px}.tempoOptions label{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tempoOptions select{padding:8px;max-width:170px}.tempoSegments{display:grid;gap:8px;margin:12px 0}.tempoSegment{display:grid;grid-template-columns:minmax(100px,1fr) 95px 95px 52px;gap:7px;align-items:center;padding:9px;background:#f4f7fd;border-radius:9px}.tempoSegment input{width:100%;font-size:16px}.tempoSegment button{margin:0}.tempoSegment small{font-size:.8rem;color:#596579}@media(max-width:520px){.tempoSegment{grid-template-columns:minmax(65px,1fr) 72px 78px 43px;gap:4px;padding:6px}.tempoSegment input{padding:5px}.tempoSegment button{padding:5px}}#tempoChart{max-height:260px;aspect-ratio:960/260;object-fit:contain}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.5.2</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
-<section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline></video><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
+.range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.tempoOptions{margin-top:10px}.tempoOptions label{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tempoOptions select{padding:8px;max-width:170px}.tempoSegments{display:grid;gap:8px;margin:12px 0}.tempoSegment{display:grid;grid-template-columns:minmax(100px,1fr) 95px 95px 52px;gap:7px;align-items:center;padding:9px;background:#f4f7fd;border-radius:9px}.tempoSegment input{width:100%;font-size:16px}.tempoSegment button{margin:0}.tempoSegment small{font-size:.8rem;color:#596579}@media(max-width:520px){.tempoSegment{grid-template-columns:minmax(65px,1fr) 72px 78px 43px;gap:4px;padding:6px}.tempoSegment input{padding:5px}.tempoSegment button{padding:5px}}#tempoChart{max-height:260px;aspect-ratio:960/260;object-fit:contain}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.5.4</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+<section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*,.mov,video/quicktime"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline></video><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。まず自動位置合わせを試し、ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
 <div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button id="autofit" disabled>鍵盤に自動で合わせる</button><div id="autoResult" class="auto-result" aria-live="polite">動画の読み込み後に利用できます。</div></div>
 <div class="preview"><canvas id="cv" width="960" height="540"></canvas><div id="keyresult" class="status">動画を読み込むとガイドが表示されます。</div></div><div class="fine"><strong>位置・大きさを調整</strong><div><button id="slowMode" class="secondary" aria-pressed="false" disabled>🐢 スライダー低速：オフ</button><button id="coarseMode" class="secondary" aria-pressed="true" disabled>広い範囲</button><button id="fineMode" class="secondary" aria-pressed="false" disabled>微調整</button></div></div><p class="draghelp">🐢 低速オンでは、スライダーに触れた位置を起点として、指の移動量の12%だけつまみを動かします。微調整はスライダーの数値範囲を狭める別機能です。</p><p class="draghelp">💡 上側の緑線をドラッグすると上端を移動、下側の緑線をドラッグすると高さを調整。鍵盤ガイド内をドラッグすると左右移動。白鍵の幅は「横方向の拡大縮小」から調整できます。白鍵をタップすると黄色い「基準鍵」マーカーが移動します。緑線は鍵盤の上下端です。</p><details open class="group"><summary>基本調整：横位置・横方向の拡大縮小・上端</summary><div class="controls">
@@ -33,10 +33,10 @@
 <p><b>上部までのガイド表示</b>：線を見せるかどうかだけの設定。非表示でもノーツ検出にはガイドを使用します。</p>
 </div></details></section>
 <section class="box" id="bpmPanel"><h2>4. BPM推定（音声メイン・映像補助）</h2>
-<p class="muted">基本は音声のオンセット強度・局所自己相関・動的計画法によって解析します。映像からの推定は補助機能として残しています。音声のない動画・ブラウザで音声をデコードできない動画には別途音声ファイルを指定できます。</p>
-<div class="auto-panel" id="audioTempoPanel"><strong>🎵 音声からBPMを推定（メイン）</strong><p class="muted">読み込んだ動画の音声を解析します。MP4音声のデコードに対応しない端末では、動画と同期した音声ファイル（WAV / MP3 / M4A等）を指定してください。ファイルは端末内で解析します。</p><div class="row"><label>代替音声ファイル（任意） <input id="audioFile" type="file" accept="audio/*"></label><button type="button" id="analyzeAudio">音声からBPMを計測</button><button type="button" id="abortAudio" class="secondary" disabled>中止</button></div><div id="audioStatus" class="status" aria-live="polite">動画を読み込んでから音声解析を実行してください。</div></div><details class="group"><summary>映像からのBPM推定（補助機能）</summary><div style="padding:12px 16px"><p class="muted">ノーツ認識を使った従来の推定です。主に音声推定が曖昧な場合の比較に利用してください。</p><div class="row"><label>解析開始 (秒) <input id="scanStart" type="number" min="0" step="0.1" value="0"></label><label>解析時間 (秒) <input id="scanLength" type="number" min="3" max="180" step="1" value="20"></label><label>解析間隔 <select id="scanFPS"><option value="5">軽量 (5fps)</option><option value="8" selected>標準 (8fps)</option><option value="12">精密 (12fps)</option></select></label><button id="scanBPM" disabled>映像から補助推定する</button><button id="cancelScan" class="secondary" disabled>中止</button></div></div></details>
+<p class="muted">基本は音声のオンセット強度・局所自己相関・動的計画法によって解析します。映像からの推定は補助機能として残しています。曲全体の音声を初期設定で解析します。長い曲でもBPMマップを最後まで作成します。音声がデコードできない場合は別途音声ファイルを指定できます。</p>
+<div class="auto-panel" id="audioTempoPanel"><strong>🎵 音声からBPMを推定（メイン）</strong><p class="muted">読み込んだ動画の音声を解析します。MP4・MOVを含む動画ファイルを試します。MOVを直接デコードできなくても、ブラウザがMOVを再生できる場合は実時間の音声キャプチャに切り替えます（曲の長さだけ時間が必要）。再生もできない場合は同じ音声のWAV / MP3 / M4Aを指定してください。すべて端末内で処理します。</p><div class="row"><label><input id="audioWhole" type="checkbox" checked style="width:auto;accent-color:#245bd6"> 音声を全区間解析（推奨）</label><label>代替音声ファイル（任意） <input id="audioFile" type="file" accept="audio/*"></label><button type="button" id="analyzeAudio">音声からBPMを計測</button><button type="button" id="abortAudio" class="secondary" disabled>中止</button></div><p class="muted">全区間オフの場合のみ、下の映像補助解析の「解析開始・解析時間」を音声にも適用します。BPMマップの変更点は推定値です。曲全体のグリッド整合や拍位置の検証が必要です。</p><div id="audioStatus" class="status" aria-live="polite">動画を読み込んでから音声解析を実行してください。</div></div><details class="group"><summary>映像からのBPM推定（補助機能）</summary><div style="padding:12px 16px"><p class="muted">ノーツ認識を使った従来の推定です。主に音声推定が曖昧な場合の比較に利用してください。</p><div class="row"><label>解析開始 (秒) <input id="scanStart" type="number" min="0" step="0.1" value="0"></label><label>解析時間 (秒) <input id="scanLength" type="number" min="3" max="180" step="1" value="20"></label><label>解析間隔 <select id="scanFPS"><option value="5">軽量 (5fps)</option><option value="8" selected>標準 (8fps)</option><option value="12">精密 (12fps)</option></select></label><button id="scanBPM" disabled>映像から補助推定する</button><button id="cancelScan" class="secondary" disabled>中止</button></div></div></details>
 <div class="row"><label>BPM（手動修正可） <input id="bpmValue" type="number" min="30" max="320" step="0.01" value="120"></label><button id="halfBPM" class="secondary">÷2</button><button id="doubleBPM" class="secondary">×2</button><span class="muted">推定値は候補です。拍子・グリッドの解析は次のバージョンで実装予定。</span></div>
-<div class="row tempoOptions"><label>局所解析窓 <select id="tempoWindow"><option value="4">4秒（変化に敏感）</option><option value="6">6秒</option><option value="8" selected>8秒（標準）</option><option value="12">12秒（安定重視）</option></select></label><label>BPM探索 <select id="tempoRange"><option value="40,300" selected>40～300</option><option value="60,220">60～220</option></select></label><label>変化への追従 <select id="tempoAgility"><option value="stable">安定重視</option><option value="balanced" selected>標準</option><option value="agile">変化に敏感</option></select></label></div><div id="bpmResult" class="status" aria-live="polite">動画を読み込んでから実行してください。解析には動画内でノーツが動いている区間を選んでください。</div>
+<div class="row tempoOptions"><label>局所解析窓 <select id="tempoWindow"><option value="4">4秒（変化に敏感）</option><option value="6">6秒</option><option value="8" selected>8秒（標準）</option><option value="12">12秒（安定重視）</option></select></label><label>BPM探索 <select id="tempoRange"><option value="40,300" selected>40～300</option><option value="60,220">60～220</option></select></label><label>変化への追従 <select id="tempoAgility"><option value="stable">安定重視</option><option value="balanced" selected>標準</option><option value="agile">変化に敏感</option></select></label></div><div id="bpmResult" class="status" aria-live="polite">音声解析は曲全体が初期設定です。映像からのBPM推定は補助として利用できます。</div>
 <div id="tempoVisualization" hidden><h3>推定BPMの時間変化</h3><canvas id="tempoChart" width="960" height="260" aria-label="時間ごとの推定BPMグラフ"></canvas><p class="muted">灰色：局所推定、青：時間的な整合性を考慮した推定。音声解析を行った場合は音声が優先されます。時間軸は動画の秒数。線の位置は推定であり、確定値ではありません。</p><h3>テンポ区間（手動修正可能）</h3><div class="row"><button type="button" id="addTempoPoint" class="secondary">テンポ変更点を追加</button><button type="button" id="clearTempoEdits" class="secondary">自動推定に戻す</button><button type="button" id="exportTempo" class="secondary">テンポマップをJSON出力</button></div><div id="tempoSegments" class="tempoSegments"></div><p class="muted">変更点の時刻とBPMを手動入力できます。これはテンポの候補マップです。実際のMIDI出力は今後のバージョンで統合します。</p></div><details class="group"><summary>今回の解析の意味と限界</summary><div style="padding:10px 14px;line-height:1.7"><p>同じ音程レーンのノーツが複数フレームで下に移動したとき、その速度と現在位置から鍵盤に到達する推定時刻を計算します。ノーツの到達間隔に4分・8分・16分の周期性があると仮定してテンポを比べます。</p><p>映像の発光、途中で消えるノーツ、繰り返しの同音、スウィングや変拍子、BPM変化が速い区間では推定誤差が生じます。BPM 80 と 160 のような倍・半分の曖昧さは残ります。ここではMIDI出力はまだ行いません。</p></div></details>
 </section><canvas id="source" hidden></canvas></main>
 <script>
@@ -620,7 +620,7 @@ function renderTempoPoints(){
 }
 $('addTempoPoint').onclick=()=>{if(!tempoAnalysisRange)return;const [lo,hi]=tempoAnalysisRange;const mid=(lo+hi)/2;tempoPoints.push({t:mid,bpm:tempoAt(mid),quality:0});renderTempoPoints()};
 $('clearTempoEdits').onclick=()=>{tempoPoints=tempoAutomatic.map(p=>({...p}));renderTempoPoints()};
-$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.5.3',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.5.4',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 $('halfBPM').onclick=()=>{$('bpmValue').value=(clamp(+$('bpmValue').value,30,640)/2).toFixed(2)};
 $('doubleBPM').onclick=()=>{$('bpmValue').value=(clamp(+$('bpmValue').value,15,320)*2).toFixed(2)};
 $('cancelScan').onclick=()=>{cancelTemporal=true;bpmText('中止しています…')};
@@ -724,8 +724,8 @@ function audioTempoMap(env,windowSec,range,agility){
  const [minB,maxB]=range,bpms=[];for(let b=minB;b<=maxB;b+=2)bpms.push(b);
  const N=onset.length, win=Math.max(80,Math.round(windowSec*frameRate)),step=Math.max(1,Math.round(frameRate));
  const windows=[];
- for(let mid=Math.min(win/2,N/2);mid<N;mid+=step){
-  const l=Math.max(0,Math.floor(mid-win/2)),r=Math.min(N,l+win),length=r-l;
+ for(let mid=0;mid<N;mid+=step){
+  const l=Math.max(0,Math.min(N-Math.min(N,win),Math.floor(mid-win/2))),r=Math.min(N,l+win),length=r-l;
   const scores=new Float64Array(bpms.length),center=start+mid/frameRate;
   let energy=0;for(let j=l;j<r;j++)energy+=onset[j]*onset[j];
   for(let k=0;k<bpms.length;k++){
@@ -769,7 +769,55 @@ function audioTempoMap(env,windowSec,range,agility){
  for(let i=path.length-1;i>=0;i--){path[i]=bpms[ix];if(i>0)ix=back[i][ix];}
  return {windows,path,bpms};
 }
-$('abortAudio').onclick=()=>{audioAbort=true;$('audioStatus').textContent='中止処理中…';};
+// QuickTime/MOV workaround. decodeAudioData() does not demux MOV on every browser.
+// If native video playback can decode its soundtrack, capture PCM in real time.
+// This is intentionally a fallback, not a promise of support for all MOV codecs.
+let captureStop=null;
+async function decodeByPlayback(file,audioContext){
+ const media=document.createElement('video');media.playsInline=true;media.preload='auto';media.style.display='none';
+ const mediaURL=URL.createObjectURL(file);media.src=mediaURL;document.body.appendChild(media);
+ let source,processor,silent,stopRequested=false,finished=false;
+ const chunks=[];let total=0,processed=0,playbackError=null;
+ const cleanup=()=>{try{processor?.disconnect();source?.disconnect();silent?.disconnect();media.pause();media.removeAttribute('src');media.load();media.remove();URL.revokeObjectURL(mediaURL)}catch(e){}};
+ try{
+  await new Promise((resolve,reject)=>{
+   const timer=setTimeout(()=>reject(Error('動画の音声トラックを再生できません（読み込みがタイムアウト）。')),18000);
+   media.onloadedmetadata=()=>{clearTimeout(timer);resolve()};
+   media.onerror=()=>{clearTimeout(timer);reject(Error('このブラウザはMOVの映像・音声コーデックを再生できません。音声だけのファイルを指定してください。'))};
+  });
+  if(!Number.isFinite(media.duration)||media.duration<3)throw Error('音声トラックの長さを読み取れません。');
+  source=audioContext.createMediaElementSource(media);
+  processor=audioContext.createScriptProcessor(4096,2,1);
+  silent=audioContext.createGain();silent.gain.value=0;
+  source.connect(processor);processor.connect(silent);silent.connect(audioContext.destination);
+  // Store mono 11025-Hz PCM. This keeps the fallback much smaller than raw 44.1-kHz stereo.
+  const stride=Math.max(1,Math.round(audioContext.sampleRate/11025));
+  processor.onaudioprocess=e=>{
+   if(stopRequested||audioAbort)return;
+   const ib=e.inputBuffer,n=ib.length,channels=ib.numberOfChannels;
+   const out=new Float32Array(Math.ceil(n/stride));let k=0;
+   for(let j=0;j<n;j+=stride){let sum=0;for(let c=0;c<channels;c++)sum+=ib.getChannelData(c)[j];out[k++]=sum/channels;}
+   chunks.push(out.subarray(0,k));total+=k;processed+=n;
+  };
+  captureStop=()=>{stopRequested=true;media.pause();};
+  await audioContext.resume();
+  await media.play().catch(()=>{throw Error('MOVの音声再生を開始できません。iOSで再生が許可されない場合、代替音声ファイルを指定してください。')});
+  await new Promise((resolve,reject)=>{
+   const interval=setInterval(()=>{
+    if(audioAbort||stopRequested){clearInterval(interval);reject(Error('中止しました'));return;}
+    $('audioStatus').textContent=`MOVの音声を再生して取り込み中… ${media.currentTime.toFixed(1)} / ${media.duration.toFixed(1)}秒\n※再生速度での取り込みです。端末をスリープさせないでください。`;
+   },600);
+   media.onended=()=>{clearInterval(interval);finished=true;resolve()};
+   media.onerror=()=>{clearInterval(interval);reject(Error('MOV音声の取り込みが途中で失敗しました。'))};
+  });
+  if(!finished||total<11025*2)throw Error('MOVから十分な音声が得られませんでした。');
+  const sr=audioContext.sampleRate/stride;
+  const buffer=audioContext.createBuffer(1,total,sr),dst=buffer.getChannelData(0);
+  let off=0;for(const piece of chunks){dst.set(piece,off);off+=piece.length;}
+  return buffer;
+ }finally{captureStop=null;cleanup();}
+}
+$('abortAudio').onclick=()=>{audioAbort=true;captureStop?.();$('audioStatus').textContent='中止処理中…';};
 $('analyzeAudio').onclick=async()=>{
  if(audioBusy)return;
  const selected=$('audioFile').files[0]||activeVideoFile;
@@ -779,13 +827,24 @@ $('analyzeAudio').onclick=async()=>{
  try{
   $('audioStatus').textContent='音声をデコード中…（端末内で処理します）';
   context=new (window.AudioContext||window.webkitAudioContext)({sampleRate:22050});
-  // Some mobile browsers cannot decode compressed audio inside MP4 using this API.
-  let data=await selected.arrayBuffer(),buffer;
-  try{buffer=await context.decodeAudioData(data);}catch(e){throw Error('この端末では選択されたファイルの音声を直接デコードできません。動画と同じ音声をWAV・MP3・M4Aで保存し、「代替音声ファイル」から指定してください。');}
-  data=null;
-  const start=clamp(+$('scanStart').value,0,Math.max(0,buffer.duration-3));
-  const end=Math.min(buffer.duration,start+clamp(+$('scanLength').value,3,180));
+  let buffer;
+  try{
+   let data=await selected.arrayBuffer();
+   try{buffer=await context.decodeAudioData(data);}catch(e){buffer=null;}
+   data=null;
+  }catch(e){throw Error('音声ファイルを読み込めませんでした。');}
+  if(audioAbort)throw Error('中止しました');
+  if(!buffer){
+   if(/\.mov$/i.test(selected.name)||selected.type==='video/quicktime'||/^video\//i.test(selected.type)){
+    $('audioStatus').textContent='直接デコードできなかったため、ブラウザの動画再生エンジンで音声を取り込みます…';
+    buffer=await decodeByPlayback(selected,context);
+   }else{throw Error('音声の直接デコードに失敗しました。対応するWAV・MP3・M4Aを指定してください。');}
+  }
+  const whole=$('audioWhole').checked;
+  const start=whole?0:clamp(+$('scanStart').value,0,Math.max(0,buffer.duration-3));
+  const end=whole?buffer.duration:Math.min(buffer.duration,start+clamp(+$('scanLength').value,3,180));
   if(end-start<3)throw Error('音声の解析範囲が3秒未満です。');
+  $('audioStatus').textContent=`音声解析範囲：${start.toFixed(1)}〜${end.toFixed(1)}秒（${whole?'全区間':'指定区間'}）`;
   const env=await audioOnsetEnvelope(buffer,start,end);if(audioAbort)throw Error('中止しました');
   $('audioStatus').textContent='局所テンポとBPMの変化を解析中…';await new Promise(r=>setTimeout(r,0));
   const params={win:+$('tempoWindow').value,range:$('tempoRange').value.split(',').map(Number),agility:$('tempoAgility').value};
@@ -797,7 +856,7 @@ $('analyzeAudio').onclick=async()=>{
   if(tempoPoints.length){$('bpmValue').value=tempoPoints[0].bpm.toFixed(2);renderTempoPoints();}
   const informative=tempoWindows.filter(w=>w.informative).length;
   $('audioStatus').textContent=tempoPoints.length?
-   `音声解析完了：${(end-start).toFixed(1)}秒 / 有効解析窓 ${informative}/${tempoWindows.length}\n推定テンポ：${tempoPoints.map(p=>p.t.toFixed(1)+'秒→'+p.bpm.toFixed(1)+' BPM').join(' / ')}\n下のグラフから時刻・BPMを修正できます。倍・半テンポや拍の取り違え、短時間の変化には誤差が残ります。`:
+   `音声解析完了：${(end-start).toFixed(1)}秒（${whole?'全区間':'指定区間'}） / 有効解析窓 ${informative}/${tempoWindows.length}\n推定テンポ：${tempoPoints.slice(0,25).map(p=>p.t.toFixed(1)+'秒→'+p.bpm.toFixed(1)+' BPM').join(' / ')}${tempoPoints.length>25?' …':''}\n変更位置は局所解析窓に依存する近似です。MIDIへ正確に反映する前に、手動で変更点を確認してください。`:
    '有効な音声リズムが不足しており、BPM推定はできませんでした。解析区間を変えてください。';
  }catch(e){$('audioStatus').textContent='音声解析：'+(e.message||String(e));}
  finally{audioBusy=false;$('analyzeAudio').disabled=false;$('abortAudio').disabled=true;if(context)await context.close().catch(()=>{});}
