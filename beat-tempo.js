@@ -1,4 +1,4 @@
-/* PianoRoll MIDI Converter 0.6.3 — locally adaptive tempo and missing-beat repair.
+/* PianoRoll MIDI Converter 0.6.5 — locally adaptive tempo and missing-beat repair.
  * Turns AI beat timestamps into a *candidate* tempo map. It does not fabricate
  * tempo changes when the AI beat sequence itself has no evidence of them.
  * Compatible with browser and Node.js regression tests.
@@ -126,6 +126,36 @@
    }
    return merged;
  }
+ // Reject a brief isolated tempo excursion only when the values before and
+ // after agree. Output the removed events for user review. This is a cleanup
+ // heuristic, NOT a proof of musical correctness; keep the original points.
+ function suppressShortSpikes(points,options={}) {
+   const source=(points||[]).map(p=>({...p})).sort((a,b)=>a.t-b.t);
+   const removed=[];const reference=Array.isArray(options.reference)?options.reference:[];
+   const maxSeconds=Number.isFinite(options.maxSeconds)?options.maxSeconds:3.5;
+   // Repeat because removing one outlier can expose another.
+   for(let pass=0;pass<6;pass++){
+     let changed=false;
+     for(let i=1;i<source.length-1;i++){
+       const before=source[i-1],spike=source[i],after=source[i+1];
+       const duration=after.t-spike.t;
+       if(!(duration>0&&duration<=maxSeconds))continue;
+       if(!(before.bpm>0&&spike.bpm>0&&after.bpm>0))continue;
+       if(deltaLog(before.bpm,after.bpm)>.055)continue;
+       if(deltaLog(spike.bpm,before.bpm)<.115)continue;
+       // A second estimator supporting the brief deviation is a reason NOT to
+       // remove it automatically. Do not treat a single flat prior as proof.
+       if(reference.length>1){
+         const q=bpmAt(reference,(spike.t+after.t)/2);
+         if(Number.isFinite(q)&&deltaLog(q,spike.bpm)<.06&&deltaLog(q,before.bpm)>.11)continue;
+       }
+       removed.push({...spike,returnAt:after.t,previousBpm:before.bpm});
+       source.splice(i,1);changed=true;break;
+     }
+     if(!changed)break;
+   }
+   return {points:source,removed};
+ }
  function analyze(rawBeats,opts={}){
    const reference=Array.isArray(opts.reference)?opts.reference.slice().filter(p=>Number.isFinite(p?.t)&&Number.isFinite(p?.bpm)).sort((a,b)=>a.t-b.t):[];
    const maxTempo=clamp(Number(opts.maxBpm)||280,100,350),minTempo=clamp(Number(opts.minBpm)||45,30,100);
@@ -155,13 +185,16 @@
    }
    const sections=breakSegments(intervals,minTempo,maxTempo);
    if(!sections.length)return empty('テンポ区間の推定に失敗しました。');
-   const points=sections.map((s,i)=>({t:i===0?0:+s.t.toFixed(3),bpm:+s.bpm.toFixed(3),quality:0}));
+   const rawPoints=sections.map((s,i)=>({t:i===0?0:+s.t.toFixed(3),bpm:+s.bpm.toFixed(3),quality:0}));
+   const cleanup=suppressShortSpikes(rawPoints,{reference});
+   const points=cleanup.points;
    const mismatch=[];
    for(const v of intervals){const ref=bpmAt(reference,v.t);if(Number.isFinite(ref))mismatch.push(deltaLog(v.bpm,ref));}
    const frac=missing/Math.max(1,recovered.length-1);
    const anomalous=ambiguous/Math.max(1,choices.length);
    const conflict=median(mismatch);
    const flags=[];
+   if(cleanup.removed.length)flags.push(`短時間の孤立したテンポ異常 ${cleanup.removed.length}件を候補から除外（元の候補は保持）`);
    if(frac>.10)flags.push(`${missing}個の欠落拍を補完。補完部分は要確認`);
    if(anomalous>.10)flags.push('拍間隔に大きな変動があります');
    if(Number.isFinite(conflict)&&conflict>.18)flags.push('AIの拍間隔と独立音声BPMに大きな不一致があります');
@@ -171,7 +204,7 @@
    }
    const quality=clamp(1-frac*.7-anomalous*.8-(Number.isFinite(conflict)?Math.max(0,conflict-.06)*.9:0),0,1);
    const review=flags.length>0||quality<.75;
-   return {points,beats:recovered,quality:+quality.toFixed(3),review,warning:flags.join('／'),stats:{observed:cleaned.length,recovered:recovered.length,missing,duplicates:simp.removed,ambiguous,referenceMismatch:Number.isFinite(conflict)?+conflict.toFixed(3):null,changes:points.length-1}};
+   return {points,rawPoints,removedSpikes:cleanup.removed,beats:recovered,quality:+quality.toFixed(3),review,warning:flags.join('／'),stats:{observed:cleaned.length,recovered:recovered.length,missing,duplicates:simp.removed,ambiguous,spikesSuppressed:cleanup.removed.length,referenceMismatch:Number.isFinite(conflict)?+conflict.toFixed(3):null,changes:points.length-1}};
  }
- return {analyze,median,percentile,bpmAt};
+ return {analyze,median,percentile,bpmAt,suppressShortSpikes};
 });
