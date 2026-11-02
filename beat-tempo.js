@@ -1,110 +1,177 @@
-/* PianoRoll MIDI Converter 0.6.2: testable, dependency-free beat-grid stabilizer.
-   Converts detected beat times into a *candidate* tempo map. Never invents certainty.
-   Designed for browser and Node.js test execution. */
-(function(root, factory){
+/* PianoRoll MIDI Converter 0.6.3 — locally adaptive tempo and missing-beat repair.
+ * Turns AI beat timestamps into a *candidate* tempo map. It does not fabricate
+ * tempo changes when the AI beat sequence itself has no evidence of them.
+ * Compatible with browser and Node.js regression tests.
+ */
+(function(root,factory){
   const api=factory();
   if(typeof module==='object'&&module.exports)module.exports=api;
   root.PianoRollTempoGrid=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
-  'use strict';
-  const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
-  function median(xs){const a=xs.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return NaN;const n=a.length;return n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2;}
-  function percentile(xs,p){const a=xs.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return NaN;const q=clamp(p,0,1)*(a.length-1),i=Math.floor(q);return a[i]+(a[Math.min(i+1,a.length-1)]-a[i])*(q-i);}
-  function bpmAt(points,t){if(!points?.length)return NaN;let b=Number(points[0].bpm);for(const p of points){if(p.t>t)break;if(Number.isFinite(p.bpm))b=Number(p.bpm);}return b;}
-  function smoothMedian(xs,r){return xs.map((_,i)=>median(xs.slice(Math.max(0,i-r),Math.min(xs.length,i+r+1))));}
-  function analyze(rawBeats,opts={}){
-    const reference=Array.isArray(opts.reference)?opts.reference.slice().sort((a,b)=>a.t-b.t):[];
-    const maxTempo=clamp(Number(opts.maxBpm)||280,100,350),minTempo=clamp(Number(opts.minBpm)||45,30,100);
-    const times=[...new Set((rawBeats||[]).map(Number).filter(t=>Number.isFinite(t)&&t>=0).map(t=>Math.round(t*10000)/10000))].sort((a,b)=>a-b);
-    if(times.length<5)return {points:[],beats:times,quality:0,warning:'拍が5個未満のため推定できません。',stats:{missing:0,duplicates:0}};
-    const diffs=times.slice(1).map((t,i)=>t-times[i]).filter(d=>d>.08&&d<3.5);
-    if(diffs.length<4)return {points:[],beats:times,quality:0,warning:'有効な拍間隔が不足しています。',stats:{missing:0,duplicates:0}};
-    // Initial speed should not be estimated from 4-beat spans: a single missing
-    // beat causes a false halving. Short, stable spacings are more robust.
-    const typical=percentile(diffs,.32);
-    const near=diffs.filter(d=>d>=typical*.75&&d<=typical*1.32);
-    let seed=median(near.length>=2?near:diffs);
-    let seedBpm=60/seed;
-    const r0=median(reference.slice(0,10).map(p=>p.bpm));
-    // If almost all observed beats are half-time, a *reliable* audio prior can
-    // offer the 2x interpretation, but this ambiguity must be disclosed.
-    if(Number.isFinite(r0)&&r0>=minTempo&&r0<=maxTempo){
-      const alternatives=[seedBpm,seedBpm*2,seedBpm/2].filter(b=>b>=minTempo&&b<=maxTempo);
-      const target=alternatives.reduce((a,b)=>Math.abs(Math.log(b/r0))<Math.abs(Math.log(a/r0))?b:a,alternatives[0]);
-      if(Math.abs(Math.log(target/r0))<.12&&Math.abs(Math.log(target/seedBpm))>.5){seedBpm=target;}
-    }
-    seedBpm=clamp(seedBpm,minTempo,maxTempo);
-    let expected=60/seedBpm,missing=0,duplicates=0,ambiguous=0;
-    const recovered=[times[0]];
-    for(let i=1;i<times.length;i++){
-      const a=times[i-1],b=times[i],d=b-a,m=(a+b)/2;
-      const base=60/seedBpm;
-      const prior=bpmAt(reference,m);
-      const refPeriod=Number.isFinite(prior)?60/prior:base;
-      // Give nearby, well-supported audio tempo a modest influence, without
-      // allowing a noisy isolated reference value to create fictitious beats.
-      const period=Math.abs(Math.log(refPeriod/base))<.22?base*.75+refPeriod*.25:base;
-      let k=clamp(Math.round(d/period),1,4);
-      if(d<period*.44){duplicates++;continue;}
-      if(k>=2){
-        const err=Math.abs(d/k-period)/period;
-        if(err<.19){for(let j=1;j<k;j++){recovered.push(a+d*j/k);missing++;}}
-        else ambiguous++;
-      }else if(Math.abs(d-period)/period>.32)ambiguous++;
-      recovered.push(b);
-    }
-    if(recovered.length<5)return {points:[],beats:recovered,quality:0,warning:'拍の連続性を復元できません。',stats:{missing,duplicates,ambiguous}};
-    const intervals=[];
-    for(let i=0;i<recovered.length-1;i++){
-      const dur=recovered[i+1]-recovered[i];
-      intervals.push({t:recovered[i],end:recovered[i+1],bpm:60/dur});
-    }
-    // Median of a local window suppresses one missed/extra beat without
-    // flattening a real long-lived tempo change.
-    let smoothed=smoothMedian(intervals.map(v=>v.bpm),2);
-    smoothed=smoothed.map(b=>clamp(b,minTempo,maxTempo));
-    const points=[{t:0,bpm:+smoothed[0].toFixed(3),quality:0}];
-    const threshold=(a,b)=>Math.max(2.5,Math.min(a,b)*.045);
-    let last=smoothed[0];
-    let j=1;
-    while(j<smoothed.length){
-      if(Math.abs(smoothed[j]-last)<=threshold(smoothed[j],last)){j++;continue;}
-      const target=median(smoothed.slice(j,Math.min(j+4,smoothed.length)));
-      const count=smoothed.slice(j,Math.min(j+4,smoothed.length)).filter(x=>Math.abs(x-target)<=threshold(x,target)).length;
-      if(count>=Math.min(3,smoothed.length-j)&&Math.abs(target-last)>threshold(target,last)){
-        const change=Math.max(0,intervals[j].t);
-        // Avoid emitting multiple tempo points only a fraction of a beat apart.
-        if(change-points[points.length-1].t>=.5){
-          points.push({t:+change.toFixed(3),bpm:+target.toFixed(3),quality:0});last=target;
-        }
-      }
-      j++;
-    }
-    // Use median over each segment to determine fractional BPM. This avoids
-    // quantizing to 1 or 2 BPM and reduces 130.1 -> 130.4 -> 130.0 chatter.
-    for(let i=0;i<points.length;i++){
-      const end=i+1<points.length?points[i+1].t:Infinity;
-      const section=intervals.filter(v=>v.t>=points[i].t-.001&&v.t<end-.001).map(v=>v.bpm);
-      const sectionMedian=median(section);
-      if(Number.isFinite(sectionMedian)&&section.length>=2)points[i].bpm=+clamp(sectionMedian,minTempo,maxTempo).toFixed(3);
-    }
-    // Compare with audio baseline, accounting for octave errors when reporting.
-    const referenceDiffs=intervals.filter(v=>Number.isFinite(bpmAt(reference,v.t))).map(v=>{
-      const b=bpmAt(reference,v.t),r=v.bpm/b;
-      return Math.min(Math.abs(Math.log(r)),Math.abs(Math.log(r*2)),Math.abs(Math.log(r/2)));
-    });
-    const mismatch=referenceDiffs.length?median(referenceDiffs):NaN;
-    const inferredFraction=missing/Math.max(1,recovered.length-1);
-    const anomalyFraction=ambiguous/Math.max(1,times.length-1);
-    const quality=clamp(1-inferredFraction*.8-anomalyFraction*1.7-(Number.isFinite(mismatch)?Math.max(0,mismatch-.08)*1.5:0),0,1);
-    const flags=[];
-    if(inferredFraction>.18)flags.push(`欠落拍を${missing}件補完（${Math.round(inferredFraction*100)}%）。倍・半テンポを要確認`);
-    if(anomalyFraction>.12)flags.push(`不規則な拍間隔が${ambiguous}件あります`);
-    if(Number.isFinite(mismatch)&&mismatch>.19)flags.push('従来の音声BPMと大きく不一致');
-    if(quality<.7&&!flags.length)flags.push('拍追跡の信頼度が低い');
-    // Any substantial repaired sequence must be reviewed before being applied.
-    const review=flags.length>0||quality<.75;
-    return {points,beats:recovered,quality:+quality.toFixed(3),review,warning:flags.join('／'),stats:{observed:times.length,recovered:recovered.length,missing,duplicates,ambiguous,referenceMismatch:Number.isFinite(mismatch)?+mismatch.toFixed(3):null}};
-  }
-  return {analyze,median,percentile,bpmAt};
+ 'use strict';
+ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+ function median(values){const a=values.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return NaN;const m=a.length;return m%2?a[(m-1)/2]:(a[m/2-1]+a[m/2])/2;}
+ function percentile(values,p){const a=values.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return NaN;const q=clamp(p,0,1)*(a.length-1),i=Math.floor(q);return a[i]+(a[Math.min(i+1,a.length-1)]-a[i])*(q-i);}
+ function bpmAt(points,t){if(!points?.length)return NaN;let b=NaN;for(const p of points){if(p.t>t)break;if(Number.isFinite(Number(p.bpm)))b=Number(p.bpm);}return b;}
+ function uniqueTimes(raw){return [...new Set((raw||[]).map(Number).filter(t=>Number.isFinite(t)&&t>=0).map(t=>Math.round(t*10000)/10000))].sort((a,b)=>a-b);}
+ function deltaLog(a,b){return Math.abs(Math.log(a/b));}
+ function simplifyBeats(times){
+   // Remove an obviously extra detection situated between two well-spaced beats.
+   // Compare against a *local* median, not against a global BPM, to preserve
+   // true accelerando and sudden tempo changes.
+   let arr=times.slice(),removed=0;
+   for(let pass=0;pass<2;pass++){
+     const drops=[];
+     for(let i=3;i<arr.length-3;i++){
+       const prev=arr[i]-arr[i-1],next=arr[i+1]-arr[i],combined=prev+next;
+       const neighborhood=[];
+       for(let j=Math.max(1,i-5);j<Math.min(arr.length,i+6);j++){
+         if(j===i||j===i+1)continue;
+         const d=arr[j]-arr[j-1];if(d>.15&&d<3)neighborhood.push(d);
+       }
+       const typical=median(neighborhood);
+       if(!Number.isFinite(typical))continue;
+       if(prev<typical*.68&&next<typical*.68&&Math.abs(combined-typical)<typical*.18){drops.push(i);}
+     }
+     if(!drops.length)break;
+     const drop=new Set(drops.filter((v,i)=>i===0||v>drops[i-1]+1));
+     arr=arr.filter((_,i)=>!drop.has(i));removed+=drop.size;
+   }
+   return {times:arr,removed};
+ }
+ function bestKPath(times,reference,minTempo,maxTempo){
+   // Choose how many true beats each AI gap spans. A dynamic program rewards
+   // consecutive compatible local tempos, but allows genuine step changes.
+   // Unlike 0.6.2 there is NO single seed BPM imposed on the whole song.
+   const gaps=[];
+   for(let i=1;i<times.length;i++){
+     const d=times[i]-times[i-1],t=(times[i]+times[i-1])/2;
+     const candidates=[];
+     for(let k=1;k<=4;k++){
+       const bpm=60*k/d;
+       if(bpm<minTempo||bpm>maxTempo)continue;
+       const prior=bpmAt(reference,t);
+       // Favor fewer invented beats unless independent audio strongly supports them.
+       let loss=(k-1)*.32;
+       if(Number.isFinite(prior)&&prior>0){
+         const err=deltaLog(bpm,prior);
+         loss+=Math.min(1.9,2.25*err*err);
+       }
+       candidates.push({k,bpm,loss});
+     }
+     if(!candidates.length)candidates.push({k:1,bpm:clamp(60/d,minTempo,maxTempo),loss:2});
+     gaps.push({t,a:times[i-1],b:times[i],d,candidates});
+   }
+   const costs=[],paths=[];
+   for(let i=0;i<gaps.length;i++){
+     const row=[],back=[];
+     for(let j=0;j<gaps[i].candidates.length;j++){
+       const cur=gaps[i].candidates[j];
+       let best=cur.loss,bestIndex=-1;
+       if(i){
+         best=Infinity;
+         for(let h=0;h<gaps[i-1].candidates.length;h++){
+           const prev=gaps[i-1].candidates[h];
+           // Capped jump cost: a significant real tempo shift is possible.
+           const transition=Math.min(1.35,3.2*deltaLog(cur.bpm,prev.bpm));
+           const v=costs[i-1][h]+cur.loss+transition;
+           if(v<best){best=v;bestIndex=h;}
+         }
+       }
+       row.push(best);back.push(bestIndex);
+     }
+     costs.push(row);paths.push(back);
+   }
+   const choices=new Array(gaps.length);
+   let j=costs.at(-1).indexOf(Math.min(...costs.at(-1)));
+   for(let i=gaps.length-1;i>=0;i--){choices[i]=gaps[i].candidates[j];j=paths[i][j];}
+   return {gaps,choices};
+ }
+ function breakSegments(intervals,minBpm,maxBpm){
+   // Piecewise-constant segmentation, computed over 3-beat median filtered log
+   // BPM. Split positions are optimized over *all* beat boundaries, not fixed
+   // 8-second windows, which improves the timestamp of genuine step changes.
+   const n=intervals.length;
+   if(!n)return [];
+   const raw=intervals.map(x=>clamp(x.bpm,minBpm,maxBpm));
+   const filtered=raw.map((v,i)=>median(raw.slice(Math.max(0,i-1),Math.min(n,i+2))));
+   const y=filtered.map(v=>Math.log(v)), sums=new Float64Array(n+1),sq=new Float64Array(n+1);
+   for(let i=0;i<n;i++){sums[i+1]=sums[i]+y[i];sq[i+1]=sq[i]+y[i]*y[i];}
+   function mean(a,b){return (sums[b]-sums[a])/(b-a)}
+   function err(a,b){const len=b-a;return Math.max(0,sq[b]-sq[a]-(sums[b]-sums[a])**2/len);}
+   const ranges=[];const minBeats=5;let splits=0;
+   function recurse(a,b,depth){
+     if(depth>18||b-a<minBeats*2||splits>95){ranges.push([a,b]);return;}
+     const baseline=err(a,b);
+     let best=-1,gain=0;
+     for(let s=a+minBeats;s<=b-minBeats;s++){
+       const diff=Math.abs(mean(a,s)-mean(s,b));
+       if(diff<.037)continue; // ignore <~3.7% BPM deviations
+       const g=baseline-err(a,s)-err(s,b);
+       if(g>gain){best=s;gain=g;}
+     }
+     // A minimum improvement prevents overfitting to random beat jitter.
+     if(best<0||gain<.055){ranges.push([a,b]);return;}
+     splits++;recurse(a,best,depth+1);recurse(best,b,depth+1);
+   }
+   recurse(0,n,0);
+   ranges.sort((a,b)=>a[0]-b[0]);
+   const sectionList=ranges.map(([a,b])=>({t:intervals[a].t,bpm:clamp(median(raw.slice(a,b)),minBpm,maxBpm),length:b-a}));
+   // A segmentation boundary is not a tempo change if the medians agree.
+   const merged=[];
+   for(const s of sectionList){
+     if(merged.length && Math.abs(Math.log(s.bpm/merged.at(-1).bpm))<.037){
+       merged.at(-1).length+=s.length;
+     }else merged.push({...s});
+   }
+   return merged;
+ }
+ function analyze(rawBeats,opts={}){
+   const reference=Array.isArray(opts.reference)?opts.reference.slice().filter(p=>Number.isFinite(p?.t)&&Number.isFinite(p?.bpm)).sort((a,b)=>a.t-b.t):[];
+   const maxTempo=clamp(Number(opts.maxBpm)||280,100,350),minTempo=clamp(Number(opts.minBpm)||45,30,100);
+   const cleaned=uniqueTimes(rawBeats);
+   const empty=reason=>({points:[],beats:cleaned,quality:0,review:true,warning:reason,stats:{missing:0,duplicates:0,ambiguous:0}});
+   if(cleaned.length<5)return empty('拍が5個未満です。');
+   const simp=simplifyBeats(cleaned),times=simp.times;
+   if(times.length<5)return empty('有効な拍が不足しています。');
+   const {gaps,choices}=bestKPath(times,reference,minTempo,maxTempo);
+   let missing=0,ambiguous=0;
+   const recovered=[times[0]];
+   for(let i=0;i<gaps.length;i++){
+     const {a,b,d}=gaps[i],k=choices[i].k;
+     if(k>1){
+       for(let j=1;j<k;j++){recovered.push(a+d*j/k);missing++;}
+     }
+     if(i>0){
+       const prev=choices[i-1].bpm,cur=choices[i].bpm;
+       if(deltaLog(cur,prev)>.24)ambiguous++;
+     }
+     recovered.push(b);
+   }
+   const intervals=[];
+   for(let i=0;i<recovered.length-1;i++){
+     const dt=recovered[i+1]-recovered[i];
+     if(dt>0)intervals.push({t:recovered[i],end:recovered[i+1],bpm:60/dt});
+   }
+   const sections=breakSegments(intervals,minTempo,maxTempo);
+   if(!sections.length)return empty('テンポ区間の推定に失敗しました。');
+   const points=sections.map((s,i)=>({t:i===0?0:+s.t.toFixed(3),bpm:+s.bpm.toFixed(3),quality:0}));
+   const mismatch=[];
+   for(const v of intervals){const ref=bpmAt(reference,v.t);if(Number.isFinite(ref))mismatch.push(deltaLog(v.bpm,ref));}
+   const frac=missing/Math.max(1,recovered.length-1);
+   const anomalous=ambiguous/Math.max(1,choices.length);
+   const conflict=median(mismatch);
+   const flags=[];
+   if(frac>.10)flags.push(`${missing}個の欠落拍を補完。補完部分は要確認`);
+   if(anomalous>.10)flags.push('拍間隔に大きな変動があります');
+   if(Number.isFinite(conflict)&&conflict>.18)flags.push('AIの拍間隔と独立音声BPMに大きな不一致があります');
+   if(reference.length>1){
+     const vals=reference.map(p=>p.bpm).filter(Number.isFinite),lo=percentile(vals,.15),hi=percentile(vals,.85);
+     if(points.length===1&&Number.isFinite(lo)&&hi/lo>1.09)flags.push('独立音声ではテンポ変化候補がありますが、AIの拍列からは変化を検出できません。音声側のテンポマップも確認してください');
+   }
+   const quality=clamp(1-frac*.7-anomalous*.8-(Number.isFinite(conflict)?Math.max(0,conflict-.06)*.9:0),0,1);
+   const review=flags.length>0||quality<.75;
+   return {points,beats:recovered,quality:+quality.toFixed(3),review,warning:flags.join('／'),stats:{observed:cleaned.length,recovered:recovered.length,missing,duplicates:simp.removed,ambiguous,referenceMismatch:Number.isFinite(conflict)?+conflict.toFixed(3):null,changes:points.length-1}};
+ }
+ return {analyze,median,percentile,bpmAt};
 });

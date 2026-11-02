@@ -1,4 +1,4 @@
-/* PianoRoll MIDI Converter v0.6.2 – staged diagnostics and reliability checks.
+/* PianoRoll MIDI Converter v0.6.3 – staged diagnostics and reliability checks.
  * Full and small models may use different input tensor names ('spect' or
  * 'spectrogram'). Never hard-code the ONNX feed name: inspect session.inputNames.
  * Uses @jgorset/beat-this 1.0.0 DSP/postprocessing and onnxruntime-web 1.23.2.
@@ -9,7 +9,8 @@
   const SAMPLE_RATE=22050, HOP=441, BANDS=128, WINDOW=1500, BORDER=6;
   const WASM_PATHS='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
   const MODEL_LIGHT='https://cdn.jsdelivr.net/gh/danigb/beat-this-rs@main/models/beat_this_small.onnx';
-  const MODEL_FULL='https://github.com/jgorset/beat-this/releases/download/v1.0.0/beat-this.onnx';
+  const MODEL_FULL='https://huggingface.co/aaatmy/beat-this-onnx/resolve/main/beat-this-final0.onnx?download=true';
+  const MODEL_FULL_FALLBACK='https://github.com/jgorset/beat-this/releases/download/v1.0.0/beat-this.onnx';
   const LIBRARY_CDNS=[
     'https://esm.sh/@jgorset/beat-this@1.0.0?bundle',
     'https://cdn.jsdelivr.net/npm/@jgorset/beat-this@1.0.0/+esm'
@@ -57,6 +58,37 @@
     }
     return output;
   }
+  // Many browsers refuse model loading after a GitHub Releases redirect (CORS,
+  // intermediate auth or a URL fetch problem). Fetch explicitly and give a
+  // useful error, instead of passing a URL to ONNX Runtime and getting "Load failed".
+  // Hugging Face hosts the original final0 export (spectrogram -> beat/downbeat).
+  // This may still fail if the host is blocked, offline, or memory is exhausted.
+  async function fetchFullModel(progress,signal){
+    const origins=[MODEL_FULL,MODEL_FULL_FALLBACK],problems=[];
+    for(let ix=0;ix<origins.length;ix++){
+      check(signal);
+      const url=origins[ix];
+      let response;
+      try{
+        progress(`高精度モデルを取得中：提供元${ix+1}/${origins.length}（約82MB）…`);
+        response=await fetch(url,{mode:'cors',cache:'default',signal});
+        if(!response.ok)throw new Error('HTTP '+response.status);
+        const type=response.headers.get('content-type')||'';
+        const size=Number(response.headers.get('content-length')||0);
+        if(size && size < 30000000)throw new Error('応答がONNXモデルではありません（容量 '+size+' bytes）');
+        // The full ONNX model is ~82 MB. No extra copy: keep one ArrayBuffer.
+        const body=await response.arrayBuffer();
+        check(signal);
+        if(body.byteLength<30000000)throw new Error('不完全なモデル（'+body.byteLength+' bytes、HTML/認証画面の可能性）');
+        progress(`高精度モデル取得済み（${(body.byteLength/1048576).toFixed(1)}MiB）。初期化しています…`);
+        return new Uint8Array(body);
+      }catch(e){
+        if(signal.aborted)throw abortError();
+        problems.push(`提供元${ix+1}: ${e?.message||String(e)}`);
+      }
+    }
+    throw new Error('高精度モデルを自動取得できません。'+problems.join(' / ')+'。ダウンロード済みの .onnx を「手元のモデル」で選択すると利用できます。');
+  }
   const logitValid=(v)=>v instanceof Float32Array && v.length>0;
   function getOutput(result,name,session){
     let tensor=result[name];
@@ -83,16 +115,19 @@
       ort.env.wasm.wasmPaths=WASM_PATHS;
       ort.env.wasm.numThreads=1;
       const provider=options.provider==='webgpu'?'webgpu':'wasm';
-      const modelUrl=options.modelType==='full'?MODEL_FULL:MODEL_LIGHT;
-      let modelSource=modelUrl;
+      const isFull=options.modelType==='full';
+      let modelSource=isFull?null:MODEL_LIGHT;
       if(options.modelFile){
         if(!/\.onnx$/i.test(options.modelFile.name))throw new Error('.onnxファイルを選択してください');
         if(options.modelFile.size<500000)throw new Error('ONNXモデルが小さすぎます。正しいモデルを選択してください');
         progress('選択したONNXモデルを読み取っています…');
         modelSource=new Uint8Array(await options.modelFile.arrayBuffer());
         check(signal);
+      }else if(isFull){
+        stage='高精度モデルのダウンロード';
+        modelSource=await fetchFullModel(progress,signal);
       }
-      stage='ONNXモデルの取得・初期化';progress('モデルを読み込み中（軽量：約10MB／高精度：約83MB）…');
+      stage='ONNXモデルの取得・初期化';progress('モデル初期化中（軽量：約10MB／高精度：約83MB）…');
       try{session=await ort.InferenceSession.create(modelSource,{
         executionProviders:[provider],graphOptimizationLevel:'all'
       });}catch(err){
