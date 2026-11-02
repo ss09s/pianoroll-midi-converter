@@ -1,109 +1,179 @@
-/* PianoRoll MIDI Converter v0.6 – actual on-device neural beat/downbeat inference.
- * Uses @jgorset/beat-this v1.0.0 (MIT) and Beat This! pretrained ONNX weights (MIT).
- * Dependencies / model load only when user presses the AI button.
- * No audio/video data is sent to the CDN. See README for model provenance.
+/* PianoRoll MIDI Converter v0.6.1 – Beat This! ONNX model-IO compatibility fix.
+ * Full and small models may use different input tensor names ('spect' or
+ * 'spectrogram'). Never hard-code the ONNX feed name: inspect session.inputNames.
+ * Uses @jgorset/beat-this 1.0.0 DSP/postprocessing and onnxruntime-web 1.23.2.
+ * Audio remains on device. Model/JS are fetched on user request.
  */
 (function(){
   'use strict';
-  let running = false;
-  let cancelController = null;
-  let tracker = null;
-  let usedUrl = null;
-  const WASM_PATHS = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
-  const MODEL_LIGHT = 'https://cdn.jsdelivr.net/gh/danigb/beat-this-rs@main/models/beat_this_small.onnx';
-  const MODEL_FULL = 'https://github.com/jgorset/beat-this/releases/download/v1.0.0/beat-this.onnx';
-  const LIBRARY_CDNS = [
+  const SAMPLE_RATE=22050, HOP=441, BANDS=128, WINDOW=1500, BORDER=6;
+  const WASM_PATHS='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
+  const MODEL_LIGHT='https://cdn.jsdelivr.net/gh/danigb/beat-this-rs@main/models/beat_this_small.onnx';
+  const MODEL_FULL='https://github.com/jgorset/beat-this/releases/download/v1.0.0/beat-this.onnx';
+  const LIBRARY_CDNS=[
     'https://esm.sh/@jgorset/beat-this@1.0.0?bundle',
     'https://cdn.jsdelivr.net/npm/@jgorset/beat-this@1.0.0/+esm'
   ];
-  let libModule = null;
-  async function library(){
-    if(libModule) return libModule;
-    const problems=[];
-    for(const url of LIBRARY_CDNS){
+  const ORT_CDNS=[
+    'https://esm.sh/onnxruntime-web@1.23.2/webgpu?bundle',
+    'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/webgpu/+esm'
+  ];
+  let dsp=null, ortRuntime=null, running=false, controller=null;
+  const abortError=()=>new DOMException('中止しました','AbortError');
+  function check(signal){ if(signal?.aborted)throw abortError(); }
+  async function importFirst(urls,valid,label){
+    const errors=[];
+    for(const url of urls){
       try{
-        const candidate = await import(/* webpackIgnore: true */ url);
-        if(typeof candidate.createBeatThis === 'function'){
-          libModule=candidate;
-          return candidate;
-        }
-        throw Error('createBeatThis関数が見つかりません');
-      }catch(e){problems.push(e.message||String(e));}
+        const mod=await import(/* webpackIgnore: true */ url);
+        if(valid(mod))return mod;
+        throw new Error('必要なAPIが見つかりません');
+      }catch(e){errors.push((e?.message||String(e)).slice(0,160));}
     }
-    throw Error('AIライブラリを読み込めませんでした。通信環境を確認してください。詳細：'+problems.join(' / '));
+    throw new Error(label+'の読み込みに失敗しました。ネット接続をご確認ください。 '+errors.join(' / '));
   }
-  function getMono(buffer, signal){
-    if(buffer.numberOfChannels < 1)throw Error('音声のチャンネルがありません');
-    const sr = buffer.sampleRate;
-    const duration = buffer.duration;
-    if(!Number.isFinite(duration)||duration<2)throw Error('AI拍検出には2秒以上の音声が必要です');
-    // Beat This! explicitly requires mono audio at 22050 Hz.
-    const channelCount = Math.min(buffer.numberOfChannels,2);
-    const n = Math.floor(duration*22050);
-    if(n>22050*60*60)throw Error('60分を超える音声は対象外です');
-    const output = new Float32Array(n);
+  async function dependencies(){
+    if(!dsp)dsp=await importFirst(LIBRARY_CDNS,m=>typeof m.extractFeatures==='function'&&typeof m.postprocess==='function','音声特徴抽出ライブラリ');
+    if(!ortRuntime)ortRuntime=await importFirst(ORT_CDNS,m=>m.InferenceSession&&m.Tensor&&m.env,'ONNX Runtime');
+    return {dsp,ort:ortRuntime};
+  }
+  // Only read PCM needed for this inference window. Avoid holding a duplicate
+  // 10–30 MB resampled track on memory-constrained mobile Safari.
+  function readMono(buffer,first,count,signal){
+    const n=Math.max(0,Math.floor(count));
+    const output=new Float32Array(n);
+    const channelCount=Math.min(2,buffer.numberOfChannels);
+    if(channelCount<1)throw new Error('音声チャンネルがありません');
     const channels=Array.from({length:channelCount},(_,i)=>buffer.getChannelData(i));
-    // Linear resampling with actual buffer sample rate to avoid iOS rate mismatches.
+    const srcLen=channels[0].length, ratio=buffer.sampleRate/SAMPLE_RATE;
     for(let i=0;i<n;i++){
-      if((i&131071)===0 && signal?.aborted)throw DOMException('中止しました','AbortError');
-      const p=i*sr/22050, k=Math.min(channels[0].length-1,Math.floor(p)), k2=Math.min(k+1,channels[0].length-1),a=p-k;
-      let value=0;
-      for(const c of channels)value+=(c[k]*(1-a)+c[k2]*a)/channelCount;
-      output[i]=Math.max(-1,Math.min(1,value));
+      if((i&8191)===0)check(signal);
+      const pos=(first+i)*ratio;
+      const k=Math.min(srcLen-1,Math.max(0,Math.floor(pos)));
+      const next=Math.min(k+1,srcLen-1), a=Math.max(0,Math.min(1,pos-k));
+      let v=0;
+      for(const c of channels)v+=c[k]*(1-a)+c[next]*a;
+      output[i]=Math.max(-1,Math.min(1,v/channelCount));
     }
     return output;
   }
+  const logitValid=(v)=>v instanceof Float32Array && v.length>0;
+  function getOutput(result,name,session){
+    let tensor=result[name];
+    if(!tensor){
+      const names=session.outputNames||[];
+      const actual=names.find(x=>x.toLowerCase()===name.toLowerCase());
+      tensor=actual?result[actual]:undefined;
+    }
+    if(!tensor)throw new Error('モデルの出力 '+name+' がありません。対応モデルを選択してください。');
+    return tensor.data;
+  }
   async function analyze(buffer,options={}){
-    if(running)throw Error('AI解析がすでに動作しています');
-    running=true;
-    cancelController=new AbortController();
-    const signal=cancelController.signal;
+    if(running)throw new Error('AI解析がすでに動作しています');
+    if(!buffer||!Number.isFinite(buffer.duration)||buffer.duration<2)throw new Error('2秒以上のデコード済み音声が必要です');
+    running=true;controller=new AbortController();
+    const signal=controller.signal;
     const progress=typeof options.onProgress==='function'?options.onProgress:()=>{};
-    let objectUrl=null;
+    let session=null;
     try{
-      progress('PCM音声を22,050Hz・モノラルに整えています');
-      const mono=getMono(buffer,signal);
-      if(signal.aborted)throw DOMException('中止しました','AbortError');
-      progress('AIライブラリを読み込んでいます（ネット接続が必要）');
-      const {createBeatThis}=await library();
-      if(signal.aborted)throw DOMException('中止しました','AbortError');
+      progress('AI解析ライブラリと実行環境を準備しています…');
+      const {dsp,ort}=await dependencies();
+      check(signal);
+      ort.env.wasm.wasmPaths=WASM_PATHS;
+      ort.env.wasm.numThreads=1;
+      const provider=options.provider==='webgpu'?'webgpu':'wasm';
+      const modelUrl=options.modelType==='full'?MODEL_FULL:MODEL_LIGHT;
+      let modelSource=modelUrl;
       if(options.modelFile){
-        if(options.modelFile.size<500000)throw Error('ONNXファイルが小さすぎます。Beat This!のモデルを指定してください。');
-        objectUrl=URL.createObjectURL(options.modelFile);
+        if(!/\.onnx$/i.test(options.modelFile.name))throw new Error('.onnxファイルを選択してください');
+        if(options.modelFile.size<500000)throw new Error('ONNXモデルが小さすぎます。正しいモデルを選択してください');
+        progress('選択したONNXモデルを読み取っています…');
+        modelSource=new Uint8Array(await options.modelFile.arrayBuffer());
+        check(signal);
       }
-      const requestedUrl = objectUrl || (options.modelType === 'full' ? MODEL_FULL : MODEL_LIGHT);
-      // An explicit CORS-supported URL is used for the lightweight model; a local
-      // file choice is available if the browser refuses a remote weight download.
-      progress('AIモデルを読み込み中…（軽量：約10MB／高精度：約83MB）');
-      tracker = await createBeatThis({
-        modelUrl: requestedUrl,
-        executionProvider: options.provider === 'webgpu' ? 'webgpu':'wasm',
-        wasmPaths: WASM_PATHS
+      progress('モデルを読み込み中（軽量：約10MB／高精度：約83MB）…');
+      session=await ort.InferenceSession.create(modelSource,{
+        executionProviders:[provider],graphOptimizationLevel:'all'
       });
-      usedUrl=requestedUrl;
-      if(signal.aborted)throw DOMException('中止しました','AbortError');
-      progress('ニューラルネットワークで拍・小節頭を解析中');
-      const res=await tracker.analyze(mono,{
-        signal,
-        onProgress:(stage,done,total)=>{
-          if(total>0)progress(`AI解析 ${stage}: ${Math.floor(100*done/total)}% (${done}/${total})`);
+      check(signal);
+      const inputs=session.inputNames||[], outputs=session.outputNames||[];
+      if(inputs.length!==1)throw new Error('モデル入力が1つではありません: '+inputs.join(', '));
+      if(!outputs.some(x=>x.toLowerCase()==='beat')||!outputs.some(x=>x.toLowerCase()==='downbeat')){
+        throw new Error('拍・小節頭の出力がありません: '+outputs.join(', '));
+      }
+      // Source of the v0.6 bug: @jgorset/beat-this hard-codes {spect}, but the
+      // lightweight model actually requires a feed called 'spectrogram'.
+      // Using session.inputNames[0] supports both ONNX model naming conventions.
+      const inputName=inputs[0];
+      progress(`モデル接続確認：入力「${inputName}」／出力「${outputs.join('、')}」`);
+      const sampleCount=Math.floor(buffer.duration*SAMPLE_RATE);
+      if(!Number.isSafeInteger(sampleCount)||sampleCount<2*SAMPLE_RATE)throw new Error('音声が短すぎます');
+      const frames=Math.floor(sampleCount/HOP)+1;
+      const starts=[];
+      for(let s=-BORDER;s<frames-BORDER;s+=WINDOW-2*BORDER)starts.push(s);
+      if(frames>WINDOW-2*BORDER)starts[starts.length-1]=frames-(WINDOW-BORDER);
+      const beat=new Float32Array(frames),downbeat=new Float32Array(frames);
+      beat.fill(-1000);downbeat.fill(-1000);
+      let writtenUntil=0;
+      for(let j=0;j<starts.length;j++){
+        check(signal);
+        progress(`AI推論中：${j+1}/${starts.length} 区間（${Math.round((j+1)*100/starts.length)}%）`);
+        const start=starts[j],first=Math.max(0,start),stop=Math.min(start+WINDOW,frames);
+        const left=Math.max(0,-start),right=Math.max(0,Math.min(BORDER,start+WINDOW-frames));
+        const validCount=stop-first+left+right;
+        const pcmBegin=Math.max(0,first*HOP-1024);
+        const pcmEnd=Math.min(sampleCount,stop*HOP+1024);
+        const pcm=readMono(buffer,pcmBegin,pcmEnd-pcmBegin,signal);
+        check(signal);
+        const features=dsp.extractFeatures(pcm,first,stop-first,sampleCount,pcmBegin);
+        if(!(features instanceof Float32Array)||features.length!==(stop-first)*BANDS){
+          throw new Error('メルスペクトログラムの形状が不正です。');
         }
-      });
-      if(signal.aborted)throw DOMException('中止しました','AbortError');
-      const clean=(arr)=>Array.from(arr||[]).map(Number).filter(t=>Number.isFinite(t)&&t>=0&&t<=buffer.duration+.2).sort((a,b)=>a-b);
-      const beats=clean(res.beats), downbeats=clean(res.downbeats);
-      if(beats.length<4)throw Error('AIが十分な拍を検出できませんでした。楽曲を変更するか別モデルを試してください。');
-      return {beats,downbeats,model:options.modelFile?'ローカルONNXモデル':options.modelType==='full'?'Beat This! 高精度':'Beat This! 軽量',length:buffer.duration};
+        // Pad short inputs to WINDOW for ONNX models with fixed time dimension.
+        const input=new Float32Array(WINDOW*BANDS);
+        input.set(features,left*BANDS);
+        let tensor=null,result=null;
+        try{
+          tensor=new ort.Tensor('float32',input,[1,WINDOW,BANDS]);
+          result=await session.run({[inputName]:tensor});
+          check(signal);
+          const b=getOutput(result,'beat',session),d=getOutput(result,'downbeat',session);
+          if(!logitValid(b)||!logitValid(d)||b.length<validCount||d.length<validCount){
+            throw new Error('モデル出力の長さが不足しています。出力: '+b?.length+'/'+d?.length+', 必要: '+validCount);
+          }
+          const from=Math.max(BORDER,writtenUntil-start,0);
+          const to=Math.min(validCount-BORDER,frames-start);
+          for(let i=from;i<to;i++){
+            const idx=start+i;
+            if(idx>=0&&idx<frames){beat[idx]=b[i];downbeat[idx]=d[i];}
+          }
+          writtenUntil=Math.max(writtenUntil,start+validCount-BORDER);
+        }finally{
+          try{tensor?.dispose?.()}catch(_){}
+          if(result)for(const value of Object.values(result))try{value?.dispose?.()}catch(_){}
+        }
+        // Yield to Safari's event loop between inference windows.
+        if(j+1<starts.length)await new Promise(r=>setTimeout(r,0));
+      }
+      check(signal);
+      progress('拍・小節頭を時刻に変換しています…');
+      const result=dsp.postprocess(beat,downbeat);
+      const clean=arr=>Array.from(arr||[]).map(Number).filter(t=>Number.isFinite(t)&&t>=0&&t<buffer.duration+.1).sort((a,b)=>a-b);
+      const beats=clean(result.beats),downbeats=clean(result.downbeats);
+      if(beats.length<4)throw new Error('十分な拍が検出できませんでした。音楽が明瞭な区間を含むか確認してください。');
+      return {beats,downbeats,length:buffer.duration,model:options.modelFile?'指定したONNXモデル':options.modelType==='full'?'Beat This! 高精度':'Beat This! 軽量'};
+    }catch(err){
+      // This error is now actionable rather than the generic v0.6 text.
+      if(/missing in ['"]feeds['"]|input .+ missing/i.test(err.message||'')){
+        throw new Error('モデルの入力名が一致しません。モデル構成情報：'+(session?.inputNames||[]).join(', ')+'。詳細：'+err.message);
+      }
+      throw err;
     }finally{
-      try{if(tracker)await tracker.dispose();}catch(_){}
-      tracker=null;
-      if(objectUrl)URL.revokeObjectURL(objectUrl);
-      usedUrl=null;
-      cancelController=null;
-      running=false;
+      if(session){try{await session.release()}catch(_){}}
+      running=false;controller=null;
     }
   }
-  function abort(){if(cancelController)cancelController.abort();}
-  window.PianoRollBeatAI={analyze,abort,get running(){return running;},MODEL_FULL,MODEL_LIGHT};
+  function abort(){controller?.abort()}
+  window.PianoRollBeatAI={analyze,abort,get running(){return running},MODEL_FULL,MODEL_LIGHT};
   window.dispatchEvent(new Event('pianoroll-ai-ready'));
 })();

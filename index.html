@@ -1,6 +1,6 @@
 <!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.6</title>
 <script defer src="mov-audio.js"></script>
-<script defer src="ai-beat.js"></script>
+<script defer src="ai-beat.js?v=0.6.1"></script>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
 
@@ -48,13 +48,13 @@
 <p class="muted">青：編集済みの区間テンポ。灰：局所推定値。青線は変更時刻まで前のBPMを保持します。変更点ごとの編集はグラフのタップか下の一覧で行えます。</p>
 <h3>テンポ区間（手動修正可能）</h3><div class="row"><button type="button" id="addTempoPoint" class="secondary">中央に変更点追加</button><button type="button" id="clearTempoEdits" class="secondary">自動推定に戻す</button><button type="button" id="exportTempo" class="secondary">テンポマップをJSON出力</button></div><div id="tempoSegments" class="tempoSegments"></div><p class="muted">曲中の変更時刻とBPMを選択した刻み幅で編集できます。AI拍グリッドを下のセクションで解析・編集できます。MIDI出力はまだ未実装です。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
 </section>
-<section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.6）</h2>
+<section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.6.1）</h2>
 <p class="muted">実際の学習済み <b>Beat This!</b> モデルを端末上で実行し、楽曲全体の拍・小節頭を推定します。処理用のプログラムとモデルを初回のみネットから取得しますが、<b>動画・音声ファイルは送信しません。</b> AIの結果は誤る場合があるため、DAWへの利用前に確認してください。</p>
 <div class="auto-panel">
  <div class="row"><label>AIモデル <select id="aiModelKind" style="width:auto;max-width:100%;padding:8px"><option value="light" selected>軽量（約10MB・推奨）</option><option value="full">高精度（約83MB・負荷大）</option></select></label><label>処理方式 <select id="aiBackend" style="width:auto;padding:8px"><option value="wasm" selected>CPU / WASM（iPhone対応）</option><option value="webgpu">WebGPU（対応PC向け）</option></select></label></div>
  <div class="row"><label>手元のモデル（任意・通信失敗時） <input id="aiModelFile" type="file" accept=".onnx,application/octet-stream" style="width:min(100%,290px)"></label></div>
  <div class="row"><button id="aiRun" type="button">🎼 AIで全曲の拍・小節頭を解析</button><button id="aiStop" class="secondary" type="button" disabled>中止</button><button id="aiProbe" type="button" class="secondary">動作環境を確認</button></div>
- <div class="status" id="aiRuntimeStatus" aria-live="polite">AIモデル未実行。最初の解析にはモデルのダウンロードが必要です。iPhoneでは軽量モデルとCPU方式を推奨します。</div>
+ <div class="status" id="aiRuntimeStatus" aria-live="polite">AIモデル未実行。Ver.0.6の「spectrogram」入力エラーを修正しています。初回はモデルのダウンロードが必要です。iPhoneでは軽量モデルとCPU方式を推奨します。</div>
  <div class="muted">高精度モデルが自動取得できない場合は <a href="https://github.com/jgorset/beat-this/releases/tag/v1.0.0" target="_blank" rel="noopener noreferrer">Beat This! モデル配布ページ</a> から <code>beat-this.onnx</code> を保存し、上の「手元のモデル」で選択してください。軽量モデルの提供元は <a href="https://github.com/danigb/beat-this-rs" target="_blank" rel="noopener noreferrer">beat-this-rs</a> です。</div>
 </div>
 <details class="group"><summary>詳細・拍データファイルの読み込み（任意）</summary><div style="padding:12px"><div id="aiProbeResult" class="status">端末のAI対応状況は上のボタンで確認できます。</div><label>他のソフトからの拍データ（JSON/CSV/TXT） <input id="aiBeatFile" type="file" accept=".json,.csv,.txt,application/json,text/plain"></label><p class="muted">JSON例：<code>{"beats":[0,0.5,1],"downbeats":[0]}</code> ／ CSV例：<code>0.5,beat</code></p></div></details>
@@ -1170,7 +1170,7 @@ $('aiRun').onclick=async()=>{
    const pts=aiTempoCandidates();if(pts.length){tempoPoints=pts.map(p=>({...p}));tempoAutomatic=tempoPoints.map(p=>({...p}));$('tempoVisualization').hidden=false;renderTempoPoints()}
   }
  }catch(error){
-  report((error.name==='AbortError'?'AI解析を中止しました。':'AI解析に失敗：'+(error.message||String(error)))+'\nモデル取得のエラーなら「手元のモデル」を選んで再試行してください。iPhoneではCPU方式と軽量モデルを推奨します。');
+  report((error.name==='AbortError'?'AI解析を中止しました。':'AI解析に失敗：'+(error.message||String(error)))+'\n入力名の不一致はVer.0.6.1で修正済みです。iPhoneではCPU方式と軽量モデルを推奨します。エラー全文を控えてください。');
  }finally{aiRunning=false;$('aiRun').disabled=false;$('aiStop').disabled=true;}
 };
 
