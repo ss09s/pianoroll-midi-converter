@@ -1,4 +1,4 @@
-/* PianoRoll MIDI Converter v0.6.1 – Beat This! ONNX model-IO compatibility fix.
+/* PianoRoll MIDI Converter v0.6.2 – staged diagnostics and reliability checks.
  * Full and small models may use different input tensor names ('spect' or
  * 'spectrogram'). Never hard-code the ONNX feed name: inspect session.inputNames.
  * Uses @jgorset/beat-this 1.0.0 DSP/postprocessing and onnxruntime-web 1.23.2.
@@ -75,8 +75,9 @@
     const signal=controller.signal;
     const progress=typeof options.onProgress==='function'?options.onProgress:()=>{};
     let session=null;
+    let stage='開始';
     try{
-      progress('AI解析ライブラリと実行環境を準備しています…');
+      stage='依存ライブラリの取得';progress('AI解析ライブラリと実行環境を準備しています…');
       const {dsp,ort}=await dependencies();
       check(signal);
       ort.env.wasm.wasmPaths=WASM_PATHS;
@@ -91,10 +92,14 @@
         modelSource=new Uint8Array(await options.modelFile.arrayBuffer());
         check(signal);
       }
-      progress('モデルを読み込み中（軽量：約10MB／高精度：約83MB）…');
-      session=await ort.InferenceSession.create(modelSource,{
+      stage='ONNXモデルの取得・初期化';progress('モデルを読み込み中（軽量：約10MB／高精度：約83MB）…');
+      try{session=await ort.InferenceSession.create(modelSource,{
         executionProviders:[provider],graphOptimizationLevel:'all'
-      });
+      });}catch(err){
+        const detail=err?.message||String(err);
+        const model=options.modelType==='full'?'高精度（約83MB）':'軽量';
+        throw new Error(`${model}モデル初期化失敗（${provider}）：${detail}。高精度モデルでは端末メモリ・対応ONNX演算・モデル取得状況が影響します。`);
+      }
       check(signal);
       const inputs=session.inputNames||[], outputs=session.outputNames||[];
       if(inputs.length!==1)throw new Error('モデル入力が1つではありません: '+inputs.join(', '));
@@ -106,7 +111,7 @@
       // Using session.inputNames[0] supports both ONNX model naming conventions.
       const inputName=inputs[0];
       progress(`モデル接続確認：入力「${inputName}」／出力「${outputs.join('、')}」`);
-      const sampleCount=Math.floor(buffer.duration*SAMPLE_RATE);
+      stage='特徴量抽出・推論';const sampleCount=Math.floor(buffer.duration*SAMPLE_RATE);
       if(!Number.isSafeInteger(sampleCount)||sampleCount<2*SAMPLE_RATE)throw new Error('音声が短すぎます');
       const frames=Math.floor(sampleCount/HOP)+1;
       const starts=[];
@@ -157,7 +162,7 @@
       }
       check(signal);
       progress('拍・小節頭を時刻に変換しています…');
-      const result=dsp.postprocess(beat,downbeat);
+      stage='拍時刻の後処理';const result=dsp.postprocess(beat,downbeat);
       const clean=arr=>Array.from(arr||[]).map(Number).filter(t=>Number.isFinite(t)&&t>=0&&t<buffer.duration+.1).sort((a,b)=>a-b);
       const beats=clean(result.beats),downbeats=clean(result.downbeats);
       if(beats.length<4)throw new Error('十分な拍が検出できませんでした。音楽が明瞭な区間を含むか確認してください。');
@@ -167,7 +172,9 @@
       if(/missing in ['"]feeds['"]|input .+ missing/i.test(err.message||'')){
         throw new Error('モデルの入力名が一致しません。モデル構成情報：'+(session?.inputNames||[]).join(', ')+'。詳細：'+err.message);
       }
-      throw err;
+      if(err?.name==='AbortError')throw err;
+      const detail=err?.message||String(err);
+      throw new Error(`AI処理失敗［${stage}］：${detail}`);
     }finally{
       if(session){try{await session.release()}catch(_){}}
       running=false;controller=null;
