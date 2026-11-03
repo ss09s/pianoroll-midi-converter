@@ -1,9 +1,11 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PianoRoll MIDI Converter v0.6.6</title>
-<script src="rhythm-core.js?v=0.6.6"></script>
-<script defer src="mov-audio.js"></script>
-<script defer src="ai-beat.js?v=0.6.6"></script>
-<script defer src="beat-tempo.js?v=0.6.6"></script>
-<script defer src="beat-preview.js?v=0.6.6"></script>
+<!DOCTYPE html>
+
+<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>PianoRoll MIDI Converter v0.6.7</title>
+<script src="rhythm-core.js?v=0.6.7"></script>
+<script defer="" src="mov-audio.js"></script>
+<script defer="" src="ai-beat.js?v=0.6.7"></script>
+<script defer="" src="beat-tempo.js?v=0.6.7"></script>
+<script defer="" src="beat-preview.js?v=0.6.7"></script>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
 
@@ -13,7 +15,7 @@
 .range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.tempoOptions{margin-top:10px}.tempoOptions label{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tempoOptions select{padding:8px;max-width:170px}.tempoSegments{display:grid;gap:8px;margin:12px 0}.tempoSegment{display:grid;grid-template-columns:minmax(100px,1fr) 95px 95px 52px;gap:7px;align-items:center;padding:9px;background:#f4f7fd;border-radius:9px}.tempoSegment input{width:100%;font-size:16px}.tempoSegment button{margin:0}.tempoSegment small{font-size:.8rem;color:#596579}@media(max-width:520px){.tempoSegment{grid-template-columns:minmax(65px,1fr) 72px 78px 43px;gap:4px;padding:6px}.tempoSegment input{padding:5px}.tempoSegment button{padding:5px}}#tempoChart{max-height:none;aspect-ratio:1100/350;object-fit:contain;touch-action:pan-y;cursor:crosshair}.tempoToolbar{background:#f2f6fc;padding:12px;border-radius:10px;margin:12px 0}.tempoPan{display:grid;gap:7px;margin-top:10px}.tempoPan input{width:100%}.tempoToolbar select{padding:8px;max-width:100%}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}
 .beat-table{margin-top:10px;max-height:360px;overflow:auto;border:1px solid #dce4ef;border-radius:10px;background:#fff}.beat-entry{display:grid;grid-template-columns:46px minmax(75px,1fr) 92px;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid #e6ecf4;font-size:.9rem}.beat-entry:nth-child(odd){background:#f7faff}.beat-entry input[type=number]{width:100%;min-width:0;font-size:16px}.beat-entry label{font-size:.85rem;display:flex;gap:4px;align-items:center}.beat-entry input[type=checkbox]{width:20px;height:20px;accent-color:#245bd6}.auto-panel select{font-size:16px}#aiRuntimeStatus{font-size:.92rem}a{color:#174eaa}@media(max-width:390px){.beat-entry{grid-template-columns:35px minmax(70px,1fr) 84px;gap:4px;padding:5px}}
 
-/* v0.6.6: Listening A/B workspace */
+/* v0.6.7: Listening A/B workspace */
 .listen-panel{background:#f5f8fe;border:1px solid #d5e1f3;border-radius:12px;padding:14px}
 .listen-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .listen-grid label{display:flex;flex-direction:column;gap:5px;font-size:.9rem;font-weight:650}
@@ -35,24 +37,23 @@
 .listen-warn{background:#fff0e3;border:1px solid #f0cda8;color:#6b3c10;border-radius:9px;padding:10px;margin:10px 0;white-space:pre-wrap}
 @media(max-width:560px){.listen-grid,.listen-volumes{grid-template-columns:1fr}.listen-actions button{flex:1 1 auto}.listen-panel{padding:10px}}
 summary{list-style:none!important;display:flex;align-items:center;gap:10px}summary::-webkit-details-marker{display:none}summary::before{content:'▸';font-size:1.2em;flex:none}details[open]>summary::before{content:'▾'}#meterMapRows>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}#meterMapRows input{width:90px}
-</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.6.6</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
-<section class="box"><h2>1. 動画を読み込む</h2><input id="file" type="file" accept="video/*,.mov,video/quicktime"><div id="status" class="status" aria-live="polite">動画ファイルを選択してください。</div><video id="v" controls playsinline preload="metadata"></video><p class="muted" id="videoHelp">MOVは内部の映像コーデックによって再生可否が異なります。ファイルを選択したあと、読み込み状況とエラーをここに表示します。</p><button type="button" id="retryVideo" class="secondary" hidden>同じファイルを再試行</button><div class="row"><button id="prev" disabled>−1フレーム</button><button id="next" disabled>＋1フレーム</button><label>時刻(秒) <input id="t" type="number" min="0" step=".01" value="0"></label><button id="seek" disabled>移動</button></div></section>
+</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.6.7</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+<section class="box"><h2>1. 動画を読み込む</h2><input accept="video/*,.mov,video/quicktime" id="file" type="file"/><div aria-live="polite" class="status" id="status">動画ファイルを選択してください。</div><video controls="" id="v" playsinline="" preload="metadata"></video><p class="muted" id="videoHelp">MOVは内部の映像コーデックによって再生可否が異なります。ファイルを選択したあと、読み込み状況とエラーをここに表示します。</p><button class="secondary" hidden="" id="retryVideo" type="button">同じファイルを再試行</button><div class="row"><button disabled="" id="prev">−1フレーム</button><button disabled="" id="next">＋1フレーム</button><label>時刻(秒) <input id="t" min="0" step=".01" type="number" value="0"/></label><button disabled="" id="seek">移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。まず自動位置合わせを試し、ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
-<div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button id="autofit" disabled>鍵盤に自動で合わせる</button><div id="autoResult" class="auto-result" aria-live="polite">動画の読み込み後に利用できます。</div></div>
-<div class="preview"><canvas id="cv" width="960" height="540"></canvas><div id="keyresult" class="status">動画を読み込むとガイドが表示されます。</div></div><div class="fine"><strong>位置・大きさを調整</strong><div><button id="slowMode" class="secondary" aria-pressed="false" disabled>🐢 スライダー低速：オフ</button><button id="coarseMode" class="secondary" aria-pressed="true" disabled>広い範囲</button><button id="fineMode" class="secondary" aria-pressed="false" disabled>微調整</button></div></div><p class="draghelp">🐢 低速オンでは、スライダーに触れた位置を起点として、指の移動量の12%だけつまみを動かします。微調整はスライダーの数値範囲を狭める別機能です。</p><p class="draghelp">💡 上側の緑線をドラッグすると上端を移動、下側の緑線をドラッグすると高さを調整。鍵盤ガイド内をドラッグすると左右移動。白鍵の幅は「横方向の拡大縮小」から調整できます。白鍵をタップすると黄色い「基準鍵」マーカーが移動します。緑線は鍵盤の上下端です。</p><details open class="group"><summary>基本調整：横位置・横方向の拡大縮小・上端</summary><div class="controls">
-<div class="control"><h3>↔ 横位置</h3><p>鍵盤ガイド全体を左右へ移動（px）</p><div class="adjust"><button class="secondary" data-step="anchorX:-.05" disabled>−</button><button class="secondary" data-step="anchorX:.05" disabled>＋</button><input id="anchorXNumber" type="number" step="0.01" aria-label="横位置 px"><input id="anchorXSlider" type="range" min="-80" max="100" step="0.01"></div></div>
-<div class="control"><h3>↔ 横方向の拡大縮小</h3><p>白鍵・黒鍵の比率を固定して全体を拡大縮小。白鍵幅(px)で精密指定</p><div class="adjust"><button class="secondary" data-step="whiteStep:-.05" disabled>−</button><button class="secondary" data-step="whiteStep:.05" disabled>＋</button><input id="whiteStepNumber" type="number" min="4" max="100" step="0.01" aria-label="白鍵幅 px"><input id="whiteStepSlider" type="range" min="4" max="80" step="0.01"></div></div>
-<div class="control"><h3>↕ 鍵盤の上端</h3><p>鍵盤が始まる高さ（画面上からの％）</p><div class="adjust"><button class="secondary" data-step="keyboardY:-.1" disabled>−</button><button class="secondary" data-step="keyboardY:.1" disabled>＋</button><input id="keyboardYNumber" type="number" min="0" max="97" step="0.01" aria-label="上端 %"><input id="keyboardYSlider" type="range" min="0" max="97" step="0.01"></div></div>
-</div></details><details class="group"><summary>詳細調整：黒鍵の幅・長さ・鍵盤の高さ</summary><div class="controls"><div class="control"><h3>↕ 鍵盤の高さ</h3><p>ガイド下端の位置を調整（％）</p><div class="adjust"><button class="secondary" data-step="keyboardHeight:-.1" disabled>−</button><button class="secondary" data-step="keyboardHeight:.1" disabled>＋</button><input id="keyboardHeightNumber" type="number" min="3" max="100" step="0.01" aria-label="鍵盤の高さ %"><input id="keyboardHeightSlider" type="range" min="3" max="100" step="0.01"></div></div>
-<div class="control"><h3>♯ 黒鍵の幅</h3><p>白鍵幅に対する比率（％）</p><div class="adjust"><button class="secondary" data-step="blackWidth:-.1" disabled>−</button><button class="secondary" data-step="blackWidth:.1" disabled>＋</button><input id="blackWidthNumber" type="number" min="30" max="90" step="0.1" aria-label="黒鍵幅 %"><input id="blackWidthSlider" type="range" min="30" max="90" step="0.1"></div></div>
-<div class="control"><h3>♯ 黒鍵の長さ</h3><p>鍵盤の高さに対する比率（％）</p><div class="adjust"><button class="secondary" data-step="blackHeight:-.1" disabled>−</button><button class="secondary" data-step="blackHeight:.1" disabled>＋</button><input id="blackHeightNumber" type="number" min="25" max="85" step="0.1" aria-label="黒鍵の長さ %"><input id="blackHeightSlider" type="range" min="25" max="85" step="0.1"></div></div>
-
-<div class="control"><h3>♯ 黒鍵の個別位置補正</h3><p>白鍵境界からの黒鍵中心のずれ（白鍵幅の％）。自動合わせの後に微調整できます。</p><div id="shiftControls" class="shift-controls"></div><button type="button" id="resetShifts" class="secondary">黒鍵の位置補正をリセット</button></div>
+<div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button disabled="" id="autofit">鍵盤に自動で合わせる</button><div aria-live="polite" class="auto-result" id="autoResult">動画の読み込み後に利用できます。</div></div>
+<div class="preview"><canvas height="540" id="cv" width="960"></canvas><div class="status" id="keyresult">動画を読み込むとガイドが表示されます。</div></div><div class="fine"><strong>位置・大きさを調整</strong><div><button aria-pressed="false" class="secondary" disabled="" id="slowMode">🐢 スライダー低速：オフ</button><button aria-pressed="true" class="secondary" disabled="" id="coarseMode">広い範囲</button><button aria-pressed="false" class="secondary" disabled="" id="fineMode">微調整</button></div></div><p class="draghelp">🐢 低速オンでは、スライダーに触れた位置を起点として、指の移動量の12%だけつまみを動かします。微調整はスライダーの数値範囲を狭める別機能です。</p><p class="draghelp">💡 上側の緑線をドラッグすると上端を移動、下側の緑線をドラッグすると高さを調整。鍵盤ガイド内をドラッグすると左右移動。白鍵の幅は「横方向の拡大縮小」から調整できます。白鍵をタップすると黄色い「基準鍵」マーカーが移動します。緑線は鍵盤の上下端です。</p><details class="group"><summary>基本調整：横位置・横方向の拡大縮小・上端</summary><div class="controls">
+<div class="control"><h3>↔ 横位置</h3><p>鍵盤ガイド全体を左右へ移動（px）</p><div class="adjust"><button class="secondary" data-step="anchorX:-.05" disabled="">−</button><button class="secondary" data-step="anchorX:.05" disabled="">＋</button><input aria-label="横位置 px" id="anchorXNumber" step="0.01" type="number"/><input id="anchorXSlider" max="100" min="-80" step="0.01" type="range"/></div></div>
+<div class="control"><h3>↔ 横方向の拡大縮小</h3><p>白鍵・黒鍵の比率を固定して全体を拡大縮小。白鍵幅(px)で精密指定</p><div class="adjust"><button class="secondary" data-step="whiteStep:-.05" disabled="">−</button><button class="secondary" data-step="whiteStep:.05" disabled="">＋</button><input aria-label="白鍵幅 px" id="whiteStepNumber" max="100" min="4" step="0.01" type="number"/><input id="whiteStepSlider" max="80" min="4" step="0.01" type="range"/></div></div>
+<div class="control"><h3>↕ 鍵盤の上端</h3><p>鍵盤が始まる高さ（画面上からの％）</p><div class="adjust"><button class="secondary" data-step="keyboardY:-.1" disabled="">−</button><button class="secondary" data-step="keyboardY:.1" disabled="">＋</button><input aria-label="上端 %" id="keyboardYNumber" max="97" min="0" step="0.01" type="number"/><input id="keyboardYSlider" max="97" min="0" step="0.01" type="range"/></div></div>
+</div></details><details class="group"><summary>詳細調整：黒鍵の幅・長さ・鍵盤の高さ</summary><div class="controls"><div class="control"><h3>↕ 鍵盤の高さ</h3><p>ガイド下端の位置を調整（％）</p><div class="adjust"><button class="secondary" data-step="keyboardHeight:-.1" disabled="">−</button><button class="secondary" data-step="keyboardHeight:.1" disabled="">＋</button><input aria-label="鍵盤の高さ %" id="keyboardHeightNumber" max="100" min="3" step="0.01" type="number"/><input id="keyboardHeightSlider" max="100" min="3" step="0.01" type="range"/></div></div>
+<div class="control"><h3>♯ 黒鍵の幅</h3><p>白鍵幅に対する比率（％）</p><div class="adjust"><button class="secondary" data-step="blackWidth:-.1" disabled="">−</button><button class="secondary" data-step="blackWidth:.1" disabled="">＋</button><input aria-label="黒鍵幅 %" id="blackWidthNumber" max="90" min="30" step="0.1" type="number"/><input id="blackWidthSlider" max="90" min="30" step="0.1" type="range"/></div></div>
+<div class="control"><h3>♯ 黒鍵の長さ</h3><p>鍵盤の高さに対する比率（％）</p><div class="adjust"><button class="secondary" data-step="blackHeight:-.1" disabled="">−</button><button class="secondary" data-step="blackHeight:.1" disabled="">＋</button><input aria-label="黒鍵の長さ %" id="blackHeightNumber" max="85" min="25" step="0.1" type="number"/><input id="blackHeightSlider" max="85" min="25" step="0.1" type="range"/></div></div>
+<div class="control"><h3>♯ 黒鍵の個別位置補正</h3><p>白鍵境界からの黒鍵中心のずれ（白鍵幅の％）。自動合わせの後に微調整できます。</p><div class="shift-controls" id="shiftControls"></div><button class="secondary" id="resetShifts" type="button">黒鍵の位置補正をリセット</button></div>
 </div></details>
-<details class="group"><summary>音程設定：基準鍵マーカー</summary><div class="reference"><h3>📍 基準鍵マーカー</h3><p class="muted">動画に表示されている任意の白鍵をタップしてマーカーを置き、その鍵の音名とオクターブを指定してください。左右の端が途中で切れていても設定できます。</p><div class="row"><label>基準白鍵の音名 <select id="refName"><option value="0">ド (C)</option><option value="1">レ (D)</option><option value="2">ミ (E)</option><option value="3">ファ (F)</option><option value="4">ソ (G)</option><option value="5">ラ (A)</option><option value="6">シ (B)</option></select></label><label>オクターブ <select id="refOct"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label><span id="refInfo">基準鍵 C4 / MIDI 60</span></div></div>
-</details><div class="action-row"><button id="exclusive" class="secondary" aria-pressed="false">🎹 レーン重複：あり（従来方式）</button><button id="toggle" class="secondary" disabled>上部までのガイド表示：オフ</button><button id="reset" class="secondary" disabled>初期位置に戻す</button></div>
+<details class="group"><summary>音程設定：基準鍵マーカー</summary><div class="reference"><h3>📍 基準鍵マーカー</h3><p class="muted">動画に表示されている任意の白鍵をタップしてマーカーを置き、その鍵の音名とオクターブを指定してください。左右の端が途中で切れていても設定できます。</p><div class="row"><label>基準白鍵の音名 <select id="refName"><option value="0">ド (C)</option><option value="1">レ (D)</option><option value="2">ミ (E)</option><option value="3">ファ (F)</option><option value="4">ソ (G)</option><option value="5">ラ (A)</option><option value="6">シ (B)</option></select></label><label>オクターブ <select id="refOct"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option selected="" value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></label><span id="refInfo">基準鍵 C4 / MIDI 60</span></div></div>
+</details><div class="action-row"><button aria-pressed="false" class="secondary" id="exclusive">🎹 レーン重複：あり（従来方式）</button><button class="secondary" disabled="" id="toggle">上部までのガイド表示：オフ</button><button class="secondary" disabled="" id="reset">初期位置に戻す</button></div>
 </section>
-<section class="box"><h2>3. ノーツ候補の抽出（塗りつぶし・背景抑制方式）</h2><p class="muted">鍵盤レーンの位置に対して、明るさ・内部の塗りつぶし率・輪郭・時間的一貫性を調べます。「レーン重複」設定は表示と検出の両方に反映します。</p><div class="row"><label>最小高さ(px) <input id="minh" type="number" min="3" max="300" value="8"></label><label>最大幅(px) <input id="maxw" type="number" min="3" max="300" value="90" title="ガイドから計算した幅にも上限を設定"></label><label>判定感度 <select id="tol"><option value="30" selected>厳密</option><option value="20">標準</option><option value="12">広め</option></select></label><label>暗部除外の強さ <select id="darkFilter"><option value="12">弱</option><option value="22" selected>標準</option><option value="35">強</option></select></label><label>内部塗りつぶし率(%) <input id="fillRate" type="number" min="45" max="100" value="84" style="width:68px"></label><button id="notes" disabled>ノーツ候補を検出</button></div><div class="row" style="margin-top:10px"><label><input type="checkbox" id="longMode" checked style="width:auto;accent-color:#245bd6"> 長いノーツの断片を補完する</label><label>欠損補完の最大幅(px) <input id="bridgeGap" type="number" min="1" max="36" step="1" value="12"></label><span class="muted">背景・エフェクトを無条件に連結せず、両側の形状と内部の弱い証拠がある場合のみ補完</span></div><div class="row" style="display:none"></div><div id="noteresult" class="status">動画を読み込んでください。</div>
+<section class="box"><h2>3. ノーツ候補の抽出（塗りつぶし・背景抑制方式）</h2><p class="muted">鍵盤レーンの位置に対して、明るさ・内部の塗りつぶし率・輪郭・時間的一貫性を調べます。「レーン重複」設定は表示と検出の両方に反映します。</p><div class="row"><label>最小高さ(px) <input id="minh" max="300" min="3" type="number" value="8"/></label><label>最大幅(px) <input id="maxw" max="300" min="3" title="ガイドから計算した幅にも上限を設定" type="number" value="90"/></label><label>判定感度 <select id="tol"><option selected="" value="30">厳密</option><option value="20">標準</option><option value="12">広め</option></select></label><label>暗部除外の強さ <select id="darkFilter"><option value="12">弱</option><option selected="" value="22">標準</option><option value="35">強</option></select></label><label>内部塗りつぶし率(%) <input id="fillRate" max="100" min="45" style="width:68px" type="number" value="84"/></label><button disabled="" id="notes">ノーツ候補を検出</button></div><div class="row" style="margin-top:10px"><label><input checked="" id="longMode" style="width:auto;accent-color:#245bd6" type="checkbox"/> 長いノーツの断片を補完する</label><label>欠損補完の最大幅(px) <input id="bridgeGap" max="36" min="1" step="1" type="number" value="12"/></label><span class="muted">背景・エフェクトを無条件に連結せず、両側の形状と内部の弱い証拠がある場合のみ補完</span></div><div class="row" style="display:none"></div><div class="status" id="noteresult">動画を読み込んでください。</div>
 <details class="group"><summary>各設定項目の意味・調整のコツ</summary><div style="padding:12px 16px;line-height:1.8;font-size:.92rem">
 <p><b>長いノーツの断片を補完</b>：上下の塗りつぶしが一時的に弱くなった箇所を、同じレーン内の左右輪郭や明るさが残っている場合だけ結合します。明確に暗い空白や長い間隔では結合しません。「欠損補完の最大幅」は縦方向のピクセル数です。短いノーツが誤結合する場合は値を下げるかオフにします。</p><p><b>最小高さ (px)</b>：候補の縦方向の長さの下限。大きくすると短いノーツを見逃しやすくなりますが、小さな光の誤検出を減らせます。</p>
 <p><b>最大幅 (px)</b>：鍵盤ガイドから計算したノーツ検査幅の上限。ノーツの実際の幅を認識して絞り込む機能ではありません。十分大きければ変更しても結果は変わりません。</p>
@@ -64,83 +65,81 @@ summary{list-style:none!important;display:flex;align-items:center;gap:10px}summa
 </div></details></section>
 <section class="box" id="bpmPanel"><h2>4. BPM・テンポマップ（音声解析）</h2>
 <p class="muted">音声のオンセット強度・局所自己相関・動的計画法で曲全体を解析します。曲全体の音声を初期設定で解析します。長い曲でもBPMマップを最後まで作成します。音声がデコードできない場合は別途音声ファイルを指定できます。</p>
-<div class="auto-panel" id="audioTempoPanel"><strong>🎵 音声からテンポを解析</strong><p class="muted">動画全体の音声を解析し、時間ごとのBPM候補を作成します。MOVの音声抽出機能も維持しています。</p><div class="row"><label>代替音声ファイル（必要な場合のみ） <input id="audioFile" type="file" accept="audio/*"></label><button type="button" id="analyzeAudio">全区間を解析</button><button type="button" id="abortAudio" class="secondary" disabled>中止</button></div><div id="audioStatus" class="status" aria-live="polite">動画または音声ファイルを選択してください。</div></div>
-<div class="row tempoOptions"><label><strong>BPMの刻み幅</strong> <select id="tempoResolution"><option value="0.05">0.05 BPM</option><option value="0.1" selected>0.1 BPM</option><option value="0.25">0.25 BPM</option><option value="0.5">0.5 BPM</option><option value="1">1 BPM</option></select></label><span class="muted">推定結果と編集値を指定の刻みで丸めます。測定精度そのものが上がる設定ではありません。</span></div>
-<details class="group" id="advancedTempo"><summary>詳細な解析設定（通常は変更不要）</summary><div style="padding:12px"><div class="row tempoOptions"><label>局所解析窓 <select id="tempoWindow"><option value="4">4秒（変化を追いやすい）</option><option value="6">6秒</option><option value="8" selected>8秒（標準）</option><option value="12">12秒（安定重視）</option></select></label><label>BPM探索 <select id="tempoRange"><option value="40,300" selected>40～300</option><option value="60,220">60～220</option></select></label><label>テンポ解釈 <select id="tempoPreference"><option value="fast" selected>標準（高速寄り）</option><option value="neutral">中立</option><option value="slow">低速寄り</option></select></label><label>変化への追従 <select id="tempoAgility"><option value="stable">安定重視</option><option value="balanced" selected>標準</option><option value="agile">変化に敏感</option></select></label></div><p class="muted">局所解析窓は、各時刻のBPMを推定するために参照する前後の音声の長さです。短いと変化に追従しやすい反面、誤差や半テンポ判定が増えやすく、長いと安定しますが変更時刻がぼけやすくなります。</p></div></details>
-<div id="bpmResult" class="status" aria-live="polite">解析後、下のタイムラインで各区間のBPMと変更時刻を編集できます。</div>
-<div id="tempoVisualization" hidden><h3>テンポ・タイムライン</h3>
-<div class="tempoToolbar"><div class="row"><label>横方向の表示範囲 <select id="tempoZoom"><option value="1">全曲</option><option value="0.5">50%</option><option value="0.25">25%</option><option value="0.1">10%</option></select></label><label><input type="checkbox" id="showRawTempo" checked style="width:auto"> 局所候補も表示</label><label><input type="checkbox" id="showAiTempo" checked style="width:auto"> AIテンポ候補も表示</label></div><label class="tempoPan">表示位置 <input type="range" id="tempoPan" min="0" max="100" step="0.1" value="0" disabled></label><div class="row"><button type="button" id="tempoMapHalf" class="secondary">マップ全体 ÷2</button><button type="button" id="tempoMapDouble" class="secondary">マップ全体 ×2</button><button type="button" id="tempoAtCursor" class="secondary">選択位置に変更点追加</button></div><div id="tempoCursorInfo" class="status">グラフをタップして編集位置を選択してください。</div><div class="row" id="cursorEditor"><label>選択時刻（秒） <input type="number" id="cursorTime" step="0.01" min="0" value="0"></label><label>その時刻からのBPM <input type="number" id="cursorBpm" min="30" max="350" step="0.1" value="120"></label><button type="button" id="applyCursorBpm">この時刻から適用</button><button type="button" id="removeCursorPoint" class="secondary">近くの変更点を削除</button></div><p class="muted">タップした場所にBPM変更点を追加・上書きできます。下の一覧からも各変更点を編集できます。</p></div>
-<canvas id="tempoChart" width="1100" height="350" aria-label="時間ごとのBPMを表示する操作可能なグラフ" role="img"></canvas>
+<div class="auto-panel" id="audioTempoPanel"><strong>🎵 音声からテンポを解析</strong><p class="muted">動画全体の音声を解析し、時間ごとのBPM候補を作成します。MOVの音声抽出機能も維持しています。</p><div class="row"><label>代替音声ファイル（必要な場合のみ） <input accept="audio/*" id="audioFile" type="file"/></label><button id="analyzeAudio" type="button">全区間を解析</button><button class="secondary" disabled="" id="abortAudio" type="button">中止</button></div><div aria-live="polite" class="status" id="audioStatus">動画または音声ファイルを選択してください。</div></div>
+<div class="row tempoOptions"><label><strong>BPMの刻み幅</strong> <select id="tempoResolution"><option value="0.05">0.05 BPM</option><option selected="" value="0.1">0.1 BPM</option><option value="0.25">0.25 BPM</option><option value="0.5">0.5 BPM</option><option value="1">1 BPM</option></select></label><span class="muted">推定結果と編集値を指定の刻みで丸めます。測定精度そのものが上がる設定ではありません。</span></div>
+<details class="group" id="advancedTempo"><summary>詳細な解析設定（通常は変更不要）</summary><div style="padding:12px"><div class="row tempoOptions"><label>局所解析窓 <select id="tempoWindow"><option value="4">4秒（変化を追いやすい）</option><option value="6">6秒</option><option selected="" value="8">8秒（標準）</option><option value="12">12秒（安定重視）</option></select></label><label>BPM探索 <select id="tempoRange"><option selected="" value="40,300">40～300</option><option value="60,220">60～220</option></select></label><label>テンポ解釈 <select id="tempoPreference"><option selected="" value="fast">標準（高速寄り）</option><option value="neutral">中立</option><option value="slow">低速寄り</option></select></label><label>変化への追従 <select id="tempoAgility"><option value="stable">安定重視</option><option selected="" value="balanced">標準</option><option value="agile">変化に敏感</option></select></label></div><p class="muted">局所解析窓は、各時刻のBPMを推定するために参照する前後の音声の長さです。短いと変化に追従しやすい反面、誤差や半テンポ判定が増えやすく、長いと安定しますが変更時刻がぼけやすくなります。</p></div></details>
+<div aria-live="polite" class="status" id="bpmResult">解析後、下のタイムラインで各区間のBPMと変更時刻を編集できます。</div>
+<div hidden="" id="tempoVisualization"><h3>テンポ・タイムライン</h3>
+<div class="tempoToolbar"><div class="row"><label>横方向の表示範囲 <select id="tempoZoom"><option value="1">全曲</option><option value="0.5">50%</option><option value="0.25">25%</option><option value="0.1">10%</option></select></label><label><input checked="" id="showRawTempo" style="width:auto" type="checkbox"/> 局所候補も表示</label><label><input checked="" id="showAiTempo" style="width:auto" type="checkbox"/> AIテンポ候補も表示</label></div><label class="tempoPan">表示位置 <input disabled="" id="tempoPan" max="100" min="0" step="0.1" type="range" value="0"/></label><div class="row"><button class="secondary" id="tempoMapHalf" type="button">マップ全体 ÷2</button><button class="secondary" id="tempoMapDouble" type="button">マップ全体 ×2</button><button class="secondary" id="tempoAtCursor" type="button">選択位置に変更点追加</button></div><div class="status" id="tempoCursorInfo">グラフをタップして編集位置を選択してください。</div><div class="row" id="cursorEditor"><label>選択時刻（秒） <input id="cursorTime" min="0" step="0.01" type="number" value="0"/></label><label>その時刻からのBPM <input id="cursorBpm" max="350" min="30" step="0.1" type="number" value="120"/></label><button id="applyCursorBpm" type="button">この時刻から適用</button><button class="secondary" id="removeCursorPoint" type="button">近くの変更点を削除</button></div><p class="muted">タップした場所にBPM変更点を追加・上書きできます。下の一覧からも各変更点を編集できます。</p></div>
+<canvas aria-label="時間ごとのBPMを表示する操作可能なグラフ" height="350" id="tempoChart" role="img" width="1100"></canvas>
 <p class="muted">青：編集済みの区間テンポ。灰：独立した音声解析の局所推定。緑の破線：AI拍から生成した候補（未採用でも表示）。青線は変更時刻まで前のBPMを保持します。変更点ごとの編集はグラフのタップか下の一覧で行えます。</p>
-<h3>テンポ区間（手動修正可能）</h3><div class="row"><button type="button" id="addTempoPoint" class="secondary">中央に変更点追加</button><button type="button" id="clearTempoEdits" class="secondary">自動推定に戻す</button><button type="button" id="tempoSuppressSpikes" class="secondary">短いBPM異常を除外</button><button type="button" id="tempoUndoCleanup" class="secondary" disabled>除外を元に戻す</button><button type="button" id="exportTempo" class="secondary">テンポマップをJSON出力</button></div><div id="tempoCleanupInfo" class="muted" aria-live="polite">短時間だけ突出したBPMは手動で除外できます。実際にテンポが急変する曲もあるため、元に戻せます。</div><div id="tempoSegments" class="tempoSegments"></div><p class="muted">AIから生成したBPMは拍との同期を保つため内部精度を保持します。手動編集時は選択した刻み幅で丸めます。AI拍グリッドを下のセクションで解析・編集できます。MIDI出力はまだ未実装です。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
+<h3>テンポ区間（手動修正可能）</h3><div class="row"><button class="secondary" id="addTempoPoint" type="button">中央に変更点追加</button><button class="secondary" id="clearTempoEdits" type="button">自動推定に戻す</button><button class="secondary" id="tempoSuppressSpikes" type="button">短いBPM異常を除外</button><button class="secondary" disabled="" id="tempoUndoCleanup" type="button">除外を元に戻す</button><button class="secondary" id="exportTempo" type="button">テンポマップをJSON出力</button></div><div aria-live="polite" class="muted" id="tempoCleanupInfo">短時間だけ突出したBPMは手動で除外できます。実際にテンポが急変する曲もあるため、元に戻せます。</div><details class="group"><summary>テンポ区間を編集</summary><div class="tempoSegments" id="tempoSegments"></div></details><p class="muted">AIから生成したBPMは拍との同期を保つため内部精度を保持します。手動編集時は選択した刻み幅で丸めます。AI拍グリッドを下のセクションで解析・編集できます。MIDI出力はまだ未実装です。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
 </section>
-<section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.6.6）</h2>
+<section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.6.7）</h2>
 <p class="muted">実際の学習済み <b>Beat This!</b> モデルを端末上で実行し、楽曲全体の拍・小節頭を推定します。処理用のプログラムとモデルを初回のみネットから取得しますが、<b>動画・音声ファイルは送信しません。</b> AIの結果は拍の欠落や倍・半テンポの誤判定を含む場合があります。テンポマップは必ず確認してから採用してください。</p>
 <div class="auto-panel">
- <div class="row"><label>AIモデル <select id="aiModelKind" style="width:auto;max-width:100%;padding:8px"><option value="light" selected>軽量（約10MB・推奨）</option><option value="full">高精度（約83MB・負荷大）</option></select></label><label>処理方式 <select id="aiBackend" style="width:auto;padding:8px"><option value="wasm" selected>CPU / WASM（iPhone対応）</option><option value="webgpu">WebGPU（対応PC向け）</option></select></label></div>
- <p class="muted">高精度モデルはまずCORS対応の配布元から直接取得し、失敗したら別の配布元を試します。既に端末へ保存したモデルは下から選択すると通信を回避できます。</p>
- <div class="row"><label>手元のモデル（任意・通信失敗時） <input id="aiModelFile" type="file" accept=".onnx,application/octet-stream" style="width:min(100%,290px)"></label></div>
- <div class="row"><button id="aiRun" type="button">🎼 AIで全曲の拍・小節頭を解析</button><button id="aiStop" class="secondary" type="button" disabled>中止</button><button id="aiProbe" type="button" class="secondary">動作環境を確認</button></div>
- <div class="status" id="aiRuntimeStatus" aria-live="polite">AIモデル未実行。初回はモデルのダウンロードが必要です。高精度モデルが失敗した場合、失敗段階とエラー詳細を表示します。</div>
- <div class="muted">高精度モデルが自動取得できない場合は <a href="https://github.com/jgorset/beat-this/releases/tag/v1.0.0" target="_blank" rel="noopener noreferrer">Beat This! モデル配布ページ</a> から <code>beat-this.onnx</code> を保存し、上の「手元のモデル」で選択してください。軽量モデルの提供元は <a href="https://github.com/danigb/beat-this-rs" target="_blank" rel="noopener noreferrer">beat-this-rs</a> です。</div>
+<div class="row"><label>AIモデル <select id="aiModelKind" style="width:auto;max-width:100%;padding:8px"><option selected="" value="light">軽量（約10MB・推奨）</option><option value="full">高精度（約83MB・負荷大）</option></select></label><label>処理方式 <select id="aiBackend" style="width:auto;padding:8px"><option selected="" value="wasm">CPU / WASM（iPhone対応）</option><option value="webgpu">WebGPU（対応PC向け）</option></select></label></div>
+<p class="muted">高精度モデルはまずCORS対応の配布元から直接取得し、失敗したら別の配布元を試します。既に端末へ保存したモデルは下から選択すると通信を回避できます。</p>
+<details class="group"><summary>詳細設定・比較</summary><div class="row"><label>手元のモデル（任意・通信失敗時） <input accept=".onnx,application/octet-stream" id="aiModelFile" style="width:min(100%,290px)" type="file"/></label></div></details>
+<div class="row"><button id="aiRun" type="button">🎼 AIで全曲の拍・小節頭を解析</button><button class="secondary" disabled="" id="aiStop" type="button">中止</button><button class="secondary" id="aiProbe" type="button">動作環境を確認</button></div>
+<div aria-live="polite" class="status" id="aiRuntimeStatus">AIモデル未実行。初回はモデルのダウンロードが必要です。高精度モデルが失敗した場合、失敗段階とエラー詳細を表示します。</div>
+<div class="muted">高精度モデルが自動取得できない場合は <a href="https://github.com/jgorset/beat-this/releases/tag/v1.0.0" rel="noopener noreferrer" target="_blank">Beat This! モデル配布ページ</a> から <code>beat-this.onnx</code> を保存し、上の「手元のモデル」で選択してください。軽量モデルの提供元は <a href="https://github.com/danigb/beat-this-rs" rel="noopener noreferrer" target="_blank">beat-this-rs</a> です。</div>
 </div>
-<details class="group"><summary>詳細・拍データファイルの読み込み（任意）</summary><div style="padding:12px"><div id="aiProbeResult" class="status">端末のAI対応状況は上のボタンで確認できます。</div><label>他のソフトからの拍データ（JSON/CSV/TXT） <input id="aiBeatFile" type="file" accept=".json,.csv,.txt,application/json,text/plain"></label><p class="muted">JSON例：<code>{"beats":[0,0.5,1],"downbeats":[0]}</code> ／ CSV例：<code>0.5,beat</code></p></div></details>
-<div id="aiBeatResult" class="status" aria-live="polite">AIで検出した拍・小節頭がここに表示されます。</div>
-<div id="aiQuality" class="status" aria-live="polite">拍検出の精度チェックはまだ行われていません。音声BPMを先に解析すると照合できます。</div>
+<details class="group"><summary>詳細・拍データファイルの読み込み（任意）</summary><div style="padding:12px"><div class="status" id="aiProbeResult">端末のAI対応状況は上のボタンで確認できます。</div><label>他のソフトからの拍データ（JSON/CSV/TXT） <input accept=".json,.csv,.txt,application/json,text/plain" id="aiBeatFile" type="file"/></label><p class="muted">JSON例：<code>{"beats":[0,0.5,1],"downbeats":[0]}</code> ／ CSV例：<code>0.5,beat</code></p></div></details>
+<div aria-live="polite" class="status" id="aiBeatResult">AIで検出した拍・小節頭がここに表示されます。</div>
+<div aria-live="polite" class="status" id="aiQuality">拍検出の精度チェックはまだ行われていません。音声BPMを先に解析すると照合できます。</div>
 <p class="muted">重要：AIの拍に欠落・重複があるとBPMが半減・倍増します。推定したテンポマップは自動で確定しません。音声BPMとの比較と品質警告を確認してから「AI拍からテンポマップを生成」を押してください。</p>
-<div class="row"><label><input id="aiShowBeats" type="checkbox" checked style="width:auto"> グラフに拍・小節頭を重ねる</label><button id="aiCompare" class="secondary" type="button">従来のBPM推定と比較</button><button id="aiApply" type="button" disabled>AI拍からテンポマップを生成</button><button id="aiUseAudio" class="secondary" type="button">音声解析のテンポマップを採用</button><button id="aiClear" class="secondary" type="button">結果をクリア</button></div>
-<details class="group" open><summary>拍子・小節の確認と拍データの編集</summary><div style="padding:12px">
- <div class="row"><label>拍子（小節区切り） <select id="aiMeter" style="padding:8px;width:auto"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="6/8">6/8</option><option value="5/4">5/4</option><option value="7/8">7/8</option></select></label><button type="button" id="aiMeterAuto" class="secondary">拍子変化を再推定</button></div>
- <p class="muted">拍子変化は連続する2小節以上の拍数を根拠に候補を作ります。分母は拍時刻だけでは決まらないため、選択した1拍の長さを基に仮の分母で表示します。6/8と3/4などは試聴して手動修正してください。</p><div class="row"><label>AIの1拍の長さ<select id="aiBeatUnit"><option value="1">4分音符（通常）</option><option value="1.5">付点4分音符（6/8等）</option><option value="0.5">8分音符</option><option value="2">2分音符</option></select></label><button id="addMeterPoint" class="secondary" type="button">拍子変更点を追加</button></div><div id="meterMapRows"></div><div id="aiMeterSummary" class="muted" style="margin-top:8px">現在の4/4は初期設定で、AIが確定した拍子ではありません。モデルは拍・小節頭の候補を出し、小節頭の間隔から拍子候補を計算します。3/4・4/4・2/4などを正確に区別できない場合があります。</div>
- <div class="row"><button type="button" id="aiBeatPrev" class="secondary">前の40件</button><span id="aiBeatPage" class="muted">0件</span><button type="button" id="aiBeatNext" class="secondary">次の40件</button><button type="button" id="aiExportGrid" class="secondary">拍・小節・テンポをJSON保存</button></div>
- <div id="aiBeatTable" class="beat-table"></div>
- <p class="muted">表の時刻を変更するとグラフの拍位置も更新されます。「小節頭」にチェックすると、その拍を小節の先頭として記録します。拍子はAIの小節頭の数だけでは一意に確定できません。</p>
+<div class="row"><label><input checked="" id="aiShowBeats" style="width:auto" type="checkbox"/> グラフに拍・小節頭を重ねる</label><button class="secondary" id="aiCompare" type="button">従来のBPM推定と比較</button><button disabled="" id="aiApply" type="button">AI拍からテンポマップを生成</button><button class="secondary" id="aiUseAudio" type="button">音声解析のテンポマップを採用</button><button class="secondary" id="aiClear" type="button">結果をクリア</button></div>
+<details class="group"><summary>拍子・小節の確認と拍データの編集</summary><div style="padding:12px">
+<div class="row"><label>拍子（小節区切り） <select id="aiMeter" style="padding:8px;width:auto"><option value="4/4">4/4</option><option value="3/4">3/4</option><option value="2/4">2/4</option><option value="6/8">6/8</option><option value="5/4">5/4</option><option value="7/8">7/8</option></select></label><button class="secondary" id="aiMeterAuto" type="button">拍子変化を再推定</button></div>
+<p class="muted">拍子変化は連続する2小節以上の拍数を根拠に候補を作ります。分母は拍時刻だけでは決まらないため、選択した1拍の長さを基に仮の分母で表示します。6/8と3/4などは試聴して手動修正してください。</p><div class="row"><label>AIの1拍の長さ<select id="aiBeatUnit"><option value="1">4分音符（通常）</option><option value="1.5">付点4分音符（6/8等）</option><option value="0.5">8分音符</option><option value="2">2分音符</option></select></label><button class="secondary" id="addMeterPoint" type="button">拍子変更点を追加</button></div><div id="meterMapRows"></div><div class="muted" id="aiMeterSummary" style="margin-top:8px">現在の4/4は初期設定で、AIが確定した拍子ではありません。モデルは拍・小節頭の候補を出し、小節頭の間隔から拍子候補を計算します。3/4・4/4・2/4などを正確に区別できない場合があります。</div>
+<div class="row"><button class="secondary" id="aiBeatPrev" type="button">前の40件</button><span class="muted" id="aiBeatPage">0件</span><button class="secondary" id="aiBeatNext" type="button">次の40件</button><button class="secondary" id="aiExportGrid" type="button">拍・小節・テンポをJSON保存</button></div>
+<details class="group"><summary>拍の時刻を編集</summary><div class="beat-table" id="aiBeatTable"></div></details>
+<p class="muted">表の時刻を変更するとグラフの拍位置も更新されます。「小節頭」にチェックすると、その拍を小節の先頭として記録します。拍子はAIの小節頭の数だけでは一意に確定できません。</p>
 </div></details>
 </section>
-
-<section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.6.6）</h2>
+<section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.6.7）</h2>
 <p class="muted">元の音源を再生しながら、<strong>AIで検出した拍</strong>または<strong>編集済みBPMマップから計算した拍</strong>をクリック音で重ねます。イヤホンで聴いて、ズレや半テンポ判定を確認してください。動画・音声は端末内で処理します。</p>
 <div class="listen-panel">
-  <div class="listen-grid">
-   <label>比較する拍データ<select id="listenBeatsSource"><option value="ai">AIで検出した拍（元の時刻）</option><option value="map">編集済みテンポマップ（計算した拍）</option></select></label>
-   <label>聴き比べモード<select id="listenMode"><option value="both">原曲 ＋ クリック音</option><option value="song">原曲だけ（A/B比較）</option><option value="click">クリック音だけ</option></select></label>
-   <label>再生開始（秒）<input id="listenStart" type="number" min="0" step="0.1" value="0"></label>
-   <label>再生区間<select id="listenDuration"><option value="10">10秒</option><option value="20">20秒</option><option value="40">40秒</option><option value="all" selected>開始位置から最後まで</option></select></label>
-   <label>拍のずれ補正（ms）<input id="listenOffset" type="number" step="10" min="-500" max="500" value="0"></label>
-   <label>テンポマップの基準拍（秒）<input id="listenAnchor" type="number" step="0.01" min="0" value="0"></label>
-  </div>
-  <details class="group" style="margin-top:12px"><summary>クリックの拍子・強拍を調整</summary><div style="padding:12px">
-  <div class="listen-grid">
-    <label>強拍の決め方<select id="listenAccentSource"><option value="manual" selected>拍子変化表／手動拍子を使用</option><option value="ai">AIが推定した小節頭を使用（参考）</option><option value="off">強拍をつけない</option></select></label>
-    <label>基準となる拍の番号<select id="listenBeatPhase"><option value="1" selected>1拍目（強拍）</option><option value="2">2拍目</option><option value="3">3拍目</option><option value="4">4拍目</option></select></label>
-  </div>
-  <label style="display:flex;gap:9px;align-items:center;margin:10px 0"><input type="checkbox" id="listenDebounce" checked style="width:auto">不自然に近接した二重クリックを抑制（推奨）</label>
-  <div id="listenMeterNotice" class="muted">拍子は自動確定していません。初期値4/4は仮設定です。「拍子・小節の確認」で選び直してください。</div>
-  <p class="muted">「AIの小節頭」はモデルが誤認すると2拍・4拍のアクセントが混ざります。拍子変化表を確認し、表がない場合は手動拍子と拍番号を耳で合わせてください。6/8など複合拍子では、AIの1拍が8分音符か付点4分音符か確定できないため、アクセントは参考です。</p>
-</div></details>
-<div class="row"><button id="listenAiAnchor" type="button" class="secondary">AIの先頭拍を基準にする</button><button id="listenCursor" type="button" class="secondary">グラフの選択時刻から再生</button></div>
-  <div class="listen-actions"><button type="button" id="listenPlay">▶ 再生</button><button type="button" id="listenPause" class="secondary" disabled>⏸ 一時停止</button><button type="button" id="listenStop" class="secondary" disabled>■ 停止</button></div>
-  <label for="listenProgress">再生位置</label><input id="listenProgress" class="listen-progress" type="range" step="0.01" min="0" max="100" value="0" aria-label="再生位置を移動">
-  <div class="listen-pair"><span id="listenPosition">0.00秒 / 未読み込み</span><span id="listenBeatInfo">拍データを選択してください</span></div>
-  <div class="listen-volumes"><label>原曲の音量<input id="listenSongVolume" type="range" min="0" max="100" step="1" value="75"></label><label>クリック音の音量（最大200%）<input id="listenClickVolume" type="range" min="0" max="200" step="1" value="100"></label></div>
-  <div class="listen-toggle-row"><label><input type="checkbox" id="listenAccent" checked>推定した強拍を高い音にする</label></div>
-  <div id="listenStatus" class="listen-state" aria-live="polite">AI解析後は「AIで検出した拍」を、BPMを編集した後は「編集済みテンポマップ」を選んで比較できます。</div>
-  <p class="listen-note"><b>聴き方：</b> 同じ区間を「原曲＋クリック音」と「原曲だけ」で切り替えて聴きます。クリックが継続してドラムや拍に重なるか確認してください。<b>テンポマップだけでは拍の起点が確定しない</b>ため、基準拍の秒数を合わせてください。拍子・小節頭の判定は必ずしも正しくありません。音声の途中から再生して比較できます。</p>
+<div class="listen-grid">
+<label>比較する拍データ<select id="listenBeatsSource"><option value="ai">AIで検出した拍（元の時刻）</option><option value="map">編集済みテンポマップ（計算した拍）</option></select></label>
+<label>聴き比べモード<select id="listenMode"><option value="both">原曲 ＋ クリック音</option><option value="song">原曲だけ（A/B比較）</option><option value="click">クリック音だけ</option></select></label>
+<label>再生開始（秒）<input id="listenStart" min="0" step="0.1" type="number" value="0"/></label>
+<label>再生区間<select id="listenDuration"><option value="10">10秒</option><option value="20">20秒</option><option value="40">40秒</option><option selected="" value="all">開始位置から最後まで</option></select></label>
+<label>拍のずれ補正（ms）<input id="listenOffset" max="500" min="-500" step="10" type="number" value="0"/></label>
+<label>テンポマップの基準拍（秒）<input id="listenAnchor" min="0" step="0.01" type="number" value="0"/></label>
 </div>
-<div class="listen-warn" id="listenAnomaly" hidden></div>
+<details class="group" style="margin-top:12px"><summary>クリックの拍子・強拍を調整</summary><div style="padding:12px">
+<div class="listen-grid">
+<label>強拍の決め方<select id="listenAccentSource"><option selected="" value="manual">拍子変化表／手動拍子を使用</option><option value="ai">AIが推定した小節頭を使用（参考）</option><option value="off">強拍をつけない</option></select></label>
+<label>基準となる拍の番号<select id="listenBeatPhase"><option selected="" value="1">1拍目（強拍）</option><option value="2">2拍目</option><option value="3">3拍目</option><option value="4">4拍目</option></select></label>
+</div>
+<label style="display:flex;gap:9px;align-items:center;margin:10px 0"><input checked="" id="listenDebounce" style="width:auto" type="checkbox"/>不自然に近接した二重クリックを抑制（推奨）</label>
+<div class="muted" id="listenMeterNotice">拍子は自動確定していません。初期値4/4は仮設定です。「拍子・小節の確認」で選び直してください。</div>
+<p class="muted">「AIの小節頭」はモデルが誤認すると2拍・4拍のアクセントが混ざります。拍子変化表を確認し、表がない場合は手動拍子と拍番号を耳で合わせてください。6/8など複合拍子では、AIの1拍が8分音符か付点4分音符か確定できないため、アクセントは参考です。</p>
+</div></details>
+<div class="row"><button class="secondary" id="listenAiAnchor" type="button">AIの先頭拍を基準にする</button><button class="secondary" id="listenCursor" type="button">グラフの選択時刻から再生</button></div>
+<div class="listen-actions"><button id="listenPlay" type="button">▶ 再生</button><button class="secondary" disabled="" id="listenPause" type="button">⏸ 一時停止</button><button class="secondary" disabled="" id="listenStop" type="button">■ 停止</button></div>
+<label for="listenProgress">再生位置</label><input aria-label="再生位置を移動" class="listen-progress" id="listenProgress" max="100" min="0" step="0.01" type="range" value="0"/>
+<div class="listen-pair"><span id="listenPosition">0.00秒 / 未読み込み</span><span id="listenBeatInfo">拍データを選択してください</span></div>
+<div class="listen-volumes"><label>原曲の音量<input id="listenSongVolume" max="100" min="0" step="1" type="range" value="75"/></label><label>クリック音の音量（最大200%）<input id="listenClickVolume" max="200" min="0" step="1" type="range" value="100"/></label></div>
+<div class="listen-toggle-row"><label><input checked="" id="listenAccent" type="checkbox"/>推定した強拍を高い音にする</label></div>
+<div aria-live="polite" class="listen-state" id="listenStatus">AI解析後は「AIで検出した拍」を、BPMを編集した後は「編集済みテンポマップ」を選んで比較できます。</div>
+<p class="listen-note"><b>聴き方：</b> 同じ区間を「原曲＋クリック音」と「原曲だけ」で切り替えて聴きます。クリックが継続してドラムや拍に重なるか確認してください。<b>テンポマップだけでは拍の起点が確定しない</b>ため、基準拍の秒数を合わせてください。拍子・小節頭の判定は必ずしも正しくありません。音声の途中から再生して比較できます。</p>
+</div>
+<div class="listen-warn" hidden="" id="listenAnomaly"></div>
 <details class="group" id="listenFeedbackDetails"><summary>試聴結果を記録して共有する（任意）</summary>
 <div style="padding:12px"><p class="muted">聴いて気づいたズレを時刻つきで記録できます。<strong>JSONに保存して、このチャットへ送れば検証に使えます。</strong>音声ファイルそのものはJSONに含めません。</p>
 <div class="listen-grid">
-<label>問題が起きた時刻（秒）<input id="listenIssueTime" type="number" min="0" step="0.01" value="0"></label>
+<label>問題が起きた時刻（秒）<input id="listenIssueTime" min="0" step="0.01" type="number" value="0"/></label>
 <label>問題の種類<select id="listenIssueKind"><option value="early">クリックが早い（拍が先行する）</option><option value="late">クリックが遅い（拍が後ろにずれる）</option><option value="drift">曲が進むにつれてずれる</option><option value="halfDouble">半テンポ・倍テンポの誤判定</option><option value="downbeat">小節頭・アクセントが違う</option><option value="jump">不自然なBPM変化</option><option value="other">その他</option></select></label>
 </div>
-<label style="display:block;margin:10px 0">補足メモ（任意）<textarea id="listenIssueMemo" style="display:block;width:100%;font-size:16px;min-height:75px;padding:8px;border-radius:8px;border:1px solid #c4d1e3" maxlength="1000" placeholder="例：1:28から拍が徐々に先行する"></textarea></label>
-<div class="row"><button type="button" id="listenIssueAtNow" class="secondary">再生位置を入力</button><button type="button" id="listenAddIssue">この問題を記録</button><button type="button" id="listenExport" class="secondary">診断レポートをJSON保存</button></div>
-<div class="status" id="listenFeedbackStatus" aria-live="polite">まだ記録はありません。</div><div id="listenIssuesList" style="display:grid;gap:8px;margin:8px 0"></div>
+<label style="display:block;margin:10px 0">補足メモ（任意）<textarea id="listenIssueMemo" maxlength="1000" placeholder="例：1:28から拍が徐々に先行する" style="display:block;width:100%;font-size:16px;min-height:75px;padding:8px;border-radius:8px;border:1px solid #c4d1e3"></textarea></label>
+<div class="row"><button class="secondary" id="listenIssueAtNow" type="button">再生位置を入力</button><button id="listenAddIssue" type="button">この問題を記録</button><button class="secondary" id="listenExport" type="button">診断レポートをJSON保存</button></div>
+<div aria-live="polite" class="status" id="listenFeedbackStatus">まだ記録はありません。</div><div id="listenIssuesList" style="display:grid;gap:8px;margin:8px 0"></div>
 </div></details>
-
 </section>
-<canvas id="source" hidden></canvas></main>
+<canvas hidden="" id="source"></canvas></main>
 <script>
 (()=>{
 const $=id=>document.getElementById(id),v=$('v'),cv=$('cv'),ctx=cv.getContext('2d'),src=$('source'),sx=src.getContext('2d',{willReadFrequently:true});
@@ -794,7 +793,7 @@ function renderTempoPoints(){
   const p=tempoPoints[i],row=document.createElement('div');row.className='tempoSegment';
   const label=document.createElement('small');label.textContent=i===0?'開始':'変更 '+i;
   const t=document.createElement('input');t.type='number';t.step='.01';t.min=tempoAnalysisRange[0];t.max=tempoAnalysisRange[1];t.value=p.t.toFixed(2);t.setAttribute('aria-label','変更時刻（秒）');t.disabled=i===0;
-  const bpm=document.createElement('input');bpm.type='number';bpm.min='30';bpm.max='350';bpm.step=String(bpmQuantum());bpm.value=String(+p.bpm.toFixed(6));bpm.setAttribute('aria-label','BPM');
+  const bpm=document.createElement('input');bpm.type='number';bpm.min='30';bpm.max='350';bpm.step=String(bpmQuantum());bpm.value=String(+p.bpm.toFixed(2));bpm.setAttribute('aria-label','BPM');
   const del=document.createElement('button');del.type='button';del.textContent='削除';del.className='secondary';del.disabled=i===0;
   t.onchange=()=>{p.t=clamp(+t.value,tempoAnalysisRange[0],tempoAnalysisRange[1]);renderTempoPoints()};
   bpm.onchange=()=>{p.bpm=quantBpm(bpm.value);bpm.value=p.bpm.toFixed(2);window.dispatchEvent(new Event('pianoroll-grid-change'));chartTempo();if(tempoSelectedTime!==null)setCursorEditor(tempoSelectedTime)};
@@ -820,7 +819,7 @@ $('tempoMapDouble').onclick=()=>{tempoPoints.forEach(p=>p.bpm=quantBpm(p.bpm*2))
 $('clearTempoEdits').onclick=()=>{tempoCleanupBackup=null;$('tempoUndoCleanup').disabled=true;tempoPoints=tempoAutomatic.map(p=>({...p,bpm:quantBpm(p.bpm)}));renderTempoPoints()};
 let tempoCleanupBackup=null;
 $('tempoSuppressSpikes').onclick=()=>{
- if(!window.PianoRollTempoGrid?.suppressShortSpikes){$('tempoCleanupInfo').textContent='beat-tempo.js が更新されていません。Ver.0.6.6をアップロードしてください。';return;}
+ if(!window.PianoRollTempoGrid?.suppressShortSpikes){$('tempoCleanupInfo').textContent='beat-tempo.js が更新されていません。Ver.0.6.7をアップロードしてください。';return;}
  const result=window.PianoRollTempoGrid.suppressShortSpikes(tempoPoints);
  if(!result.removed.length){$('tempoCleanupInfo').textContent='短時間だけ突出して元に戻るBPMは見つかりませんでした。';return;}
  tempoCleanupBackup=tempoPoints.map(p=>({...p}));tempoPoints=result.points;
@@ -830,7 +829,7 @@ $('tempoSuppressSpikes').onclick=()=>{
 };
 $('tempoUndoCleanup').onclick=()=>{if(!tempoCleanupBackup)return;tempoPoints=tempoCleanupBackup;tempoCleanupBackup=null;$('tempoUndoCleanup').disabled=true;$('tempoCleanupInfo').textContent='除外前のテンポマップに戻しました。';renderTempoPoints()};
 
-$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.6.6',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.6.7',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 // Audio-first tempo analysis: spectral-flux onset envelope, local autocorrelation,
 // and a Viterbi-style dynamic tempo path. All computation stays on device.
 // This is a new implementation inspired by common onset/beat tracking concepts;
@@ -1114,7 +1113,7 @@ function aiTempoDiagnostics(){
 function aiTempoCandidates(){return aiTempoDiagnostics().points.map(p=>({...p}));}
 function aiQualityText(d){
  if(!d.points?.length)return '拍間隔の推定に必要な拍が不足しています。';
- return `AI拍を基準に ${d.points.length}テンポ区間。拍位置との近似誤差最大 ${(d.maxError*1000).toFixed(1)}ms（丸め前）。\n近接拍の除外 ${d.removed}件。拍自体の正しさ・音符単位・小節頭は試聴で確認してください。\nこの指標は音楽的な正解率ではありません。AI拍の試聴中は、その拍間隔からのBPMを表示します。`;
+ return `AI拍を基準に ${d.points.length}テンポ区間。検出拍との偏差最大 ${(d.maxError*1000).toFixed(1)}ms。細かな検出揺れはテンポ変化にしません。\n近接拍の除外 ${d.removed}件。拍自体の正しさ・音符単位・小節頭は試聴で確認してください。\nこの指標は音楽的な正解率ではありません。AI拍の試聴中は、その拍間隔からのBPMを表示します。`;
 }
 function updateAiQuality(){const d=aiTempoDiagnostics();aiCandidatePoints=d.points||[];$('aiQuality').textContent=aiQualityText(d);chartTempo();return d;}
 $('aiProbe').onclick=async()=>{
@@ -1205,7 +1204,7 @@ function refreshBeatInfo(){
  const meanBpm=intervals.length?60*(Number($('aiBeatUnit').value)||1)/aiMedian(intervals):0;
  $('aiMeterSummary').textContent=`拍 ${t.length}件／小節頭 ${downs.length}件。選択した音符単位で約${meanBpm.toFixed(2)} BPM。`+
  (meterPoints.length?`拍子変化表：${meterPoints.map(p=>p.t.toFixed(2)+'秒 '+p.numerator+'/'+p.denominator).join(' → ')}。`:`拍子変化の候補は不足しています。手動設定 ${$('aiMeter').value}を使用します。`)+
- ' 小節頭・分母は試聴で確認してください。拍や音符単位を変更したらテンポマップを再生成してください。';
+ ' 2拍・4拍が混在する区間は4/4を優先します。本当の2/4は変更表で修正してください。小節頭・分母は試聴で確認してください。拍や音符単位を変更したらテンポマップを再生成してください。';
  $('aiBeatResult').textContent=t.length ? `拍データあり：${t.length}拍／小節頭 ${downs.length}件。`+(aiSourceLabel?` 推定元：${aiSourceLabel}。`:'')+` 最終検出時刻 ${t.at(-1).toFixed(2)}秒。`: '拍データがありません。';
  $('aiApply').disabled=t.length<4;
  renderBeatTable();
@@ -1256,7 +1255,7 @@ $('aiMeter').onchange=refreshBeatInfo;
 $('aiBeatUnit').onchange=()=>{refreshBeatInfo();updateAiQuality();};
 $('aiExportGrid').onclick=()=>{
  if(aiBeatTimes.length<2){$('aiRuntimeStatus').textContent='拍を解析してから保存してください。';return;}
- const obj={version:'PianoRoll MIDI Converter v0.6.6',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
+ const obj={version:'PianoRoll MIDI Converter v0.6.7',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
  const a=document.createElement('a');const uri=URL.createObjectURL(blob);a.href=uri;a.download='pianoroll-beat-grid-v0.6.json';a.click();setTimeout(()=>URL.revokeObjectURL(uri),5000);
 };
@@ -1284,6 +1283,8 @@ $('aiRun').onclick=async()=>{
  aiRunning=true;aiCancelled=false;$('aiRun').disabled=true;$('aiStop').disabled=false;
  const report=message=>{$('aiRuntimeStatus').textContent=message};
  try{
+  window.PianoRollBeatPreview?.releaseAudio();
+  v.pause();
   report('音声を読み取り中…');
   const buffer=await decodeForAI(selected,report);
   if(aiCancelled)throw DOMException('中止しました','AbortError');
@@ -1317,4 +1318,4 @@ window.PianoRollMainData = {
  setCursor: t => { if(tempoAnalysisRange){setCursorEditor(t);chartTempo();} }
 };
 })();
-</script></main></body></html>
+</script></body></html>

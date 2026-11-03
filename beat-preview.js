@@ -396,6 +396,6 @@
     setTimeout(()=>URL.revokeObjectURL(url),10000);
     $('listenFeedbackStatus').textContent=`診断JSONを保存しました（問題の記録 ${issueLog.length}件）。ファイルをチャットに添付できます。`;
   });
-  window.PianoRollBeatPreview={beatIntegral,beatGridFromMap,findShortSpikes,suppressNearDuplicateBeats,selectedEvents,getPreviewState:()=>({playing,paused,loading,clipFrom,clipTo,beats:clickEvents.length}),stop:stopPlayback};
+  window.PianoRollBeatPreview={beatIntegral,beatGridFromMap,findShortSpikes,suppressNearDuplicateBeats,selectedEvents,getPreviewState:()=>({playing,paused,loading,clipFrom,clipTo,beats:clickEvents.length}),releaseAudio:()=>{stopPlayback();buffer=null;lastFile=null;if(ctx){void ctx.close();ctx=null;}},stop:stopPlayback};
   uiButtons();refreshWarnings();updateProgress(true);
 })();

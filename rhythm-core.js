@@ -25,21 +25,28 @@ function snapDownbeats(beats,downs){
 function tempoFromBeats(input,{quarterPerBeat=1,tolerance=.018}={}){
  const {beats,removed}=cleanBeats(input),points=[];
  if(beats.length<2)return {points,beats,removed,anchor:beats[0]??0,maxError:0};
- let a=0,maxError=0;
- while(a<beats.length-1){
-  let end=a+1;
-  // Fit through both endpoints; accept only if EVERY internal beat is within
-  // tolerance. Limited window bounds work to O(N), and prevents long-term drift.
-  for(let b=a+2;b<Math.min(beats.length,a+65);b++){
-   const step=(beats[b]-beats[a])/(b-a);let err=0;
-   for(let k=a+1;k<b;k++)err=Math.max(err,Math.abs(beats[a]+(k-a)*step-beats[k]));
-   if(err>tolerance)break;end=b;
-  }
-  const step=(beats[end]-beats[a])/(end-a),bpm=60*quarterPerBeat/step;
-  points.push({t:a===0?0:beats[a],bpm,quality:1});
-  for(let k=a;k<=end;k++)maxError=Math.max(maxError,Math.abs(beats[a]+(k-a)*step-beats[k]));
-  a=end;
+ // Estimate tempo over multiple beats: individual onset jitter is not tempo.
+ const spans=[];
+ const fit=(a,b)=>{
+  const slopes=[];const lag=Math.min(8,b-a);
+  for(let i=a;i+lag<=b;i++)slopes.push((beats[i+lag]-beats[i])/lag);
+  const step=median(slopes);return {a,b,step};
+ };
+ for(let a=0;a<beats.length-1;){const b=Math.min(beats.length-1,a+24);spans.push(fit(a,b));a=b;}
+ const merged=[];
+ for(const span of spans){const last=merged.at(-1);if(last&&Math.abs(Math.log(span.step/last.step))<.025){last.b=span.b;Object.assign(last,fit(last.a,last.b));}else merged.push(span);}
+ let maxError=0;
+ for(const span of merged){
+  // Robust long-baseline regression reduces cumulative drift without following
+  // each frame-quantized onset. Trim the largest residuals once.
+  let ids=Array.from({length:span.b-span.a+1},(_,i)=>span.a+i);
+  let slope=span.step,intercept=median(ids.map(i=>beats[i]-i*slope));
+  ids=ids.filter(i=>Math.abs(beats[i]-(intercept+i*slope))<.12);
+  if(ids.length>4){const mean=ids.reduce((x,i)=>x+i,0)/ids.length,mt=ids.reduce((x,i)=>x+beats[i],0)/ids.length;let xy=0,xx=0;for(const i of ids){xy+=(i-mean)*(beats[i]-mt);xx+=(i-mean)**2;}if(xx>0)slope=xy/xx;}
+  points.push({t:span.a===0?0:beats[span.a],bpm:60*quarterPerBeat/slope,quality:1});
+  for(let i=span.a;i<=span.b;i++)maxError=Math.max(maxError,Math.abs(beats[i]-beats[span.a]-(i-span.a)*slope));
  }
+
  return {points,beats,removed,anchor:beats[0],maxError};
 }
 function inferMeters(beats,downs,{quarterPerBeat=1}={}){
@@ -49,6 +56,10 @@ function inferMeters(beats,downs,{quarterPerBeat=1}={}){
   let end=pos;while(end<beats.length&&beats[end]<snapped[i+1]-1e-5)end++;
   const count=end-pos;if(count>=2&&count<=12)bars.push({t:snapped[i],count});
  }
+ // Half-bar accents frequently produce two downbeats in a 4/4 bar.
+ // Prefer common time for ambiguous duple sections; true 2/4 remains editable.
+ const duple=bars.filter(b=>b.count===2||b.count===4).length;
+ if(duple>bars.length*.65)for(const bar of bars)if(bar.count===2)bar.count=4;
  const events=[];let active=null;
  for(let i=0;i<bars.length;i++){
   const b=bars[i],supported=(bars[i+1]?.count===b.count)||(i>0&&bars[i-1].count===b.count);

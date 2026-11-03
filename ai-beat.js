@@ -129,12 +129,13 @@
       }
       stage='ONNXモデルの取得・初期化';progress('モデル初期化中（軽量：約10MB／高精度：約83MB）…');
       try{session=await ort.InferenceSession.create(modelSource,{
-        executionProviders:[provider],graphOptimizationLevel:'all'
+        executionProviders:[provider],graphOptimizationLevel:'basic',enableCpuMemArena:false,enableMemPattern:false
       });}catch(err){
         const detail=err?.message||String(err);
         const model=options.modelType==='full'?'高精度（約83MB）':'軽量';
         throw new Error(`${model}モデル初期化失敗（${provider}）：${detail}。高精度モデルでは端末メモリ・対応ONNX演算・モデル取得状況が影響します。`);
       }
+      modelSource=null; // release fetched model bytes after session initialization
       check(signal);
       const inputs=session.inputNames||[], outputs=session.outputNames||[];
       if(inputs.length!==1)throw new Error('モデル入力が1つではありません: '+inputs.join(', '));
