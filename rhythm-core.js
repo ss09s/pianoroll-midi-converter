@@ -65,10 +65,19 @@ function inferMeters(beats,downs,{quarterPerBeat=1}={}){
   const b=bars[i],supported=(bars[i+1]?.count===b.count)||(i>0&&bars[i-1].count===b.count);
   if(!supported||b.count===active)continue;
   // Denominator is a convention, not inferable from beat/downbeat timestamps.
-  active=b.count;const quarters=b.count*quarterPerBeat,denominator=Number.isInteger(quarters)?4:8;events.push({t:b.t,numerator:quarters*denominator/4,denominator,quarterPerBeat,confidence:'candidate'});
+  active=b.count;const quarters=b.count*quarterPerBeat,denominator=Number.isInteger(quarters)?4:8;events.push({t:b.t,numerator:quarters*denominator/4,denominator,quarterPerBeat,confidence:duple>bars.length*.65?'ambiguous-duple':'candidate',alternatives:duple>bars.length*.65?[2,4]:[b.count]});
  }
  return events;
 }
+// Validate the actual continuous tempo integral, not independently reset spans.
+function validateMap(beats,points,anchor,q=1){
+ if(beats.length<2||!points.length)return null;
+ const integral=t=>{let sum=0,at=0,bpm=points[0].bpm;for(const p of points){if(p.t>t)break;sum+=(p.t-at)*bpm/60;at=p.t;bpm=p.bpm;}return sum+(t-at)*bpm/60;};
+ const base=integral(anchor);
+ const errors=beats.map((t,i)=>{let bpm=points[0].bpm;for(const p of points){if(p.t>t)break;bpm=p.bpm;}return (integral(t)-base-i*q)*60/bpm;});
+ const abs=errors.map(Math.abs).sort((a,b)=>a-b);
+ return {maxSeconds:abs.at(-1),p95Seconds:abs[Math.floor((abs.length-1)*.95)],endSeconds:errors.at(-1),reference:'AI detected beats, not ground truth'};
+}
 function bpmAtBeat(beats,t,q=1){if(beats.length<2)return null;let lo=0,hi=beats.length-1;while(lo+1<hi){const m=(lo+hi)>>1;if(beats[m]<=t)lo=m;else hi=m;}return 60*q/(beats[hi]-beats[lo]);}
-return {median,cleanBeats,snapDownbeats,tempoFromBeats,inferMeters,bpmAtBeat};
+return {validateMap,median,cleanBeats,snapDownbeats,tempoFromBeats,inferMeters,bpmAtBeat};
 });

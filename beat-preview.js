@@ -167,8 +167,9 @@
     if(force || Date.now()-lastInfoUpdate>180) {
       const nearby=clickEvents.length ? clickEvents[Math.min(nextClick,clickEvents.length-1)] : null;
       const q=window.PianoRollMainData?.getQuarterPerBeat()||1;
-      const currentBpm=ui.source.value==='ai'?window.PianoRollRhythm.bpmAtBeat(window.PianoRollRhythm.cleanBeats(getAiBeats()).beats,t-finite(ui.offset.value,0)/1000,q):getMap().length?window.PianoRollMainData?.getTempoAt(t):null;
-      ui.beatInfo.textContent = `${ui.source.value==='ai'?'AI拍間隔からのBPM':'テンポマップのBPM'}: ${currentBpm ? currentBpm.toFixed(2) : '未計測'} / ${ui.source.value==='ai'?'AI拍':'BPMマップ'} ${clickEvents.length}拍 / 近接抑制 ${suppressedClickCount}件`;
+      const currentBpm=getMap().length?window.PianoRollMainData?.getTempoAt(t):null;
+      ui.beatInfo.textContent = `採用テンポマップのBPM: ${currentBpm ? currentBpm.toFixed(2) : '未生成'} / クリック：${ui.source.value==='ai'?'AI検出拍（マップと異なる場合があります）':'テンポマップ'} / ${clickEvents.length}拍`;
+
       lastInfoUpdate=Date.now();
     }
   }
