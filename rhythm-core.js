@@ -23,7 +23,19 @@ function snapDownbeats(beats,downs){
  }return result;
 }
 function tempoFromBeats(input,{quarterPerBeat=1,tolerance=.018}={}){
- const {beats,removed}=cleanBeats(input),points=[];
+ const {beats:observed,removed}=cleanBeats(input),points=[];
+ const beats=observed.slice();let adjusted=0;
+ // Estimate phase from five neighboring observations, not each onset interval.
+ // A sustained tempo transition has different slopes on its two sides: retain it.
+ for(let i=3;i<observed.length-3;i++){
+  const left=(observed[i-1]-observed[i-3])/2,right=(observed[i+3]-observed[i+1])/2;
+  if(Math.abs(left-right)>Math.min(left,right)*.08)continue;
+  const slopes=[];for(let j=Math.max(0,i-6);j+4<=Math.min(observed.length-1,i+6);j++)slopes.push((observed[j+4]-observed[j])/4);
+  const step=median(slopes);if(!(step>0))continue;
+  const phase=median(Array.from({length:5},(_,k)=>observed[i+k-2]-(k-2)*step));
+  const delta=phase-observed[i];
+  if(Math.abs(delta)>.012&&Math.abs(delta)<step*.26){beats[i]=phase;adjusted++;}
+ }
  if(beats.length<2)return {points,beats,removed,anchor:beats[0]??0,maxError:0};
  // Every segment shares an exact beat anchor with its neighbor. Unlike
  // independent regressions, the integrated map cannot accumulate span drift.
@@ -46,7 +58,7 @@ function tempoFromBeats(input,{quarterPerBeat=1,tolerance=.018}={}){
   a=end;
  }
 
- return {points,beats,removed,anchor:beats[0],maxError};
+ return {points,beats:observed,removed,adjusted,anchor:observed[0],maxError};
 }
 function inferMeters(beats,downs,{quarterPerBeat=1}={}){
  const snapped=snapDownbeats(beats,downs),bars=[];let pos=0;
