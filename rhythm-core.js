@@ -25,26 +25,25 @@ function snapDownbeats(beats,downs){
 function tempoFromBeats(input,{quarterPerBeat=1,tolerance=.018}={}){
  const {beats,removed}=cleanBeats(input),points=[];
  if(beats.length<2)return {points,beats,removed,anchor:beats[0]??0,maxError:0};
- // Estimate tempo over multiple beats: individual onset jitter is not tempo.
- const spans=[];
- const fit=(a,b)=>{
-  const slopes=[];const lag=Math.min(8,b-a);
-  for(let i=a;i+lag<=b;i++)slopes.push((beats[i+lag]-beats[i])/lag);
-  const step=median(slopes);return {a,b,step};
- };
- for(let a=0;a<beats.length-1;){const b=Math.min(beats.length-1,a+24);spans.push(fit(a,b));a=b;}
- const merged=[];
- for(const span of spans){const last=merged.at(-1);if(last&&Math.abs(Math.log(span.step/last.step))<.025){last.b=span.b;Object.assign(last,fit(last.a,last.b));}else merged.push(span);}
- let maxError=0;
- for(const span of merged){
-  // Robust long-baseline regression reduces cumulative drift without following
-  // each frame-quantized onset. Trim the largest residuals once.
-  let ids=Array.from({length:span.b-span.a+1},(_,i)=>span.a+i);
-  let slope=span.step,intercept=median(ids.map(i=>beats[i]-i*slope));
-  ids=ids.filter(i=>Math.abs(beats[i]-(intercept+i*slope))<.12);
-  if(ids.length>4){const mean=ids.reduce((x,i)=>x+i,0)/ids.length,mt=ids.reduce((x,i)=>x+beats[i],0)/ids.length;let xy=0,xx=0;for(const i of ids){xy+=(i-mean)*(beats[i]-mt);xx+=(i-mean)**2;}if(xx>0)slope=xy/xx;}
-  points.push({t:span.a===0?0:beats[span.a],bpm:60*quarterPerBeat/slope,quality:1});
-  for(let i=span.a;i<=span.b;i++)maxError=Math.max(maxError,Math.abs(beats[i]-beats[span.a]-(i-span.a)*slope));
+ // Every segment shares an exact beat anchor with its neighbor. Unlike
+ // independent regressions, the integrated map cannot accumulate span drift.
+ if(!Number.isFinite(quarterPerBeat)||quarterPerBeat<=0)throw new RangeError('Invalid beat unit');
+ if(!Number.isFinite(tolerance)||tolerance<0)throw new RangeError('Invalid tolerance');
+ let maxError=0,a=0;
+ while(a<beats.length-1){
+  let lower=0,upper=Infinity,end=a+1;
+  for(let j=a+1;j<beats.length;j++){
+   const k=j-a,delta=beats[j]-beats[a];
+   lower=Math.max(lower,(delta-tolerance)/k);
+   upper=Math.min(upper,(delta+tolerance)/k);
+   if(lower>upper+1e-12)break;
+   const slope=delta/k;
+   if(slope>=lower-1e-12&&slope<=upper+1e-12)end=j;
+  }
+  const step=(beats[end]-beats[a])/(end-a),bpm=60*quarterPerBeat/step;
+  points.push({t:a===0?0:beats[a],bpm,quality:1});
+  for(let i=a;i<=end;i++)maxError=Math.max(maxError,Math.abs(beats[i]-beats[a]-(i-a)*step));
+  a=end;
  }
 
  return {points,beats,removed,anchor:beats[0],maxError};

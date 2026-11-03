@@ -1,13 +1,95 @@
 <!DOCTYPE html>
 
-<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>PianoRoll MIDI Converter v0.6.9</title>
-<script src="rhythm-core.js?v=0.6.9"></script>
+<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/><title>PianoRoll MIDI Converter v0.6.10</title>
+<script>
+/* v0.6.6 Shared beat timing. Beat timestamps are authoritative; no octave prior. */
+(function(root,factory){const api=factory();if(typeof module==='object')module.exports=api;root.PianoRollRhythm=api;})(globalThis,()=>{
+'use strict';
+const median=a=>{a=a.filter(Number.isFinite).sort((a,b)=>a-b);return a.length?(a[(a.length-1)>>1]+a[a.length>>1])/2:NaN};
+function cleanBeats(input){
+ const a=[...new Set(input.map(Number).filter(t=>Number.isFinite(t)&&t>=0))].sort((x,y)=>x-y);let removed=0;
+ // Single linear pass, including start/end; old preview removed at most 3 events.
+ const out=[];
+ for(let i=0;i<a.length;i++){
+  const prev=out.at(-1),gap=a[i]-prev;
+  const neighbors=[];for(let j=Math.max(1,i-4);j<Math.min(a.length,i+6);j++){const d=a[j]-a[j-1];if(d>.12&&d<3)neighbors.push(d);}
+  const typical=median(neighbors);
+  if(out.length && (gap<.07 || Number.isFinite(typical)&&gap<Math.min(.23,typical*.48))){removed++;continue;}
+  out.push(a[i]);
+ }
+ return {beats:out,removed};
+}
+function snapDownbeats(beats,downs){
+ const result=[];let i=0;
+ for(const d of [...downs].sort((a,b)=>a-b)){
+  while(i+1<beats.length&&Math.abs(beats[i+1]-d)<Math.abs(beats[i]-d))i++;
+  if(beats.length&&Math.abs(beats[i]-d)<=.10&&result.at(-1)!==beats[i])result.push(beats[i]);
+ }return result;
+}
+function tempoFromBeats(input,{quarterPerBeat=1,tolerance=.018}={}){
+ const {beats,removed}=cleanBeats(input),points=[];
+ if(beats.length<2)return {points,beats,removed,anchor:beats[0]??0,maxError:0};
+ // Every segment shares an exact beat anchor with its neighbor. Unlike
+ // independent regressions, the integrated map cannot accumulate span drift.
+ if(!Number.isFinite(quarterPerBeat)||quarterPerBeat<=0)throw new RangeError('Invalid beat unit');
+ if(!Number.isFinite(tolerance)||tolerance<0)throw new RangeError('Invalid tolerance');
+ let maxError=0,a=0;
+ while(a<beats.length-1){
+  let lower=0,upper=Infinity,end=a+1;
+  for(let j=a+1;j<beats.length;j++){
+   const k=j-a,delta=beats[j]-beats[a];
+   lower=Math.max(lower,(delta-tolerance)/k);
+   upper=Math.min(upper,(delta+tolerance)/k);
+   if(lower>upper+1e-12)break;
+   const slope=delta/k;
+   if(slope>=lower-1e-12&&slope<=upper+1e-12)end=j;
+  }
+  const step=(beats[end]-beats[a])/(end-a),bpm=60*quarterPerBeat/step;
+  points.push({t:a===0?0:beats[a],bpm,quality:1});
+  for(let i=a;i<=end;i++)maxError=Math.max(maxError,Math.abs(beats[i]-beats[a]-(i-a)*step));
+  a=end;
+ }
+
+ return {points,beats,removed,anchor:beats[0],maxError};
+}
+function inferMeters(beats,downs,{quarterPerBeat=1}={}){
+ const snapped=snapDownbeats(beats,downs),bars=[];let pos=0;
+ for(let i=0;i<snapped.length-1;i++){
+  while(pos<beats.length&&beats[pos]<snapped[i]-1e-5)pos++;
+  let end=pos;while(end<beats.length&&beats[end]<snapped[i+1]-1e-5)end++;
+  const count=end-pos;if(count>=2&&count<=12)bars.push({t:snapped[i],count});
+ }
+ // Half-bar accents frequently produce two downbeats in a 4/4 bar.
+ // Prefer common time for ambiguous duple sections; true 2/4 remains editable.
+ const duple=bars.filter(b=>b.count===2||b.count===4).length;
+ if(duple>bars.length*.65)for(const bar of bars)if(bar.count===2)bar.count=4;
+ const events=[];let active=null;
+ for(let i=0;i<bars.length;i++){
+  const b=bars[i],supported=(bars[i+1]?.count===b.count)||(i>0&&bars[i-1].count===b.count);
+  if(!supported||b.count===active)continue;
+  // Denominator is a convention, not inferable from beat/downbeat timestamps.
+  active=b.count;const quarters=b.count*quarterPerBeat,denominator=Number.isInteger(quarters)?4:8;events.push({t:b.t,numerator:quarters*denominator/4,denominator,quarterPerBeat,confidence:duple>bars.length*.65?'ambiguous-duple':'candidate',alternatives:duple>bars.length*.65?[2,4]:[b.count]});
+ }
+ return events;
+}
+// Validate the actual continuous tempo integral, not independently reset spans.
+function validateMap(beats,points,anchor,q=1){
+ if(beats.length<2||!points.length)return null;
+ const integral=t=>{let sum=0,at=0,bpm=points[0].bpm;for(const p of points){if(p.t>t)break;sum+=(p.t-at)*bpm/60;at=p.t;bpm=p.bpm;}return sum+(t-at)*bpm/60;};
+ const base=integral(anchor);
+ const errors=beats.map((t,i)=>{let bpm=points[0].bpm;for(const p of points){if(p.t>t)break;bpm=p.bpm;}return (integral(t)-base-i*q)*60/bpm;});
+ const abs=errors.map(Math.abs).sort((a,b)=>a-b);
+ return {maxSeconds:abs.at(-1),p95Seconds:abs[Math.floor((abs.length-1)*.95)],endSeconds:errors.at(-1),reference:'AI detected beats, not ground truth'};
+}
+function bpmAtBeat(beats,t,q=1){if(beats.length<2)return null;let lo=0,hi=beats.length-1;while(lo+1<hi){const m=(lo+hi)>>1;if(beats[m]<=t)lo=m;else hi=m;}return 60*q/(beats[hi]-beats[lo]);}
+return {validateMap,median,cleanBeats,snapDownbeats,tempoFromBeats,inferMeters,bpmAtBeat};
+});
+
+</script>
 <script defer="" src="mov-audio.js"></script>
-<script defer="" src="ai-beat.js?v=0.6.9"></script>
-<script defer src="ai-models.js?v=0.6.9"></script>
-<script defer src="model-comparison.js?v=0.6.9"></script>
-<script defer="" src="beat-tempo.js?v=0.6.9"></script>
-<script defer="" src="beat-preview.js?v=0.6.9"></script>
+<script defer="" src="ai-beat.js?v=0.6.10"></script>
+<script defer="" src="beat-tempo.js?v=0.6.10"></script>
+<script defer="" src="beat-preview.js?v=0.6.10"></script>
 <style>
 *{box-sizing:border-box}body{font-family:system-ui,sans-serif;margin:0;padding:14px;background:#f3f5f9;color:#18202b}.wrap{max-width:1050px;margin:auto}.box{background:white;border:1px solid #dce2eb;border-radius:12px;padding:14px;margin:12px 0}video,canvas{width:100%;max-height:440px;background:#111;border-radius:8px}canvas{height:auto;border:1px solid #ddd}button{padding:9px 13px;border:0;border-radius:8px;background:#245bd6;color:white;margin:3px;min-height:42px}button.secondary{background:#e9eef8;color:#23324b}button:disabled{opacity:.4}input{padding:8px;width:78px}.status{white-space:pre-wrap;background:#edf3ff;padding:10px;border-radius:8px;margin-top:8px}.muted{color:#647086;font-size:.9rem}.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}.stepper{display:inline-flex;align-items:center;gap:3px}.stepper button{min-width:42px;padding:6px}.stepper output{min-width:48px;text-align:center;font-weight:700}
 
@@ -17,7 +99,7 @@
 .range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.tempoOptions{margin-top:10px}.tempoOptions label{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tempoOptions select{padding:8px;max-width:170px}.tempoSegments{display:grid;gap:8px;margin:12px 0}.tempoSegment{display:grid;grid-template-columns:minmax(100px,1fr) 95px 95px 52px;gap:7px;align-items:center;padding:9px;background:#f4f7fd;border-radius:9px}.tempoSegment input{width:100%;font-size:16px}.tempoSegment button{margin:0}.tempoSegment small{font-size:.8rem;color:#596579}@media(max-width:520px){.tempoSegment{grid-template-columns:minmax(65px,1fr) 72px 78px 43px;gap:4px;padding:6px}.tempoSegment input{padding:5px}.tempoSegment button{padding:5px}}#tempoChart{max-height:none;aspect-ratio:1100/350;object-fit:contain;touch-action:pan-y;cursor:crosshair}.tempoToolbar{background:#f2f6fc;padding:12px;border-radius:10px;margin:12px 0}.tempoPan{display:grid;gap:7px;margin-top:10px}.tempoPan input{width:100%}.tempoToolbar select{padding:8px;max-width:100%}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}
 .beat-table{margin-top:10px;max-height:360px;overflow:auto;border:1px solid #dce4ef;border-radius:10px;background:#fff}.beat-entry{display:grid;grid-template-columns:46px minmax(75px,1fr) 92px;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid #e6ecf4;font-size:.9rem}.beat-entry:nth-child(odd){background:#f7faff}.beat-entry input[type=number]{width:100%;min-width:0;font-size:16px}.beat-entry label{font-size:.85rem;display:flex;gap:4px;align-items:center}.beat-entry input[type=checkbox]{width:20px;height:20px;accent-color:#245bd6}.auto-panel select{font-size:16px}#aiRuntimeStatus{font-size:.92rem}a{color:#174eaa}@media(max-width:390px){.beat-entry{grid-template-columns:35px minmax(70px,1fr) 84px;gap:4px;padding:5px}}
 
-/* v0.6.9: Listening A/B workspace */
+/* v0.6.10: Listening A/B workspace */
 .listen-panel{background:#f5f8fe;border:1px solid #d5e1f3;border-radius:12px;padding:14px}
 .listen-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .listen-grid label{display:flex;flex-direction:column;gap:5px;font-size:.9rem;font-weight:650}
@@ -39,8 +121,7 @@
 .listen-warn{background:#fff0e3;border:1px solid #f0cda8;color:#6b3c10;border-radius:9px;padding:10px;margin:10px 0;white-space:pre-wrap}
 @media(max-width:560px){.listen-grid,.listen-volumes{grid-template-columns:1fr}.listen-actions button{flex:1 1 auto}.listen-panel{padding:10px}}
 summary{list-style:none!important;display:flex;align-items:center;gap:10px}summary::-webkit-details-marker{display:none}summary::before{content:'▸';font-size:1.2em;flex:none}details[open]>summary::before{content:'▾'}#meterMapRows>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}#meterMapRows input{width:90px}
-#modelCompareChoices label{display:flex;align-items:center;gap:5px;font-size:.9rem}#modelCompareChoices input{width:20px;height:20px}.comparison-result{border:1px solid #ccd9eb;border-radius:8px;padding:9px;margin-top:8px;overflow-wrap:anywhere}#modelResults{max-height:420px;overflow:auto}#aiModelKind{width:100%!important}#modelComparisonPanel summary{cursor:pointer}
-</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.6.9</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+</style></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.6.10</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input accept="video/*,.mov,video/quicktime" id="file" type="file"/><div aria-live="polite" class="status" id="status">動画ファイルを選択してください。</div><video controls="" id="v" playsinline="" preload="metadata"></video><p class="muted" id="videoHelp">MOVは内部の映像コーデックによって再生可否が異なります。ファイルを選択したあと、読み込み状況とエラーをここに表示します。</p><button class="secondary" hidden="" id="retryVideo" type="button">同じファイルを再試行</button><div class="row"><button disabled="" id="prev">−1フレーム</button><button disabled="" id="next">＋1フレーム</button><label>時刻(秒) <input id="t" min="0" step=".01" type="number" value="0"/></label><button disabled="" id="seek">移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。まず自動位置合わせを試し、ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
 <div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button disabled="" id="autofit">鍵盤に自動で合わせる</button><div aria-live="polite" class="auto-result" id="autoResult">動画の読み込み後に利用できます。</div></div>
@@ -76,24 +157,15 @@ summary{list-style:none!important;display:flex;align-items:center;gap:10px}summa
 <div class="tempoToolbar"><div class="row"><label>横方向の表示範囲 <select id="tempoZoom"><option value="1">全曲</option><option value="0.5">50%</option><option value="0.25">25%</option><option value="0.1">10%</option></select></label><label><input checked="" id="showRawTempo" style="width:auto" type="checkbox"/> 局所候補も表示</label><label><input checked="" id="showAiTempo" style="width:auto" type="checkbox"/> AIテンポ候補も表示</label></div><label class="tempoPan">表示位置 <input disabled="" id="tempoPan" max="100" min="0" step="0.1" type="range" value="0"/></label><div class="row"><button class="secondary" id="tempoMapHalf" type="button">マップ全体 ÷2</button><button class="secondary" id="tempoMapDouble" type="button">マップ全体 ×2</button><button class="secondary" id="tempoAtCursor" type="button">選択位置に変更点追加</button></div><div class="status" id="tempoCursorInfo">グラフをタップして編集位置を選択してください。</div><div class="row" id="cursorEditor"><label>選択時刻（秒） <input id="cursorTime" min="0" step="0.01" type="number" value="0"/></label><label>その時刻からのBPM <input id="cursorBpm" max="350" min="30" step="0.1" type="number" value="120"/></label><button id="applyCursorBpm" type="button">この時刻から適用</button><button class="secondary" id="removeCursorPoint" type="button">近くの変更点を削除</button></div><p class="muted">タップした場所にBPM変更点を追加・上書きできます。下の一覧からも各変更点を編集できます。</p></div>
 <canvas aria-label="時間ごとのBPMを表示する操作可能なグラフ" height="350" id="tempoChart" role="img" width="1100"></canvas>
 <p class="muted">青：編集済みの区間テンポ。灰：独立した音声解析の局所推定。緑の破線：AI拍から生成した候補（未採用でも表示）。青線は変更時刻まで前のBPMを保持します。変更点ごとの編集はグラフのタップか下の一覧で行えます。</p>
-<h3>テンポ区間（手動修正可能）</h3><div class="row"><button class="secondary" id="addTempoPoint" type="button">中央に変更点追加</button><button class="secondary" id="clearTempoEdits" type="button">自動推定に戻す</button><button class="secondary" id="tempoSuppressSpikes" type="button">短いBPM異常を除外</button><button class="secondary" disabled="" id="tempoUndoCleanup" type="button">除外を元に戻す</button><button class="secondary" id="exportTempo" type="button">テンポマップをJSON出力</button></div><div aria-live="polite" class="muted" id="tempoCleanupInfo">短時間だけ突出したBPMは手動で除外できます。実際にテンポが急変する曲もあるため、元に戻せます。</div><details class="group"><summary>テンポ区間を編集</summary><div class="tempoSegments" id="tempoSegments"></div></details><p class="muted">AIから生成したBPMは拍との同期を保つため内部精度を保持します。手動編集時は選択した刻み幅で丸めます。AI拍グリッドを下のセクションで解析・編集できます。MIDI出力はまだ未実装です。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
+<h3>テンポ区間（手動修正可能）</h3><div class="row"><button class="secondary" id="addTempoPoint" type="button">中央に変更点追加</button><button class="secondary" id="clearTempoEdits" type="button">自動推定に戻す</button><button class="secondary" id="tempoSuppressSpikes" type="button">短いBPM異常を除外</button><button class="secondary" disabled="" id="tempoUndoCleanup" type="button">除外を元に戻す</button><button class="secondary" id="exportTempo" type="button">テンポマップをJSON出力</button></div><div aria-live="polite" class="muted" id="tempoCleanupInfo">短時間だけ突出したBPMは手動で除外できます。実際にテンポが急変する曲もあるため、元に戻せます。</div><details class="group"><summary>テンポ区間を編集</summary><div aria-live="polite" class="status" id="adoptedMapQuality"></div><div class="tempoSegments" id="tempoSegments"></div></details><p class="muted">AIから生成したBPMは拍との同期を保つため内部精度を保持します。手動編集時は選択した刻み幅で丸めます。AI拍グリッドを下のセクションで解析・編集できます。MIDI出力はまだ未実装です。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
 </section>
-<section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.6.9）</h2>
-<p class="muted">学習済みの <b>Beat This! / BeatNet</b> モデルを端末上で実行し、楽曲全体の拍・小節頭を推定します。処理用のプログラムとモデルを初回のみネットから取得しますが、<b>動画・音声ファイルは送信しません。</b> AIの結果は拍の欠落や倍・半テンポの誤判定を含む場合があります。テンポマップは必ず確認してから採用してください。</p>
+<section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.6.10）</h2>
+<p class="muted">実際の学習済み <b>Beat This!</b> モデルを端末上で実行し、楽曲全体の拍・小節頭を推定します。処理用のプログラムとモデルを初回のみネットから取得しますが、<b>動画・音声ファイルは送信しません。</b> AIの結果は拍の欠落や倍・半テンポの誤判定を含む場合があります。テンポマップは必ず確認してから採用してください。</p>
 <div class="auto-panel">
-<div class="row"><label>AIモデル <select id="aiModelKind" style="width:auto;max-width:100%;padding:8px"><option selected="" value="light">軽量（約10MB・推奨）</option><option value="full">高精度（約83MB・負荷大）</option></select></label><label>処理方式 <select id="aiBackend" style="width:auto;padding:8px"><option selected="" value="wasm">CPU / WASM</option><option value="webgpu">WebGPU（対応PC向け）</option></select></label></div>
-<p class="muted" id="modelDescription"></p>
+<div class="row"><label>AIモデル <select id="aiModelKind" style="width:auto;max-width:100%;padding:8px"><option selected="" value="light">軽量（約10MB・推奨）</option><option value="full">高精度（約83MB・負荷大）</option></select></label><label>処理方式 <select id="aiBackend" style="width:auto;padding:8px"><option selected="" value="wasm">CPU / WASM（iPhone対応）</option><option value="webgpu">WebGPU（対応PC向け）</option></select></label></div>
+<p class="muted">高精度モデルはまずCORS対応の配布元から直接取得し、失敗したら別の配布元を試します。既に端末へ保存したモデルは下から選択すると通信を回避できます。</p>
 <details class="group"><summary>詳細設定・比較</summary><div class="row"><label>手元のモデル（任意・通信失敗時） <input accept=".onnx,application/octet-stream" id="aiModelFile" style="width:min(100%,290px)" type="file"/></label></div></details>
 <div class="row"><button id="aiRun" type="button">🎼 AIで全曲の拍・小節頭を解析</button><button class="secondary" disabled="" id="aiStop" type="button">中止</button><button class="secondary" id="aiProbe" type="button">動作環境を確認</button></div>
-<details class="group" id="modelComparisonPanel"><summary>モデルを比較</summary><div style="padding:12px">
-<p class="muted">同じ音源をモデルごとに順番に解析します。音源を変更すると比較結果をクリアします。</p>
-<div class="row" id="modelCompareChoices"></div>
-<button type="button" id="modelCompareRun">選択モデルで比較</button>
-<button type="button" class="secondary" id="modelCompareExport" disabled>比較結果をJSON保存</button>
-<details><summary>参照拍データで採点（任意）</summary><label>確認済みJSON <input id="modelReference" type="file" accept=".json" style="width:100%"></label><p class="muted">{"beats":[0,0.5,1],"downbeats":[0]} の形式。AIの出力を参照にすると、正確さではなく一致度の評価になります。</p></details>
-<p id="modelReferenceName" class="muted"></p><div id="modelResults"></div>
-<p class="muted">結果を選び、試聴欄の「AI拍」で聴き比べてください。テンポマップは「AI拍からテンポマップを生成」で別途反映します。</p>
-</div></details>
 <div aria-live="polite" class="status" id="aiRuntimeStatus">AIモデル未実行。初回はモデルのダウンロードが必要です。高精度モデルが失敗した場合、失敗段階とエラー詳細を表示します。</div>
 <div class="muted">高精度モデルが自動取得できない場合は <a href="https://github.com/jgorset/beat-this/releases/tag/v1.0.0" rel="noopener noreferrer" target="_blank">Beat This! モデル配布ページ</a> から <code>beat-this.onnx</code> を保存し、上の「手元のモデル」で選択してください。軽量モデルの提供元は <a href="https://github.com/danigb/beat-this-rs" rel="noopener noreferrer" target="_blank">beat-this-rs</a> です。</div>
 </div>
@@ -110,7 +182,7 @@ summary{list-style:none!important;display:flex;align-items:center;gap:10px}summa
 <p class="muted">表の時刻を変更するとグラフの拍位置も更新されます。「小節頭」にチェックすると、その拍を小節の先頭として記録します。拍子はAIの小節頭の数だけでは一意に確定できません。</p>
 </div></details>
 </section>
-<section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.6.9）</h2>
+<section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.6.10）</h2>
 <p class="muted">元の音源を再生しながら、<strong>AIで検出した拍</strong>または<strong>編集済みBPMマップから計算した拍</strong>をクリック音で重ねます。イヤホンで聴いて、ズレや半テンポ判定を確認してください。動画・音声は端末内で処理します。</p>
 <div class="listen-panel">
 <div class="listen-grid">
@@ -831,7 +903,7 @@ $('tempoMapDouble').onclick=()=>{tempoPoints.forEach(p=>p.bpm=quantBpm(p.bpm*2))
 $('clearTempoEdits').onclick=()=>{tempoCleanupBackup=null;$('tempoUndoCleanup').disabled=true;tempoPoints=tempoAutomatic.map(p=>({...p,bpm:quantBpm(p.bpm)}));renderTempoPoints()};
 let tempoCleanupBackup=null;
 $('tempoSuppressSpikes').onclick=()=>{
- if(!window.PianoRollTempoGrid?.suppressShortSpikes){$('tempoCleanupInfo').textContent='beat-tempo.js が更新されていません。Ver.0.6.9をアップロードしてください。';return;}
+ if(!window.PianoRollTempoGrid?.suppressShortSpikes){$('tempoCleanupInfo').textContent='beat-tempo.js が更新されていません。Ver.0.6.10をアップロードしてください。';return;}
  const result=window.PianoRollTempoGrid.suppressShortSpikes(tempoPoints);
  if(!result.removed.length){$('tempoCleanupInfo').textContent='短時間だけ突出して元に戻るBPMは見つかりませんでした。';return;}
  tempoCleanupBackup=tempoPoints.map(p=>({...p}));tempoPoints=result.points;
@@ -841,7 +913,7 @@ $('tempoSuppressSpikes').onclick=()=>{
 };
 $('tempoUndoCleanup').onclick=()=>{if(!tempoCleanupBackup)return;tempoPoints=tempoCleanupBackup;tempoCleanupBackup=null;$('tempoUndoCleanup').disabled=true;$('tempoCleanupInfo').textContent='除外前のテンポマップに戻しました。';renderTempoPoints()};
 
-$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.6.9',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.6.10',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 // Audio-first tempo analysis: spectral-flux onset envelope, local autocorrelation,
 // and a Viterbi-style dynamic tempo path. All computation stays on device.
 // This is a new implementation inspired by common onset/beat tracking concepts;
@@ -1125,7 +1197,7 @@ function aiTempoDiagnostics(){
 function aiTempoCandidates(){return aiTempoDiagnostics().points.map(p=>({...p}));}
 function aiQualityText(d){
  const check=window.PianoRollRhythm.validateMap(d.beats||[],d.points||[],d.anchor,Number($('aiBeatUnit').value)||1);
- if(check)return `拍とマップの時間差：最大 ${(check.maxSeconds*1000).toFixed(1)}ms、95%点 ${(check.p95Seconds*1000).toFixed(1)}ms、末尾 ${(check.endSeconds*1000).toFixed(1)}ms。AI拍との比較であり、正解音源との誤差ではありません。MIDI用には拍子と開始位置も確認が必要です。`;
+ if(check)return `AI候補マップと検出拍の時間差：最大 ${(check.maxSeconds*1000).toFixed(1)}ms、95%点 ${(check.p95Seconds*1000).toFixed(1)}ms、末尾 ${(check.endSeconds*1000).toFixed(1)}ms。AI拍との比較であり、正解音源との誤差ではありません。MIDI用には拍子と開始位置も確認が必要です。`;
  if(!d.points?.length)return '拍間隔の推定に必要な拍が不足しています。';
  return `AI拍を基準に ${d.points.length}テンポ区間。検出拍との偏差最大 ${(d.maxError*1000).toFixed(1)}ms。細かな検出揺れはテンポ変化にしません。\n近接拍の除外 ${d.removed}件。拍自体の正しさ・音符単位・小節頭は試聴で確認してください。\nこの指標は音楽的な正解率ではありません。AI拍の試聴中は、その拍間隔からのBPMを表示します。`;
 }
@@ -1269,11 +1341,11 @@ $('aiMeter').onchange=refreshBeatInfo;
 $('aiBeatUnit').onchange=()=>{refreshBeatInfo();updateAiQuality();};
 $('aiExportGrid').onclick=()=>{
  if(aiBeatTimes.length<2){$('aiRuntimeStatus').textContent='拍を解析してから保存してください。';return;}
- const obj={version:'PianoRoll MIDI Converter v0.6.9',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
+ const obj={version:'PianoRoll MIDI Converter v0.6.10',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
  const a=document.createElement('a');const uri=URL.createObjectURL(blob);a.href=uri;a.download='pianoroll-beat-grid-v0.6.json';a.click();setTimeout(()=>URL.revokeObjectURL(uri),5000);
 };
-$('aiStop').onclick=()=>{aiCancelled=true;window.PianoRollModels?.abort();$('aiRuntimeStatus').textContent='中止要求を送信しました。処理中のAI推論が終了した後に停止します。'};
+$('aiStop').onclick=()=>{aiCancelled=true;window.PianoRollBeatAI?.abort();$('aiRuntimeStatus').textContent='中止要求を送信しました。処理中のAI推論が終了した後に停止します。'};
 async function decodeForAI(selected,onStatus){
  const ctx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:22050});
  try{
@@ -1289,47 +1361,44 @@ async function decodeForAI(selected,onStatus){
   return buf;
  }finally{await ctx.close().catch(()=>{})}
 }
-function selectModelResult(res){
- window.PianoRollBeatPreview?.stop();
- const d=parseBeatData(JSON.stringify({beats:res.beats,downbeats:res.downbeats}),'.json');
- meterEdited=false;aiBeatTimes=d.beats;aiDownbeatTimes=d.downs;aiBeatOffset=0;aiSourceLabel=res.model;aiRawLength=res.length;
- refreshBeatInfo();updateAiQuality();
- if(!tempoAnalysisRange){tempoAnalysisRange=[0,res.length];tempoPoints=[];tempoAutomatic=[];$('tempoVisualization').hidden=false;renderTempoPoints();}
- chartTempo();window.dispatchEvent(new Event('pianoroll-grid-change'));
-}
-async function runModels(ids){
+$('aiRun').onclick=async()=>{
  if(aiRunning)return;
  const selected=$('audioFile').files[0]||activeVideoFile;
+ if(!selected){$('aiRuntimeStatus').textContent='先に動画または代替音声ファイルを選択してください。';return;}
+ if(!window.PianoRollBeatAI){$('aiRuntimeStatus').textContent='ai-beat.js が未読み込みです。GitHub Pages にアップロードしてください。';return;}
+ aiRunning=true;aiCancelled=false;$('aiRun').disabled=true;$('aiStop').disabled=false;
  const report=message=>{$('aiRuntimeStatus').textContent=message};
- if(!selected){report('先に動画または代替音声ファイルを選択してください。');return;}
- if(!ids.length){report('比較するモデルを選択してください。');return;}
- if(!window.PianoRollModels){report('ai-models.js が未読み込みです。');return;}
- const modelFile=$('aiModelFile').files[0],provider=$('aiBackend').value;
- if(modelFile&&(ids.length>1||ids[0].startsWith('beatnet-'))){report('比較時は「手元のモデル」の選択を解除してください。');return;}
- window.PianoRollComparison.ensureSource(selected);
- aiRunning=true;aiCancelled=false;
- const locked=['aiRun','modelCompareRun','aiModelKind','aiBackend','aiModelFile','audioFile','file','modelReference'];
- const prior=locked.map(id=>[$(id),$(id).disabled]);for(const [el] of prior)el.disabled=true;
- $('aiStop').disabled=false;window.PianoRollComparison.render();
- let successes=0,failures=0;
  try{
-  window.PianoRollBeatPreview?.releaseAudio();v.pause();report('比較用の音声を読み取り中…');
+  window.PianoRollBeatPreview?.releaseAudio();
+  v.pause();
+  report('音声を読み取り中…');
   const buffer=await decodeForAI(selected,report);
-  for(const id of ids){
-   if(aiCancelled)throw DOMException('中止しました','AbortError');
-   try{
-    const res=await window.PianoRollModels.analyze(buffer,{modelFile,modelType:id,provider,onProgress:m=>report(`[${successes+failures+1}/${ids.length}] ${m}`)});
-    if(aiCancelled)throw DOMException('中止しました','AbortError');
-    window.PianoRollComparison.add(res);successes++;
-    selectModelResult(res);
-   }catch(e){if(e.name==='AbortError')throw e;failures++;window.PianoRollComparison.addFailure(id,e.message);}
-  }
-  report(`解析終了：成功 ${successes} / 失敗 ${failures}。比較欄から結果を選んで試聴できます。正解の参照データがない場合、精度の順位は確定しません。`);
- }catch(e){report(e.name==='AbortError'?'解析を中止しました。完了済みの比較結果は残しています。':'解析失敗：'+e.message);}
- finally{aiRunning=false;for(const [el,disabled] of prior)el.disabled=disabled;$('aiStop').disabled=true;window.PianoRollComparison.render();}
+  if(aiCancelled)throw DOMException('中止しました','AbortError');
+  aiRawLength=buffer.duration;
+  report(`音声準備完了（${buffer.duration.toFixed(1)}秒）。AIモデルを実行中…`);
+  const res=await window.PianoRollBeatAI.analyze(buffer,{modelFile:$('aiModelFile').files[0],modelType:$('aiModelKind').value,provider:$('aiBackend').value,onProgress:report});
+  const d=parseBeatData(JSON.stringify({beats:res.beats,downbeats:res.downbeats}),'.json');
+  meterEdited=false;aiBeatTimes=d.beats;aiDownbeatTimes=d.downs;aiBeatOffset=0;aiSourceLabel=res.model;
+  report(`✅ AI解析完了：${res.length.toFixed(1)}秒・拍 ${aiBeatTimes.length}件・小節頭 ${aiDownbeatTimes.length}件。拍の欠落と音声BPMの一致を確認してから反映できます。`);
+  refreshBeatInfo();updateAiQuality();
+  // Never replace the existing spectral tempo map without explicit review.
+  // Showing a beat grid is allowed, but applying it must be a separate action.
+  if(!tempoAnalysisRange){tempoAnalysisRange=[0,res.length];tempoPoints=[];tempoAutomatic=[];$('tempoVisualization').hidden=false;renderTempoPoints();}
+  chartTempo();
+ }catch(error){
+  report((error.name==='AbortError'?'AI解析を中止しました。':'AI解析に失敗：'+(error.message||String(error)))+'\n高精度モデルの通信エラー時は、取得済み .onnx を「手元のモデル」で選択してください。iPhoneではCPU/WASM方式を推奨します。');
+ }finally{aiRunning=false;$('aiRun').disabled=false;$('aiStop').disabled=true;}
+};
+
+
+function updateAdoptedMapQuality(){
+ const el=$('adoptedMapQuality');if(!el)return;
+ const beats=window.PianoRollRhythm.cleanBeats(aiBeatTimes).beats;
+ const check=window.PianoRollRhythm.validateMap(beats,tempoPoints,Number($('listenAnchor').value)||0,Number($('aiBeatUnit').value)||1);
+ el.textContent=check?`採用マップと検出拍の時間差：最大 ${(check.maxSeconds*1000).toFixed(1)}ms / 末尾 ${(check.endSeconds*1000).toFixed(1)}ms。${check.maxSeconds>.01801?'⚠ 拍とのずれを確認してください。':'検出拍に対する整合性を確認済み。'} 音源に対する正確さは試聴で確認してください。`:'採用マップ：拍データとテンポマップを揃えると時間差を検査します。';
 }
-$('aiRun').onclick=()=>runModels([$('aiModelKind').value]);
-window.PianoRollComparisonHost={run:runModels,select:selectModelResult,get running(){return aiRunning}};
+window.addEventListener('pianoroll-grid-change',updateAdoptedMapQuality);
+$('listenAnchor').addEventListener('change',updateAdoptedMapQuality);
 
 // Snapshots for a separate listening-preview module (no file uploads).
 window.PianoRollMainData = {
