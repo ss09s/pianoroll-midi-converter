@@ -1,4 +1,4 @@
-/* PianoRoll MIDI Converter v0.6.5 — original audio + beat click A/B audition.
+/* PianoRoll MIDI Converter v0.6.6 — original audio + beat click A/B audition.
  * No video/audio files leave the device. Both the reference track and all clicks
  * use ONE AudioContext clock, avoiding media-element and JS timer drift.
  * This is a listening/diagnostic tool; it does not silently change the tempo map.
@@ -20,10 +20,11 @@
   const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
   const finite = (v, fallback) => Number.isFinite(Number(v)) ? Number(v) : fallback;
   let ctx = null, buffer = null, lastFile = null, loading = false, loadToken = 0;
-  let track = null, songGain = null, clickGain = null;
+  let track = null, songGain = null, clickGain = null, limiter=null;
   let playing = false, paused = false, audioTime = 0, intervalId = null, rafId = null;
   let clipFrom = 0, clipTo = 0, baseClock = 0, clickEvents = [], nextClick = 0;
   let lastInfoUpdate = 0, suppressedClickCount=0;
+ const voices=new Set(); let starting=false;
 
   function getChosenFile() {
     // Use the same source as audio BPM and AI analysis. If audio file input is set,
@@ -87,32 +88,10 @@
   // Preview only: suppress obvious extra triggers without mutating the user-
   // editable AI timestamps. Do not suppress sustained changes of beat interval.
   function suppressNearDuplicateBeats(raw) {
-    const sorted=raw.map((e,i)=>({...e,index:e.index??i})).sort((a,b)=>a.time-b.time);
-    if(sorted.length<4)return {events:sorted,removed:0};
-    const arr=sorted.slice();let removed=0;
-    for(let pass=0;pass<3;pass++){
-      let changed=false;
-      for(let i=1;i<arr.length-1;i++){
-        const gap=arr[i].time-arr[i-1].time;
-        const gaps=[];
-        for(let j=Math.max(1,i-5);j<=Math.min(arr.length-1,i+5);j++){
-          const d=arr[j].time-arr[j-1].time;
-          if(d>0.12&&d<2.5)gaps.push(d);
-        }
-        const typical=median(gaps);
-        if(!Number.isFinite(typical)||gap>=typical*.48 || gap>=.23)continue;
-        // For nearby duplicates, keep the event that best fits the intervals
-        // to the previous/next full beats. Never invent a beat here.
-        const prev=arr[i-2],next=arr[i+1];
-        const scoreKeepPrev=(prev?Math.abs(arr[i-1].time-prev.time-typical):0)+Math.abs(next.time-arr[i-1].time-typical);
-        const scoreKeepCur=(prev?Math.abs(arr[i].time-prev.time-typical):0)+Math.abs(next.time-arr[i].time-typical);
-        arr.splice(scoreKeepCur+.015<scoreKeepPrev?i-1:i,1);
-        removed++;changed=true;break;
-      }
-      if(!changed)break;
-    }
-    return {events:arr,removed};
+    const {beats,removed}=window.PianoRollRhythm.cleanBeats(raw.map(e=>e.time));
+    return {events:beats.map(time=>({time})),removed};
   }
+
   function meterValue(){
     const str=$('aiMeter')?.value||'4/4',numerator=Number(str.split('/')[0]);
     return clamp(numerator||4,1,12);
@@ -125,7 +104,7 @@
     }
     ui.beatPhase.value=String(current);
     const isCompound=$('aiMeter')?.value==='6/8';
-    ui.meterNotice.textContent=`拍子${$('aiMeter')?.value||'4/4'}は現在の手動設定であり、AIが確定した拍子ではありません。`+
+    ui.meterNotice.textContent=`拍子${$('aiMeter')?.value||'4/4'}。AI小節頭モードは検出した小節頭、設定拍子モードは拍子変化表（なければ手動設定）を参照します。`+
       (isCompound?' 6/8では通常の拍を付点4分音符で数える場合があるため、6回に1回のアクセントは正しい拍子表現とは限りません。':' 1拍目の位置も試聴で合わせてください。');
   }
   function selectedEvents(start, end) {
@@ -142,8 +121,14 @@
       // Indices are assigned AFTER filtering so that a dropped duplicate
       // does not shift the audible 4/4 accent out of phase.
       return fixed.events.map((e,index)=>{
+        const meters=window.PianoRollMainData?.getMeterPoints()||[];
+        const mp=meters.filter(p=>p.t<=e.time+.05).at(-1);
+        const startIndex=mp?fixed.events.findIndex(b=>b.time>=mp.t-.05):0;
         const rawDown=downs.some(d=>Math.abs(d-e.time)<.07);
-        const downbeat=accentMode==='off'?false:accentMode==='ai'?rawDown:(index+phase-1)%meter===0;
+        const q=window.PianoRollMainData?.getQuarterPerBeat()||1;
+        const perBar=mp?mp.numerator*4/mp.denominator/q:meter;
+        const barDown=mp?Math.abs((index-startIndex)/perBar-Math.round((index-startIndex)/perBar))<1e-6:(index+phase-1)%meter===0;
+        const downbeat=accentMode==='off'?false:accentMode==='ai'?rawDown:barDown;
         return {time:e.time+shift,downbeat};
       }).filter(e=>e.time>=start-1e-5&&e.time<=end+1e-5);
     }
@@ -151,9 +136,10 @@
     const map=getMap();
     if(!map.length)throw new Error('テンポマップがありません。先に音声からBPMを解析するか、AI拍からテンポマップを生成してください。');
     const anchor=clamp(finite(ui.anchor.value,0),0,1000000);
-    const raw=beatGridFromMap(from,Math.max(from,to),anchor,map,meter);
-    return raw.map(e=>({...e,time:e.time+shift,downbeat:accentMode==='off'?false:
-      accentMode==='ai'?getDownbeats().some(d=>Math.abs(d-e.time)<.07):(((e.beatIndex+phase-1)%meter)+meter)%meter===0}))
+    const q=window.PianoRollMainData?.getQuarterPerBeat()||1;
+    const raw=beatGridFromMap(from,Math.max(from,to),anchor,map.map(p=>({...p,bpm:p.bpm/q})),meter);
+    return raw.map(e=>{const mp=(window.PianoRollMainData?.getMeterPoints()||[]).filter(p=>p.t<=e.time+.05).at(-1);const perBar=mp?mp.numerator*4/mp.denominator/q:meter;const relative=mp?(beatIntegral(e.time,map)-beatIntegral(mp.t,map))/q:e.beatIndex+phase-1;const isBar=Math.abs(relative/perBar-Math.round(relative/perBar))<.02;return ({...e,time:e.time+shift,downbeat:accentMode==='off'?false:
+      accentMode==='ai'?getDownbeats().some(d=>Math.abs(d-e.time)<.07):isBar})})
       .filter(e=>e.time>=start-1e-5&&e.time<=end+1e-5);
   }
   function currentTime() {
@@ -164,7 +150,7 @@
   function updateModeGains() {
     const mode=ui.mode.value;
     if(songGain) songGain.gain.value=(mode==='click'?0:finite(ui.songVolume.value,75)/100);
-    if(clickGain) clickGain.gain.value=(mode==='song'?0:finite(ui.clickVolume.value,55)/100);
+    if(clickGain) clickGain.gain.value=(mode==='song'?0:finite(ui.clickVolume.value,100)/100);
   }
   function uiButtons() {
     ui.play.disabled = loading || (playing && !paused);
@@ -180,8 +166,9 @@
     if(playing && !paused && t>=clipTo-.008) { stopPlayback({keepPosition:true}); return; }
     if(force || Date.now()-lastInfoUpdate>180) {
       const nearby=clickEvents.length ? clickEvents[Math.min(nextClick,clickEvents.length-1)] : null;
-      const currentBpm=getMap().length ? window.PianoRollMainData?.getTempoAt(t) : null;
-      ui.beatInfo.textContent = `この位置のBPM: ${currentBpm ? currentBpm.toFixed(2) : '未計測'} / ${ui.source.value==='ai'?'AI拍':'BPMマップ'} ${clickEvents.length}拍 / 近接抑制 ${suppressedClickCount}件`;
+      const q=window.PianoRollMainData?.getQuarterPerBeat()||1;
+      const currentBpm=ui.source.value==='ai'?window.PianoRollRhythm.bpmAtBeat(window.PianoRollRhythm.cleanBeats(getAiBeats()).beats,t-finite(ui.offset.value,0)/1000,q):getMap().length?window.PianoRollMainData?.getTempoAt(t):null;
+      ui.beatInfo.textContent = `${ui.source.value==='ai'?'AI拍間隔からのBPM':'テンポマップのBPM'}: ${currentBpm ? currentBpm.toFixed(2) : '未計測'} / ${ui.source.value==='ai'?'AI拍':'BPMマップ'} ${clickEvents.length}拍 / 近接抑制 ${suppressedClickCount}件`;
       lastInfoUpdate=Date.now();
     }
   }
@@ -190,10 +177,12 @@
   function stopPlayback({keepPosition=false}={}){
     loadToken++; // cancel any pending audio extraction before it can start playing
     cancelLoops();
+    for(const osc of voices){try{osc.stop();osc.disconnect()}catch{}}voices.clear();
     if(playing && ctx && keepPosition) audioTime=currentTime();
     if(track){const old=track;track=null;old.onended=null;try{old.stop()}catch{}try{old.disconnect()}catch{}}
     if(songGain){try{songGain.disconnect()}catch{}songGain=null;}
     if(clickGain){try{clickGain.disconnect()}catch{}clickGain=null;}
+    if(limiter){try{limiter.disconnect()}catch{}limiter=null;}
     playing=false;paused=false;
     if(!keepPosition) audioTime=0;
     updateProgress(true);uiButtons();
@@ -204,13 +193,14 @@
     if(!ctx||!clickGain)return;
     const osc=ctx.createOscillator(),env=ctx.createGain();
     const start=Math.max(ctx.currentTime+.002,when),length=isDown?.085:.061;
-    osc.type='sine';osc.frequency.setValueAtTime(isDown?1040:670,start);
+    voices.add(osc);
+    osc.type='triangle';osc.frequency.setValueAtTime(isDown?1040:670,start);
     osc.frequency.exponentialRampToValueAtTime(isDown?750:510,start+length);
     env.gain.setValueAtTime(.0001,start);
-    env.gain.exponentialRampToValueAtTime(isDown?.44:.29,start+.003);
+    env.gain.exponentialRampToValueAtTime(isDown?.85:.65,start+.003);
     env.gain.exponentialRampToValueAtTime(.0001,start+length);
     osc.connect(env);env.connect(clickGain);osc.start(start);osc.stop(start+length+.005);
-    osc.onended=()=>{try{osc.disconnect();env.disconnect();}catch{}};
+    osc.onended=()=>{voices.delete(osc);try{osc.disconnect();env.disconnect();}catch{}};
   }
   function scheduleClicks(){
     if(!ctx || !playing || paused)return;
@@ -256,11 +246,12 @@
     buffer=decoded;lastFile=file;return decoded;
   }
   async function play(){
-    if(loading)return;
+    if(loading||starting||playing&&!paused)return;
     if(paused && ctx){
       try{await ctx.resume();paused=false;uiButtons();playStatus('再生中。拍クリックが原曲と同期しているか確認してください。');scheduleClicks();}
       catch(e){playStatus('再開できません：'+e.message);}return;
     }
+    starting=true;
     stopPlayback({keepPosition:false});
     let token=loadToken;uiButtons();
     try{
@@ -285,7 +276,9 @@
       if(!events.length && ui.mode.value!=='song')throw new Error('選択した範囲に拍がありません。AI拍またはBPMマップの設定、再生時刻を確認してください。');
       clipFrom=lo;clipTo=hi;audioTime=lo;clickEvents=events;nextClick=0;
       songGain=ctx.createGain();clickGain=ctx.createGain();
-      songGain.connect(ctx.destination);clickGain.connect(ctx.destination);updateModeGains();
+      limiter=ctx.createDynamicsCompressor();
+      limiter.threshold.value=-3;limiter.knee.value=0;limiter.ratio.value=20;limiter.attack.value=.001;limiter.release.value=.08;
+      songGain.connect(limiter);clickGain.connect(limiter);limiter.connect(ctx.destination);updateModeGains();
       const src=ctx.createBufferSource();track=src;src.buffer=decoded;src.connect(songGain);
       playing=true;paused=false;
       baseClock=ctx.currentTime+.15;
@@ -300,7 +293,7 @@
       uiButtons();
     } catch(e) {
       if(token===loadToken){stopPlayback();playStatus('試聴できません：'+(e?.message||String(e)));}
-    } finally {loading=false;uiButtons();}
+    } finally {starting=false;loading=false;uiButtons();}
   }
   async function pause(){
     if(!playing)return;
@@ -331,6 +324,7 @@
     }
   }
 
+  window.addEventListener('pianoroll-grid-change',()=>{if(playing||starting){stopPlayback();playStatus('拍・テンポ・拍子を変更しました。再生し直すと反映されます。');}});
   ui.play.addEventListener('click',play);
   ui.pause.addEventListener('click',pause);
   ui.stop.addEventListener('click',()=>{stopPlayback();playStatus('停止しました。');});
@@ -391,14 +385,14 @@
   });
   $('listenExport').addEventListener('click',()=>{
     const file=getChosenFile(), payload={
-      application:'PianoRoll MIDI Converter',version:'0.6.5',type:'user-beat-audition-feedback',
+      application:'PianoRoll MIDI Converter',version:'0.6.6',type:'user-beat-audition-feedback',
       notice:'This diagnostic file contains timestamps and user feedback only, not the audio/video.',
       originalFileName:file?.name||null, durationSeconds:buffer?.duration||null,
       audition:{beatSource:ui.source.value,mode:ui.mode.value,phaseAnchorSeconds:finite(ui.anchor.value,0),clickOffsetMilliseconds:finite(ui.offset.value,0)},
-      issues:issueLog,aiBeatsSeconds:getAiBeats(),aiDownbeatsSeconds:getDownbeats(),tempoMap:getMap()
+      issues:issueLog,aiBeatsSeconds:getAiBeats(),aiDownbeatsSeconds:getDownbeats(),tempoMap:getMap(),timeSignatures:window.PianoRollMainData?.getMeterPoints()||[],quarterNotesPerAiBeat:window.PianoRollMainData?.getQuarterPerBeat()||1
     };
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download='pianoroll-v0.6.5-beat-feedback.json';document.body.append(a);a.click();a.remove();
+    const a=document.createElement('a');a.href=url;a.download='pianoroll-v0.6.6-beat-feedback.json';document.body.append(a);a.click();a.remove();
     setTimeout(()=>URL.revokeObjectURL(url),10000);
     $('listenFeedbackStatus').textContent=`診断JSONを保存しました（問題の記録 ${issueLog.length}件）。ファイルをチャットに添付できます。`;
   });

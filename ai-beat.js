@@ -1,4 +1,4 @@
-/* PianoRoll MIDI Converter v0.6.3 – staged diagnostics and reliability checks.
+/* PianoRoll MIDI Converter v0.6.6 – staged diagnostics and reliability checks.
  * Full and small models may use different input tensor names ('spect' or
  * 'spectrogram'). Never hard-code the ONNX feed name: inspect session.inputNames.
  * Uses @jgorset/beat-this 1.0.0 DSP/postprocessing and onnxruntime-web 1.23.2.
@@ -199,7 +199,12 @@
       progress('拍・小節頭を時刻に変換しています…');
       stage='拍時刻の後処理';const result=dsp.postprocess(beat,downbeat);
       const clean=arr=>Array.from(arr||[]).map(Number).filter(t=>Number.isFinite(t)&&t>=0&&t<buffer.duration+.1).sort((a,b)=>a-b);
-      const beats=clean(result.beats),downbeats=clean(result.downbeats);
+      // Keep the model's global postprocess, then align downbeats to a single
+      // beat stream. Never concatenate off-grid downbeats as extra beats.
+      const raw=clean(result.beats);
+      const normalized=window.PianoRollRhythm.cleanBeats(raw);
+      const beats=normalized.beats;
+      const downbeats=window.PianoRollRhythm.snapDownbeats(beats,clean(result.downbeats));
       if(beats.length<4)throw new Error('十分な拍が検出できませんでした。音楽が明瞭な区間を含むか確認してください。');
       return {beats,downbeats,length:buffer.duration,model:options.modelFile?'指定したONNXモデル':options.modelType==='full'?'Beat This! 高精度':'Beat This! 軽量'};
     }catch(err){
