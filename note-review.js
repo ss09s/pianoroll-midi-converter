@@ -1,19 +1,18 @@
-/* 0.7.9: editable seconds-based piano roll, synchronized with the original video. */
+/* 0.7.10: editable seconds-based piano roll, synchronized with the original video. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),video=$('v'),core=PianoRollNoteCore,scan=PianoRollVideoNoteScan;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const playIcon='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 4 14 8-14 8Z"/></svg>',pauseIcon='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 4v16M17 4v16"/></svg>';
 const openButton=document.createElement('button');openButton.id='noteReviewOpen';openButton.type='button';openButton.textContent='キーエディターで確認';openButton.disabled=true;$('noteScanExport').after(openButton);
 const panel=document.createElement('details');panel.id='noteReview';panel.className='note-review';panel.innerHTML=`<summary>原動画と抽出ノートを比較</summary><div class="nr-body">
 <div class="nr-warning" id="nrWarning" hidden></div><div class="nr-layout"><div class="nr-video" id="nrVideo"></div><div class="nr-editor">
-<div class="nr-controls nr-toolbar">
-<button type="button" id="nrExpand" aria-pressed="false">拡大表示</button>
-<button id="nrStart" type="button" aria-label="先頭に戻る" title="先頭に戻る"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 4v16M19 5l-11 7 11 7Z"/></svg></button><button id="nrPlay" type="button">▶ 再生</button><button id="nrStop" class="secondary" type="button">■ 停止</button><button id="nrPrev" class="secondary" type="button" aria-label="指定fpsで1コマ戻る">−1コマ</button><button id="nrNext" class="secondary" type="button" aria-label="指定fpsで1コマ進む">＋1コマ</button><output class="nr-time" id="nrTime">0.00秒</output>
-<label class="nr-mix"><span>原音</span><input id="nrMix" aria-label="原音と抽出音の比率" type="range" min="0" max="100" step="1" value="50"/><span>抽出音</span><output id="nrMixInfo">50 : 50</output></label>
-<button type="button" id="nrEdit" aria-pressed="false">ノート削除</button><button type="button" id="nrUndo" aria-label="元に戻す" title="元に戻す（Ctrl+Z）" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12"/></svg></button><button type="button" id="nrRedo" aria-label="やり直す" title="やり直す（Ctrl+Shift+Z / Ctrl+Y）" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5 5 5-5 5M20 10H10a6 6 0 0 0 0 12"/></svg></button><button type="button" id="nrFollowButton" aria-pressed="true">追従 オン</button>
-<label>横ズーム<input id="nrZoomX" type="range" min="0" max="100" step="0.1" value="0"/></label><label>縦ズーム<input id="nrZoomY" type="range" min="1" max="48" step="0.1" value="1"/></label><label>追従方式<select id="nrFollowMode"><option value="fixed" selected>バー固定</option><option value="page">ページ送り</option></select></label><button id="nrDone" type="button" hidden>完了 ×</button></div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
+<div class="nr-controls nr-toolbar"><div class="nr-top">
+<div class="nr-edit-tools"><button type="button" id="nrEdit" aria-label="ノート削除モード" title="ノート削除モード" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m4 16-1 5 5-1L20 8l-4-4ZM14 6l4 4"/></svg></button><button type="button" id="nrUndo" aria-label="元に戻す" title="元に戻す" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12"/></svg></button><button type="button" id="nrRedo" aria-label="やり直す" title="やり直す" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5 5 5-5 5M20 10H10a6 6 0 0 0 0 12"/></svg></button></div><div class="nr-transport"><button type="button" id="nrStart" aria-label="先頭に戻る" title="先頭に戻る" ><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 4v16M19 5l-11 7 11 7Z"/></svg></button><button type="button" id="nrPlay" aria-label="再生" title="再生" ><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 4 14 8-14 8Z"/></svg></button><button type="button" id="nrStop" aria-label="停止" title="停止" ><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h14v14H5Z"/></svg></button></div>
+<label class="nr-mix"><span>原音</span><input id="nrMix" aria-label="原音と抽出音の比率" type="range" min="0" max="100" step="1" value="50"/><span>抽出音</span><output id="nrMixInfo" class="nr-sr">50 : 50</output></label><button id="nrDone" type="button" hidden>完了</button></div>
+<div class="nr-bottom"><button type="button" id="nrExpand" aria-label="拡大表示" title="拡大表示" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button><button type="button" id="nrFollowButton" aria-label="再生位置に追従" title="再生位置に追従" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v18M3 12h18m-4-4 4 4-4 4"/></svg></button><label class="nr-zoom">横<input id="nrZoomX" aria-label="横ズーム" type="range" min="0" max="100" step="0.1" value="0"/></label><label class="nr-zoom">縦<input id="nrZoomY" aria-label="縦ズーム" type="range" min="1" max="48" step="0.1" value="1"/></label><label class="nr-follow-mode"><span class="nr-sr">追従方式</span><select id="nrFollowMode" aria-label="追従方式"><option value="fixed" selected>バー固定</option><option value="page">ページ送り</option></select></label><output class="nr-time" id="nrTime">0.00秒</output></div></div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
 <label class="nr-pan" hidden>表示位置<input id="nrPan" type="range" min="0" max="1" step="0.01" value="0"/><span id="nrRange">0–8秒</span></label>
 </div></div><output class="nr-selected" id="nrSelected" aria-live="polite">ノートをタップすると、音高・開始・終了・長さを確認できます。</output>
-<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><div class="nr-options"><label><span>縦・横ズームの縮小制限を解除（全音域・全曲）</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>コマ送りの基準fps<select id="nrFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="50"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">PC（グリッド上）：ホイールで縦移動、Shiftで横移動、Ctrlで横ズーム、Ctrl＋Shiftで縦ズーム。Spaceで再生・一時停止、Alt単独で削除モード、Fで追従、Enterで拡大表示、Ctrl＋Zで元に戻す、Ctrl＋Shift＋Z / Ctrl＋Yでやり直し。コマ送りは指定fpsの間隔です。元動画に合わせてください。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズーム、ダブルタップした位置から再生します。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。「ノート削除」オンのときだけタップで削除します。↶ / ↷で取り消し・やり直しができます。</p></div>`;
+<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><div class="nr-options"><label><span>縦・横ズームの縮小制限を解除（全音域・全曲）</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="50"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">PC（グリッド上）：ホイールで縦移動、Shiftで横移動、Ctrlで横ズーム、Ctrl＋Shiftで縦ズーム。Spaceで再生・一時停止、Alt単独で削除モード、Fで追従、Enterで拡大表示、Ctrl＋Zで元に戻す、Ctrl＋Shift＋Z / Ctrl＋Yでやり直し。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズーム、ダブルタップした位置から再生します。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。「ノート削除」オンのときだけタップで削除します。↶ / ↷で取り消し・やり直しができます。</p></div>`;
 $('noteScanResults').before(panel);
 const panelHome=document.createComment('editor position');panel.before(panelHome);
 const home=document.createComment('original video position');video.before(home);
@@ -48,7 +47,7 @@ function schedule(){
 }
 function canvas(id,w,h){const can=$(id),dpr=Math.min(2,window.devicePixelRatio||1);can.width=Math.round(w*dpr);can.height=Math.round(h*dpr);can.style.width=w+'px';can.style.height=h+'px';const g=can.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);return g;}
 let pixelsPerSecond=40,scrollFrame=null,wantedSpan=16;
-function followState(){const on=$('nrFollow').checked;$('nrFollowButton').textContent=on?'追従 オン':'追従する';$('nrFollowButton').setAttribute('aria-pressed',String(on));}
+function followState(){const on=$('nrFollow').checked;$('nrFollowButton').setAttribute('aria-label',on?'再生位置に追従：オン':'再生位置に追従：オフ');$('nrFollowButton').setAttribute('aria-pressed',String(on));}
 function minRow(){return $('nrUnlimitedZoom').checked?Math.max(.5,Math.min(10,viewport.clientHeight/(pitchMax-pitchMin+1))):Math.max(2,viewport.clientHeight/60);}
 function maxSpan(){return Math.max(.25,Math.min(duration,$('nrUnlimitedZoom').checked?duration:16));}
 function leadSeconds(){return $('nrFollowMode').value==='page'?0:span*.25;}
@@ -79,7 +78,7 @@ function paintCursor(){
  $('nrCursor').hidden=!panel.open||t<viewStart||t>viewStart+span;
  $('nrCursor').style.left=(viewport.scrollLeft+keyW+(t-viewStart)*pixelsPerSecond)+'px';$('nrCursor').style.top=viewport.scrollTop+'px';$('nrCursor').style.height=viewport.clientHeight+'px';
  if(performance.now()-lastText>80||video.paused){$('nrTime').textContent=`${t.toFixed(2)} / ${duration.toFixed(2)}秒`;lastText=performance.now();}
- $('nrPlay').textContent=video.paused?'▶ 再生':'⏸ 一時停止';
+ $('nrPlay').innerHTML=video.paused?playIcon:pauseIcon;$('nrPlay').setAttribute('aria-label',video.paused?'再生':'一時停止');$('nrPlay').setAttribute('title',video.paused?'再生':'一時停止');
 }
 function cursor(force=false){
  const t=video.currentTime;
@@ -154,7 +153,7 @@ function expand(value){
 }
 function fitOverlay(){if(!panel.classList.contains('nr-expanded'))return;const vv=window.visualViewport;panel.style.width=(vv?.width||window.innerWidth)+'px';panel.style.height=(vv?.height||window.innerHeight)+'px';panel.style.left=(vv?.offsetLeft||0)+'px';panel.style.top=(vv?.offsetTop||0)+'px';render();}
 window.addEventListener('resize',fitOverlay);window.visualViewport?.addEventListener('resize',fitOverlay);window.visualViewport?.addEventListener('scroll',fitOverlay);
-function feedback(button){if(button&&!button.disabled)button.animate?.([{filter:'brightness(.7)',transform:'scale(.94)'},{filter:'brightness(1)',transform:'scale(1)'}],{duration:220});}
+function feedback(button){if(button&&!button.disabled)button.animate?.([{filter:'brightness(.7)'},{filter:'brightness(1)'}],{duration:220});}
 panel.addEventListener('click',e=>feedback(e.target.closest?.('button')));
 $('nrExpand').onclick=()=>expand(!panel.classList.contains('nr-expanded'));$('nrDone').onclick=()=>expand(false);
 function historyState(){$('nrUndo').disabled=!undoStack.length;$('nrRedo').disabled=!redoStack.length;}
@@ -163,7 +162,7 @@ function changed(){
  $('nrSelected').textContent=`${notes.length}音 · 削除は↶で元に戻せます。`;
 }
 function removeNote(id){if(scan.getState().stale||scan.running)return;const index=notes.findIndex(n=>n.id===id);if(index<0)return;undoStack.push({note:notes[index],index});redoStack=[];notes.splice(index,1);changed();}
-$('nrEdit').onclick=()=>{cancelTap();editing=!editing;panel.classList.toggle('nr-editing');$('nrEdit').setAttribute('aria-pressed',String(editing));$('nrEdit').textContent=editing?'削除モード オン':'ノート削除';render();};
+$('nrEdit').onclick=()=>{cancelTap();editing=!editing;panel.classList.toggle('nr-editing');$('nrEdit').setAttribute('aria-pressed',String(editing));$('nrEdit').setAttribute('aria-label',editing?'ノート削除モード：オン':'ノート削除モード：オフ');render();};
 $('nrUndo').onclick=()=>{cancelTap();if(!undoStack.length||scan.getState().stale||scan.running)return;const action=undoStack.pop();notes.splice(action.index,0,action.note);redoStack.push(action);changed();};
 $('nrRedo').onclick=()=>{cancelTap();if(!redoStack.length||scan.getState().stale||scan.running)return;const action=redoStack.pop(),index=notes.findIndex(n=>n.id===action.note.id);if(index>=0)notes.splice(index,1);undoStack.push(action);changed();};
 document.addEventListener('keydown',e=>{
@@ -182,14 +181,14 @@ viewport.addEventListener('dblclick',e=>e.preventDefault());
 function mixValue(){return clamp(Number($('nrMix').value)/100,0,1);}
 function applyMix(){const mix=mixValue();$('nrMixInfo').textContent=`${Math.round((1-mix)*100)} : ${Math.round(mix*100)}`;if(panel.open)video.muted=mix===1;if(originalGain)originalGain.gain.setValueAtTime(panel.open?1-mix:1,ctx.currentTime);if(master)master.gain.setValueAtTime(Number($('nrVolume').value)/100*mix,ctx.currentTime);}
 function applyMode(){applyMix();stopSound();wake();}
-function close(){hovered=false;expand(false);cancelTap();panel.classList.remove('nr-expanded');$('nrExpand').textContent='拡大表示';$('nrExpand').setAttribute('aria-pressed','false');stopInertia();contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){if(originalGain)originalGain.gain.setValueAtTime(1,ctx.currentTime);video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
+function close(){hovered=false;expand(false);cancelTap();panel.classList.remove('nr-expanded');$('nrExpand').setAttribute('aria-pressed','false');stopInertia();contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){if(originalGain)originalGain.gain.setValueAtTime(1,ctx.currentTime);video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
 function onData(){
  const state=scan.getState();openButton.disabled=!state.hasResult||state.running;
  if(state.running||!state.hasResult){close();if(!state.hasResult){data=null;notes=[];selected=null;}return;}
  const next=scan.getResult();if(!data||data.source.name!==next.source.name||data.notes.length!==next.notes.length||JSON.stringify(data.notes)!==JSON.stringify(next.notes)){
   firstZoom=true;minZoomDefault=true;wantedSpan=16;undoStack=[];redoStack=[];historyState();video.pause();stopSound();data=next;duration=next.source.durationSeconds;notes=next.notes.map((n,id)=>({...n,id})).sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);selected=null;viewStart=0;$('nrFollow').checked=true;followState();
   pitchMin=notes.length?Math.min(23,Math.max(0,notes.reduce((p,n)=>Math.min(p,n.midiPitch),127)-2)):23;pitchMax=notes.length?Math.min(127,notes.reduce((p,n)=>Math.max(p,n.midiPitch),0)+2):72;
-  $('nrFps').value=String(next.sampling.samplesPerSecond===60?60:30);$('nrSelected').textContent=notes.length?'ノートをタップすると、音高・開始・終了・長さを確認できます。':'抽出結果は0音です。原動画を確認し、鍵盤ガイドや検出条件を見直してください。';
+  $('nrSelected').textContent=notes.length?'ノートをタップすると、音高・開始・終了・長さを確認できます。':'抽出結果は0音です。原動画を確認し、鍵盤ガイドや検出条件を見直してください。';
  }
  $('nrWarning').hidden=!state.stale;$('nrWarning').textContent='ガイドを変更しています。前回抽出した結果を表示中です。再抽出して比較してください。';render();
 }
@@ -205,7 +204,7 @@ $('nrPlay').onclick=async()=>{
  catch(e){$('nrAudioNotice').hidden=false;$('nrAudioNotice').textContent='再生できません：'+e.message;stopSound();}
  finally{starting=false;cursor();}
 };
-$('nrStart').onclick=()=>{seek(0);cursor(true);};$('nrStop').onclick=()=>seek(0);$('nrPrev').onclick=()=>seek(video.currentTime-1/Number($('nrFps').value));$('nrNext').onclick=()=>seek(video.currentTime+1/Number($('nrFps').value));
+$('nrStart').onclick=()=>{seek(0);cursor(true);};$('nrStop').onclick=()=>seek(0);
 $('nrRate').onchange=()=>{if(panel.open)video.playbackRate=Number($('nrRate').value);stopSound();wake();};
 $('nrMix').oninput=()=>{applyMix();if(mixValue()===0)stopSound();else{needsActive=true;wake();}void audioReady().then(wake).catch(e=>{$('nrAudioNotice').hidden=false;$('nrAudioNotice').textContent='音声を有効にできません：'+e.message;});};
 $('nrVolume').oninput=applyMix;

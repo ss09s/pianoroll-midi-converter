@@ -29,31 +29,30 @@
 #nrUnlimitedZoom{width:20px;height:20px}.nr-view-tools button:disabled{opacity:.35}
 @media(orientation:landscape) and (max-height:520px){.nr-expanded .nr-mix{max-width:300px}.nr-expanded .nr-controls{margin-bottom:2px}.nr-expanded .nr-controls button{min-height:28px}.nr-expanded .nr-view-tools label{min-width:90px}}
 
-/* 0.7.9: one wrapping toolbar; root-level overlay follows Safari visual viewport. */
-.nr-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;width:100%}
-.nr-toolbar label{display:flex;flex:none;gap:4px;white-space:nowrap;font-size:12px}
-.nr-toolbar input[type=range]{width:100px;min-width:45px;max-width:120px;padding:0;accent-color:#245bd6;touch-action:pan-y}
-.nr-toolbar .nr-mix{width:auto;gap:4px}.nr-toolbar .nr-mix input{width:105px;flex:none}
-.nr-toolbar .nr-mix output{min-width:45px}.nr-toolbar button{touch-action:manipulation;transition:filter .1s,transform .1s}
-.nr-toolbar button:active:not(:disabled){filter:brightness(.72);transform:scale(.94)}
-.nr-toolbar button svg{width:21px;height:21px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.nr-toolbar #nrStart,.nr-toolbar #nrUndo,.nr-toolbar #nrRedo{display:inline-flex;align-items:center;justify-content:center;min-width:36px;padding:6px}
-#nrDone{position:static;margin-left:auto;flex:none;min-height:34px}
-.nr-expanded{right:auto!important;bottom:auto!important;max-width:none!important;max-height:none!important;z-index:2147483000;overscroll-behavior:none}
-.nr-expanded>.nr-body{padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left))}
-.nr-expanded .nr-editor>.nr-controls:first-of-type{padding-right:0;min-height:0}
-.nr-expanded .nr-toolbar{gap:4px;margin-bottom:4px;flex:none}
-.nr-expanded .nr-toolbar label{min-width:0;font-size:12px}
-.nr-expanded .nr-toolbar button{min-height:34px;font-size:13px;padding:5px 8px}
-.nr-expanded .nr-toolbar input[type=range]{width:95px;max-width:110px}
-.nr-expanded .nr-toolbar .nr-mix{max-width:none;width:auto}
-.nr-expanded #nrDone{order:99;display:block}
-.nr-expanded #nrExpand{display:none}
-.nr-toolbar #nrExpand{order:-1}
-@media(max-width:500px){.nr-toolbar{gap:4px}.nr-toolbar button{padding:6px;min-height:36px;font-size:12px}.nr-toolbar input[type=range]{width:75px}.nr-toolbar .nr-mix input{width:80px}.nr-time{font-size:12px}.nr-expanded .nr-toolbar input[type=range]{width:75px}}
 
-.nr-expanded .nr-toolbar{position:relative;padding-right:68px}.nr-expanded #nrDone{position:absolute;right:0;top:0;margin:0}
-
-.nr-toolbar{box-sizing:border-box}
-
-.nr-expanded .nr-editor>.nr-toolbar:first-of-type{padding-right:64px}
+/* 0.7.10: two explicit rows; dimensions never depend on control state. */
+#noteReview .nr-toolbar{display:grid;grid-template-rows:36px 36px;gap:6px;flex:none;width:100%;margin:0 0 6px;padding:0;box-sizing:border-box}
+#noteReview .nr-top{display:grid;grid-template-columns:minmax(96px,1fr) auto minmax(110px,1fr) 44px;gap:8px;align-items:center;min-width:0}
+#noteReview .nr-edit-tools,#noteReview .nr-transport{display:flex;gap:4px;flex-wrap:nowrap;align-items:center}
+#noteReview .nr-edit-tools{justify-self:start}#noteReview .nr-transport{justify-self:center}
+#noteReview .nr-toolbar button{display:inline-flex;align-items:center;justify-content:center;width:36px;min-width:36px;height:36px;min-height:36px;padding:6px;margin:0;box-sizing:border-box;touch-action:manipulation;transition:filter .1s;flex:none}
+#noteReview .nr-toolbar button svg{width:22px;height:22px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#noteReview .nr-toolbar button:active:not(:disabled){filter:brightness(.72)}
+#noteReview .nr-toolbar #nrDone{position:static;width:44px;min-width:44px;order:0;font-size:12px;justify-self:end}
+#noteReview .nr-mix{width:100%;max-width:240px;min-width:0;display:flex;gap:5px;font-size:12px;white-space:nowrap}
+#noteReview .nr-mix input{flex:1;width:60px;min-width:24px;max-width:none;padding:0}
+#noteReview .nr-bottom{display:grid;grid-template-columns:36px 36px minmax(65px,1fr) minmax(65px,1fr) 110px 150px;gap:8px;align-items:center;min-width:0}
+#noteReview .nr-zoom{display:flex;gap:5px;min-width:0;font-size:12px;white-space:nowrap}
+#noteReview .nr-toolbar input[type=range]{height:28px;touch-action:pan-y;accent-color:#245bd6}
+#noteReview .nr-zoom input{width:100%;min-width:25px;max-width:none;padding:0}
+#noteReview .nr-follow-mode{min-width:0}#noteReview .nr-follow-mode select{width:100%;font-size:13px;padding:4px;height:32px;box-sizing:border-box}
+#noteReview .nr-time{width:150px;white-space:nowrap;font-size:12px;font-variant-numeric:tabular-nums;text-align:right}
+#noteReview .nr-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#noteReview #nrFollowButton[aria-pressed=true]{background:#245bd6;color:white}#noteReview #nrFollowButton[aria-pressed=false]{background:#e9eef8;color:#334760}
+#noteReview #nrEdit[aria-pressed=true]{background:#b52e45;color:white}#noteReview #nrEdit[aria-pressed=false]{background:#e9eef8;color:#334760}
+#noteReview.nr-expanded{right:auto!important;bottom:auto!important;max-width:none!important;max-height:none!important;z-index:2147483000;overscroll-behavior:none}
+#noteReview.nr-expanded>.nr-body{padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left))}
+#noteReview.nr-expanded #nrExpand{visibility:hidden;display:inline-flex}
+#noteReview:not(.nr-expanded) #nrDone{visibility:hidden;display:inline-flex}
+@media(max-width:700px){#noteReview .nr-bottom{grid-template-columns:32px 32px minmax(60px,1fr) minmax(60px,1fr) 100px;gap:5px}#noteReview .nr-time{display:none}#noteReview .nr-top{grid-template-columns:96px auto minmax(70px,1fr) 40px;gap:5px}#noteReview .nr-toolbar button{width:30px;min-width:30px;height:34px;min-height:34px;padding:5px}#noteReview .nr-edit-tools,#noteReview .nr-transport{gap:3px}#noteReview .nr-toolbar #nrDone{width:40px;min-width:40px}#noteReview .nr-mix{font-size:10px;gap:3px}#noteReview .nr-toolbar button svg{width:20px;height:20px}}
+@media(max-width:370px){#noteReview .nr-top{grid-template-columns:84px 84px minmax(55px,1fr) 34px;gap:3px}#noteReview .nr-toolbar button{width:26px;min-width:26px}#noteReview .nr-toolbar #nrDone{width:34px;min-width:34px}#noteReview .nr-bottom{grid-template-columns:28px 28px minmax(45px,1fr) minmax(45px,1fr) 90px;gap:4px}#noteReview .nr-mix span{font-size:9px}}
