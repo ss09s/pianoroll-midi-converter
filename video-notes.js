@@ -1,4 +1,4 @@
-/* 0.7.3 browser video scan. One reusable canvas; no frame history or audio upload. */
+/* 0.7.4 browser video scan. One reusable canvas; no frame history or audio upload. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),core=window.PianoRollNoteCore;
 let controller=null,result=null,page=0,stale=false;
@@ -55,7 +55,7 @@ async function run(){
    if(i%10===0||i===total-1){$('noteScanProgress').value=(i+1)/total;$('noteScanStatus').textContent=`抽出中 ${Math.round(100*(i+1)/total)}% · ${time.toFixed(1)} / ${duration.toFixed(1)}秒`;await new Promise(r=>setTimeout(r,0));}
   }
   check(signal);
-  result={format:'pianoroll-video-notes-seconds-v1',applicationVersion:'0.7.3',source:{name:snap.file.name,size:snap.file.size,durationSeconds:duration},sampling:{samplesPerSecond:fps,intervalSeconds:1/fps,framesProcessed:total,minimumConsecutiveSamples:2},hitLine:{yPixels:snap.hitLineY,width:snap.width,height:snap.height},guide:{...snap.guide,reference:snap.reference,lanes},notes:tracker.finish(),discardedSingleSampleCandidates:tracker.discarded,notice:'Unverified visual candidates. Times refer to hit-line crossings, not beat quantization. No sustain or MIDI export.'};page=0;stale=false;render();
+  result={format:'pianoroll-video-notes-seconds-v1',applicationVersion:'0.7.4',source:{name:snap.file.name,size:snap.file.size,durationSeconds:duration},sampling:{samplesPerSecond:fps,intervalSeconds:1/fps,framesProcessed:total,minimumConsecutiveSamples:2},hitLine:{yPixels:snap.hitLineY,width:snap.width,height:snap.height},guide:{...snap.guide,reference:snap.reference,lanes},notes:tracker.finish(),discardedSingleSampleCandidates:tracker.discarded,notice:'Unverified visual candidates. Times refer to hit-line crossings, not beat quantization. No sustain or MIDI export.'};page=0;stale=false;render();
   const truncated=result.notes.filter(n=>n.truncatedStart||n.truncatedEnd).length;
   $('noteScanStatus').textContent=`抽出完了：${result.notes.length}音。${truncated?`動画の端で途切れた候補 ${truncated}音。`:''}音名を押すと開始位置を確認できます。`;
  }catch(e){$('noteScanStatus').textContent=e.name==='AbortError'?'抽出を中止しました。前回の結果がある場合は保持しています。':'抽出できません：'+e.message;}
@@ -66,7 +66,7 @@ async function run(){
  }
 }
 $('noteScanRun').onclick=run;$('noteScanCancel').onclick=()=>controller?.abort();
-$('noteScanExport').onclick=()=>{if(!result||stale)return;const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='pianoroll-video-notes-v0.7.3.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('noteScanExport').onclick=()=>{if(!result||stale)return;const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='pianoroll-video-notes-v0.7.4.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('file').addEventListener('change',()=>{controller?.abort();result=null;stale=false;page=0;render();$('noteScanRun').disabled=true;$('noteScanStatus').textContent='新しい動画を読み込んでいます。鍵盤ガイドと音名を合わせてください。';});
 $('v').addEventListener('loadeddata',()=>{if(!controller){$('noteScanRun').disabled=false;$('noteScanStatus').textContent='鍵盤ガイドと基準鍵の音名を合わせてから抽出してください。';}});
 window.PianoRollVideoNoteScan={getResult:()=>result?JSON.parse(JSON.stringify(result)):null,getState:()=>({hasResult:!!result,stale,running:!!controller}),get running(){return !!controller}};
