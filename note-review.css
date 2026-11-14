@@ -56,3 +56,20 @@
 #noteReview:not(.nr-expanded) #nrDone{visibility:hidden;display:inline-flex}
 @media(max-width:700px){#noteReview .nr-bottom{grid-template-columns:32px 32px minmax(60px,1fr) minmax(60px,1fr) 100px;gap:5px}#noteReview .nr-time{display:none}#noteReview .nr-top{grid-template-columns:96px auto minmax(70px,1fr) 40px;gap:5px}#noteReview .nr-toolbar button{width:30px;min-width:30px;height:34px;min-height:34px;padding:5px}#noteReview .nr-edit-tools,#noteReview .nr-transport{gap:3px}#noteReview .nr-toolbar #nrDone{width:40px;min-width:40px}#noteReview .nr-mix{font-size:10px;gap:3px}#noteReview .nr-toolbar button svg{width:20px;height:20px}}
 @media(max-width:370px){#noteReview .nr-top{grid-template-columns:84px 84px minmax(55px,1fr) 34px;gap:3px}#noteReview .nr-toolbar button{width:26px;min-width:26px}#noteReview .nr-toolbar #nrDone{width:34px;min-width:34px}#noteReview .nr-bottom{grid-template-columns:28px 28px minmax(45px,1fr) minmax(45px,1fr) 90px;gap:4px}#noteReview .nr-mix span{font-size:9px}}
+
+/* 0.7.11: stable SVG hit targets and a single segmented transport. */
+#noteReview .nr-toolbar button{background:#e3e7ed;color:#536174;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;transition:background-color .1s,color .1s}
+#noteReview .nr-toolbar button svg,#noteReview .nr-toolbar button svg *{pointer-events:none}
+#noteReview .nr-toolbar button:active:not(:disabled){filter:none;background:#cbd5e2}
+#noteReview .nr-transport{gap:0;border:1px solid #cdd4df;border-radius:7px;overflow:hidden;background:#e3e7ed;box-sizing:border-box}
+#noteReview .nr-transport button{border:0;border-radius:0;background:transparent;box-shadow:none}
+#noteReview .nr-transport button svg{fill:currentColor;stroke:none}
+#noteReview .nr-transport #nrStart svg{stroke:currentColor;stroke-width:1.5}
+#noteReview .nr-transport #nrPlay[data-playing=true]{background:#245bd6;color:#fff}
+#noteReview #nrPlay[data-playing=false] .nr-pause-symbol,#noteReview #nrPlay[data-playing=true] .nr-play-symbol{display:none}
+#noteReview .nr-toolbar #nrFollowButton[aria-pressed=true]{background:#d3dfef;color:#234f8f}
+#noteReview .nr-toolbar #nrEdit[aria-pressed=true]{background:#b52e45;color:#fff}
+#noteReview .nr-editor{position:relative}
+#noteReview .nr-mode-notice{position:absolute;z-index:3;top:90px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:7px;white-space:nowrap;background:#953549;color:#fff;border:1px solid #be6576;border-radius:18px;padding:6px 12px;font-size:12px;font-weight:600;box-shadow:0 3px 10px #51232a26;pointer-events:none}
+#noteReview .nr-mode-notice span{font-size:8px;color:#ffbeca}
+#noteReview .nr-toolbar button:disabled{opacity:.35}
