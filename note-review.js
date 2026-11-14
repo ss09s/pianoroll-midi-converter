@@ -1,4 +1,4 @@
-/* 0.7.6: read-only seconds-based piano roll, synchronized with the original video. */
+/* 0.7.7: read-only seconds-based piano roll, synchronized with the original video. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),video=$('v'),core=PianoRollNoteCore,scan=PianoRollVideoNoteScan;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -10,7 +10,7 @@ const panel=document.createElement('details');panel.id='noteReview';panel.classN
 <div class="nr-controls nr-view-tools"><button type="button" id="nrExpand" aria-pressed="false">拡大表示</button><button type="button" id="nrFollowButton" aria-pressed="true">追従 オン</button><label>横ズーム<input id="nrZoomX" type="range" min="0" max="100" step="0.1" value="50"/></label><label>縦ズーム<input id="nrZoomY" type="range" min="1" max="48" step="0.1" value="16"/></label><label>追従方式<select id="nrFollowMode"><option value="fixed" selected>バー固定</option><option value="page">ページ送り</option></select></label></div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
 <label class="nr-pan" hidden>表示位置<input id="nrPan" type="range" min="0" max="1" step="0.01" value="0"/><span id="nrRange">0–8秒</span></label>
 </div></div><output class="nr-selected" id="nrSelected" aria-live="polite">ノートをタップすると、音高・開始・終了・長さを確認できます。</output>
-<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><div class="nr-options"><label><span>全音域まで縮小を許可</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>コマ送りの基準fps<select id="nrFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="50"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">コマ送りは指定fpsの間隔です。元動画に合わせてください。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズームできます。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。編集・拍への量子化は行いません。</p></div>`;
+<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><div class="nr-options"><label><span>全音域まで縮小を許可</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>コマ送りの基準fps<select id="nrFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="50"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">コマ送りは指定fpsの間隔です。元動画に合わせてください。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズーム、ダブルタップで再生・一時停止できます。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。編集・拍への量子化は行いません。</p></div>`;
 $('noteScanResults').before(panel);
 const home=document.createComment('original video position');video.before(home);
 let data=null,notes=[],duration=0,pitchMin=48,pitchMax=72,viewStart=0,span=8,width=340,keyW=44,rowH=16,selected=null,hitRects=[];
@@ -58,7 +58,7 @@ function render(){
  for(let pitch=pitchMax;pitch>=pitchMin;pitch--){const y=(pitchMax-pitch)*rowH-offsetY,black=[1,3,6,8,10].includes(pitch%12);g.fillStyle=black?'#edf1f6':'#fafcff';g.fillRect(keyW,y,width-keyW,rowH);g.strokeStyle='#dfe6ee';g.beginPath();g.moveTo(0,y+rowH);g.lineTo(width,y+rowH);g.stroke();}
  // White-key bodies extend beneath the raised black keys.
  g.fillStyle='#e9ecf1';g.fillRect(0,0,keyW,h);
- for(let pitch=pitchMax+1;pitch>=pitchMin-1;pitch--){if([1,3,6,8,10].includes((pitch+120)%12))continue;const y=(pitchMax-pitch)*rowH-offsetY,above=[1,3,6,8,10].includes((pitch+1+120)%12),below=[1,3,6,8,10].includes((pitch-1+120)%12),top=y-(above?rowH*.5:0),bottom=y+rowH+(below?rowH*.5:0);g.fillStyle='#f7f8fa';g.fillRect(0,top,keyW,bottom-top);g.strokeStyle='#8f98a5';g.lineWidth=.7;g.strokeRect(0,top,keyW,bottom-top);if((pitch+120)%12===0&&rowH*12>=12){g.font='10px system-ui';g.fillStyle='#606c7b';g.fillText(core.noteName(pitch),keyW-24,y+Math.min(rowH,10));}}
+ for(let pitch=pitchMax+1;pitch>=pitchMin-1;pitch--){if([1,3,6,8,10].includes((pitch+120)%12))continue;const y=(pitchMax-pitch)*rowH-offsetY,above=[1,3,6,8,10].includes((pitch+1+120)%12),below=[1,3,6,8,10].includes((pitch-1+120)%12),top=y-(above?rowH*.5:0),bottom=y+rowH+(below?rowH*.5:0);g.fillStyle='#f7f8fa';g.fillRect(0,top,keyW,bottom-top);g.strokeStyle='#8f98a5';g.lineWidth=.7;g.strokeRect(0,top,keyW,bottom-top);if((pitch+120)%12===0&&rowH*12>=12){const fontSize=clamp(rowH*.8,6,24);g.font=fontSize+'px system-ui';g.fillStyle='#606c7b';g.fillText(core.noteName(pitch),keyW-fontSize*1.5-3,y+rowH*.5+fontSize*.35);}}
  for(let pitch=pitchMax;pitch>=pitchMin;pitch--){if(![1,3,6,8,10].includes(pitch%12))continue;const y=(pitchMax-pitch)*rowH-offsetY;g.fillStyle='#202632';g.fillRect(0,y+.3,keyW*.62,Math.max(.5,rowH-.6));g.strokeStyle='#10151e';g.strokeRect(0,y+.3,keyW*.62,Math.max(.5,rowH-.6));}
 
  r.fillStyle='#f0f4fa';r.fillRect(0,0,width,27);r.font='11px system-ui';r.fillStyle='#61758e';r.fillText('音高',5,18);
@@ -105,20 +105,25 @@ function zoomTo(nextSpan,nextRow,x=(width+keyW)/2,y=viewport.clientHeight/2,base
  viewport.scrollLeft=(time+leadSeconds())*pixelsPerSecond-Math.max(0,x-keyW);viewport.scrollTop=pitch*rowH-y;render();
  $('nrZoomX').value=String(duration>.25?clamp(100*Math.log(duration/wantedSpan)/Math.log(duration/.25),0,100):50);$('nrZoomY').min=String(minRow());$('nrZoomY').value=String(rowH);
 }
-viewport.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;stopInertia();lastMove={...local(e),time:performance.now()};contacts.set(e.pointerId,local(e));viewport.setPointerCapture(e.pointerId);if(contacts.size>1)suppressTap=true;beginGesture();});
+viewport.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;stopInertia();lastMove={...local(e),time:performance.now()};contacts.set(e.pointerId,local(e));viewport.setPointerCapture(e.pointerId);if(contacts.size>1){suppressTap=true;cancelTap();}beginGesture();});
 viewport.addEventListener('pointermove',e=>{
  if(!contacts.has(e.pointerId)||!gesture)return;contacts.set(e.pointerId,local(e));const p=[...contacts.values()],start=gesture.points;
  if(p.length===2&&start.length===2){velocity={x:0,y:0};e.preventDefault();const scale=PianoRollEditorGesture.pinch(start[0],start[1],p[0],p[1]);const x=(start[0].x+start[1].x)/2,y=(start[0].y+start[1].y)/2;zoomTo(gesture.span/scale.x,gesture.rowH*scale.y,x,y,gesture);return;}
  if(p.length!==1||start.length!==1)return;
  const dx=p[0].x-start[0].x,dy=p[0].y-start[0].y;
- if(Math.hypot(dx,dy)>6)suppressTap=true;if(!suppressTap)return;
+ if(Math.hypot(dx,dy)>6){suppressTap=true;cancelTap();}if(!suppressTap)return;
  // Vertical panning preserves follow. Only an intentional horizontal pan disengages it.
  if(!video.paused&&Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)*1.2){$('nrFollow').checked=false;followState();}
  const now=performance.now(),dt=Math.max(1,now-lastMove.time);velocity={x:clamp((lastMove.x-p[0].x)/dt,-3,3),y:clamp((lastMove.y-p[0].y)/dt,-3,3)};lastMove={...p[0],time:now};viewport.scrollLeft=gesture.left-dx;viewport.scrollTop=gesture.top-dy;e.preventDefault();
 });
+let tapTimer=null,lastTap=null;
+function cancelTap(){if(tapTimer!==null)clearTimeout(tapTimer);tapTimer=null;lastTap=null;}
+function tapAt(e){const now=performance.now();if(lastTap&&now-lastTap.time<=300&&Math.hypot(e.clientX-lastTap.x,e.clientY-lastTap.y)<24){cancelTap();stopInertia();void $('nrPlay').onclick();return;}
+ cancelTap();lastTap={time:now,x:e.clientX,y:e.clientY};const point={clientX:e.clientX,clientY:e.clientY};tapTimer=setTimeout(()=>{tapTimer=null;lastTap=null;if(panel.open)selectAt(point);},300);
+}
 function endPointer(e,cancelled){
  if(!contacts.has(e.pointerId))return;const tap=!cancelled&&!suppressTap&&contacts.size===1;contacts.delete(e.pointerId);if(viewport.hasPointerCapture(e.pointerId))viewport.releasePointerCapture(e.pointerId);
- if(tap)selectAt(e);if(!contacts.size&&!cancelled&&suppressTap&&lastMove&&performance.now()-lastMove.time<100&&Math.hypot(velocity.x,velocity.y)>.03)glide();if(contacts.size)beginGesture();else{gesture=null;suppressTap=false;cursor();wake();}
+ if(cancelled)cancelTap();if(tap)tapAt(e);if(!contacts.size&&!cancelled&&suppressTap&&lastMove&&performance.now()-lastMove.time<100&&Math.hypot(velocity.x,velocity.y)>.03)glide();if(contacts.size)beginGesture();else{gesture=null;suppressTap=false;cursor();wake();}
 }
 viewport.addEventListener('pointerup',e=>endPointer(e,false));viewport.addEventListener('pointercancel',e=>endPointer(e,true));
 viewport.addEventListener('lostpointercapture',e=>{if(contacts.has(e.pointerId))endPointer(e,true);});
@@ -138,13 +143,13 @@ viewport.addEventListener('dblclick',e=>e.preventDefault());
 function mixValue(){return clamp(Number($('nrMix').value)/100,0,1);}
 function applyMix(){const mix=mixValue();$('nrMixInfo').textContent=`${Math.round((1-mix)*100)} : ${Math.round(mix*100)}`;if(panel.open)video.muted=mix===1;if(originalGain)originalGain.gain.setValueAtTime(panel.open?1-mix:1,ctx.currentTime);if(master)master.gain.setValueAtTime(Number($('nrVolume').value)/100*mix,ctx.currentTime);}
 function applyMode(){applyMix();stopSound();wake();}
-function close(){panel.classList.remove('nr-expanded');$('nrExpand').textContent='拡大表示';$('nrExpand').setAttribute('aria-pressed','false');stopInertia();contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){if(originalGain)originalGain.gain.setValueAtTime(1,ctx.currentTime);video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
+function close(){cancelTap();panel.classList.remove('nr-expanded');$('nrExpand').textContent='拡大表示';$('nrExpand').setAttribute('aria-pressed','false');stopInertia();contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){if(originalGain)originalGain.gain.setValueAtTime(1,ctx.currentTime);video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
 function onData(){
  const state=scan.getState();openButton.disabled=!state.hasResult||state.running;
  if(state.running||!state.hasResult){close();if(!state.hasResult){data=null;notes=[];selected=null;}return;}
  const next=scan.getResult();if(!data||data.source.name!==next.source.name||data.notes.length!==next.notes.length||JSON.stringify(data.notes)!==JSON.stringify(next.notes)){
   video.pause();stopSound();data=next;duration=next.source.durationSeconds;notes=next.notes.map((n,id)=>({...n,id})).sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);selected=null;viewStart=0;$('nrFollow').checked=true;followState();
-  pitchMin=notes.length?Math.max(0,notes.reduce((p,n)=>Math.min(p,n.midiPitch),127)-2):48;pitchMax=notes.length?Math.min(127,notes.reduce((p,n)=>Math.max(p,n.midiPitch),0)+2):72;
+  pitchMin=notes.length?Math.min(23,Math.max(0,notes.reduce((p,n)=>Math.min(p,n.midiPitch),127)-2)):23;pitchMax=notes.length?Math.min(127,notes.reduce((p,n)=>Math.max(p,n.midiPitch),0)+2):72;
   $('nrFps').value=String(next.sampling.samplesPerSecond===60?60:30);$('nrSelected').textContent=notes.length?'ノートをタップすると、音高・開始・終了・長さを確認できます。':'抽出結果は0音です。原動画を確認し、鍵盤ガイドや検出条件を見直してください。';
  }
  $('nrWarning').hidden=!state.stale;$('nrWarning').textContent='ガイドを変更しています。前回抽出した結果を表示中です。再抽出して比較してください。';render();
