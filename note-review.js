@@ -1,4 +1,4 @@
-/* 0.7.2: read-only seconds-based piano roll, synchronized with the original video. */
+/* 0.7.3: read-only seconds-based piano roll, synchronized with the original video. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),video=$('v'),core=PianoRollNoteCore,scan=PianoRollVideoNoteScan;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -6,11 +6,11 @@ const openButton=document.createElement('button');openButton.id='noteReviewOpen'
 const panel=document.createElement('details');panel.id='noteReview';panel.className='note-review';panel.innerHTML=`<summary>原動画と抽出ノートを比較</summary><div class="nr-body">
 <div class="nr-warning" id="nrWarning" hidden></div><div class="nr-layout"><div class="nr-video" id="nrVideo"></div><div class="nr-editor">
 <div class="nr-controls"><button id="nrPlay" type="button">▶ 再生</button><button id="nrStop" class="secondary" type="button">■ 停止</button><button id="nrPrev" class="secondary" type="button" aria-label="指定fpsで1コマ戻る">−1コマ</button><button id="nrNext" class="secondary" type="button" aria-label="指定fpsで1コマ進む">＋1コマ</button><output class="nr-time" id="nrTime">0.00秒</output></div>
-<div class="nr-controls"><label>聴き方<select id="nrMode"><option value="both">原曲 ＋ 抽出音</option><option value="video">原曲のみ</option><option value="notes">抽出音のみ</option></select></label><label>表示範囲<select id="nrZoom"><option value="4">4秒</option><option value="8" selected>8秒</option><option value="16">16秒</option><option value="all">全体</option></select></label></div>
-<div class="nr-controls nr-view-tools"><button type="button" id="nrFollowButton" aria-pressed="true">追従 オン</button><span>縦ズーム</span><button type="button" class="secondary" id="nrPitchOut" aria-label="音高表示を縮小">−</button><button type="button" class="secondary" id="nrPitchIn" aria-label="音高表示を拡大">＋</button></div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
+<div class="nr-controls"><label>聴き方<select id="nrMode"><option value="both">原曲 ＋ 抽出音</option><option value="video">原曲のみ</option><option value="notes">抽出音のみ</option></select></label></div>
+<div class="nr-controls nr-view-tools"><button type="button" id="nrFollowButton" aria-pressed="true">追従 オン</button><label>横ズーム<input id="nrZoomX" type="range" min="0" max="100" step="0.1" value="50"/></label><label>縦ズーム<input id="nrZoomY" type="range" min="10" max="48" step="0.1" value="16"/></label></div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
 <label class="nr-pan" hidden>表示位置<input id="nrPan" type="range" min="0" max="1" step="0.01" value="0"/><span id="nrRange">0–8秒</span></label>
 </div></div><output class="nr-selected" id="nrSelected" aria-live="polite">ノートをタップすると、音高・開始・終了・長さを確認できます。</output>
-<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><div class="nr-options"><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>コマ送りの基準fps<select id="nrFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="50"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">コマ送りは指定fpsの間隔です。元動画に合わせてください。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。指で上下左右にスクロールできます。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。編集・拍への量子化は行いません。</p></div>`;
+<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><div class="nr-options"><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>コマ送りの基準fps<select id="nrFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="50"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">コマ送りは指定fpsの間隔です。元動画に合わせてください。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズームできます。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。編集・拍への量子化は行いません。</p></div>`;
 $('noteScanResults').before(panel);
 const home=document.createComment('original video position');video.before(home);
 let data=null,notes=[],duration=0,pitchMin=48,pitchMax=72,viewStart=0,span=8,width=340,keyW=44,rowH=16,selected=null,hitRects=[];
@@ -42,11 +42,11 @@ function schedule(){
  while(nextNote<notes.length&&notes[nextNote].startSeconds<=horizon)voice(notes[nextNote++],t,rate);
 }
 function canvas(id,w,h){const can=$(id),dpr=Math.min(2,window.devicePixelRatio||1);can.width=Math.round(w*dpr);can.height=Math.round(h*dpr);can.style.width=w+'px';can.style.height=h+'px';const g=can.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);return g;}
-let pixelsPerSecond=40,scrollFrame=null;
+let pixelsPerSecond=40,scrollFrame=null,wantedSpan=8;
 function followState(){const on=$('nrFollow').checked;$('nrFollowButton').textContent=on?'追従 オン':'追従する';$('nrFollowButton').setAttribute('aria-pressed',String(on));}
 function render(){
  if(!panel.open||!data)return;
- const viewport=$('nrScroll');width=Math.max(240,viewport.clientWidth||340);span=$('nrZoom').value==='all'?duration:Math.min(duration,Number($('nrZoom').value));span=Math.max(.001,span);
+ const viewport=$('nrScroll');width=Math.max(240,viewport.clientWidth||340);span=Math.min(duration,wantedSpan);span=Math.max(.001,span);
  const plot=width-keyW-10;pixelsPerSecond=plot/span;const fullHeight=(pitchMax-pitchMin+1)*rowH;
  $('nrSurface').style.width=(width+(duration-span)*pixelsPerSecond)+'px';$('nrSurface').style.height=Math.max(viewport.clientHeight,fullHeight)+'px';
  viewStart=viewport.scrollLeft/pixelsPerSecond;const offsetY=viewport.scrollTop,h=viewport.clientHeight,g=canvas('nrRoll',width,h),r=canvas('nrRuler',width,27);
@@ -69,7 +69,7 @@ function paintCursor(){
 }
 function cursor(force=false){
  const t=video.currentTime;
- if(panel.open&&$('nrFollow').checked&&(force||t<viewStart||t>viewStart+span*.88)){
+ if(!contacts.size&&panel.open&&$('nrFollow').checked&&(force||t<viewStart||t>viewStart+span*.88)){
   const target=clamp(t-span*.18,0,Math.max(0,duration-span));const left=target*pixelsPerSecond;if(Math.abs($('nrScroll').scrollLeft-left)>.5){$('nrScroll').scrollLeft=left;render();}else paintCursor();
  }else paintCursor();
 }
@@ -83,21 +83,43 @@ function selectAt(event){
  else{selected=null;seek(viewStart+clamp((x-keyW)/(width-keyW-10),0,1)*span);$('nrSelected').textContent=`${video.currentTime.toFixed(3)}秒へ移動しました。ノートを選ぶと詳細を確認できます。`;}
  render();
 }
-let pointer=null;
-const viewport=$('nrScroll');
-viewport.addEventListener('pointerdown',e=>{pointer={x:e.clientX,y:e.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,id:e.pointerId,moved:false};});
-viewport.addEventListener('pointermove',e=>{if(!pointer)return;const dx=e.clientX-pointer.x,dy=e.clientY-pointer.y;if(Math.hypot(dx,dy)>6){pointer.moved=true;$('nrFollow').checked=false;followState();if(e.pointerType==='mouse'){viewport.setPointerCapture(e.pointerId);viewport.scrollLeft=pointer.left-dx;viewport.scrollTop=pointer.top-dy;}}});
-viewport.addEventListener('pointercancel',()=>{if(pointer){$('nrFollow').checked=false;followState();}pointer=null;});
-viewport.addEventListener('pointerup',e=>{if(pointer&&!pointer.moved)selectAt(e);pointer=null;});
-viewport.addEventListener('wheel',()=>{$('nrFollow').checked=false;followState();},{passive:true});
-viewport.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(e.key)){$('nrFollow').checked=false;followState();}});
-viewport.tabIndex=0;viewport.setAttribute('aria-label','ノート表示。上下左右にスクロールできます');
+const viewport=$('nrScroll'),contacts=new Map();let gesture=null,suppressTap=false;
+function local(e){const r=viewport.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};}
+function beginGesture(){const points=[...contacts.values()];gesture={points:points.map(p=>({...p})),left:viewport.scrollLeft,top:viewport.scrollTop,span,rowH,pps:pixelsPerSecond};}
+function zoomTo(nextSpan,nextRow,x=(width+keyW)/2,y=viewport.clientHeight/2,base=null){
+ const old=base||{left:viewport.scrollLeft,top:viewport.scrollTop,pps:pixelsPerSecond,rowH};
+ const time=(old.left+Math.max(0,x-keyW))/old.pps,pitch=(old.top+y)/old.rowH;
+ wantedSpan=clamp(nextSpan,Math.min(.25,duration),Math.max(.25,duration));rowH=clamp(nextRow,10,48);render();
+ viewport.scrollLeft=time*pixelsPerSecond-Math.max(0,x-keyW);viewport.scrollTop=pitch*rowH-y;render();
+ $('nrZoomX').value=String(duration>.25?clamp(100*Math.log(duration/wantedSpan)/Math.log(duration/.25),0,100):50);$('nrZoomY').value=String(rowH);
+}
+viewport.addEventListener('pointerdown',e=>{if(e.button!==0&&e.pointerType==='mouse')return;contacts.set(e.pointerId,local(e));viewport.setPointerCapture(e.pointerId);if(contacts.size>1)suppressTap=true;beginGesture();});
+viewport.addEventListener('pointermove',e=>{
+ if(!contacts.has(e.pointerId)||!gesture)return;contacts.set(e.pointerId,local(e));const p=[...contacts.values()],start=gesture.points;
+ if(p.length===2&&start.length===2){e.preventDefault();const scale=PianoRollEditorGesture.pinch(start[0],start[1],p[0],p[1]);const x=(start[0].x+start[1].x)/2,y=(start[0].y+start[1].y)/2;zoomTo(gesture.span/scale.x,gesture.rowH*scale.y,x,y,gesture);return;}
+ if(p.length!==1||start.length!==1)return;
+ const dx=p[0].x-start[0].x,dy=p[0].y-start[0].y;
+ if(Math.hypot(dx,dy)>6)suppressTap=true;if(!suppressTap)return;
+ // Vertical panning preserves follow. Only an intentional horizontal pan disengages it.
+ if(Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)*1.2){$('nrFollow').checked=false;followState();}
+ viewport.scrollLeft=gesture.left-dx;viewport.scrollTop=gesture.top-dy;e.preventDefault();
+});
+function endPointer(e,cancelled){
+ if(!contacts.has(e.pointerId))return;const tap=!cancelled&&!suppressTap&&contacts.size===1;contacts.delete(e.pointerId);if(viewport.hasPointerCapture(e.pointerId))viewport.releasePointerCapture(e.pointerId);
+ if(tap)selectAt(e);if(contacts.size)beginGesture();else{gesture=null;suppressTap=false;cursor();wake();}
+}
+viewport.addEventListener('pointerup',e=>endPointer(e,false));viewport.addEventListener('pointercancel',e=>endPointer(e,true));
+viewport.addEventListener('lostpointercapture',e=>{if(contacts.has(e.pointerId))endPointer(e,true);});
+viewport.addEventListener('wheel',e=>{if(Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.shiftKey){$('nrFollow').checked=false;followState();}},{passive:true});
+viewport.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){$('nrFollow').checked=false;followState();}});
+viewport.tabIndex=0;viewport.setAttribute('aria-label','ノート表示。一指でスクロール、二指で縦横ズーム');
 viewport.addEventListener('scroll',()=>{if(scrollFrame===null)scrollFrame=requestAnimationFrame(()=>{scrollFrame=null;render();});},{passive:true});
-$('nrFollowButton').onclick=()=>{$('nrFollow').checked=true;followState();cursor(true);};
-function pitchZoom(delta){const old=rowH,center=viewport.scrollTop+viewport.clientHeight/2;rowH=clamp(rowH+delta,10,36);render();viewport.scrollTop=center/old*rowH-viewport.clientHeight/2;render();$('nrPitchOut').disabled=rowH<=10;$('nrPitchIn').disabled=rowH>=36;}
-$('nrPitchOut').onclick=()=>pitchZoom(-2);$('nrPitchIn').onclick=()=>pitchZoom(2);
+$('nrFollowButton').onclick=()=>{$('nrFollow').checked=!$('nrFollow').checked;followState();cursor(true);};
+$('nrZoomX').oninput=()=>zoomTo(Math.max(.25,duration)*Math.pow(.25/Math.max(.25,duration),Number($('nrZoomX').value)/100),rowH);
+$('nrZoomY').oninput=()=>zoomTo(span,Number($('nrZoomY').value));
+viewport.addEventListener('dblclick',e=>e.preventDefault());
 function applyMode(){if(panel.open)video.muted=$('nrMode').value==='notes';stopSound();wake();}
-function close(){token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
+function close(){contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
 function onData(){
  const state=scan.getState();openButton.disabled=!state.hasResult||state.running;
  if(state.running||!state.hasResult){close();if(!state.hasResult){data=null;notes=[];selected=null;}return;}
@@ -111,7 +133,7 @@ function onData(){
 openButton.onclick=()=>{if(!data)return;panel.open=true;panel.scrollIntoView({block:'start',behavior:'smooth'});};
 panel.addEventListener('toggle',()=>{
  if(!panel.open){close();return;}if(!data||scan.running){panel.open=false;return;}
- oldVideo={muted:video.muted,rate:video.playbackRate};video.pause();$('nrVideo').append(video);video.playbackRate=Number($('nrRate').value);applyMode();render();$('nrScroll').scrollTop=Math.max(0,((pitchMax-pitchMin+1)*rowH-$('nrScroll').clientHeight)/2);render();cursor(true);wake();
+ oldVideo={muted:video.muted,rate:video.playbackRate};video.pause();$('nrVideo').append(video);video.playbackRate=Number($('nrRate').value);applyMode();render();zoomTo(wantedSpan,rowH);$('nrScroll').scrollTop=Math.max(0,((pitchMax-pitchMin+1)*rowH-$('nrScroll').clientHeight)/2);render();cursor(true);wake();
 });
 $('nrPlay').onclick=async()=>{
  if(!panel.open||!data||starting)return;if(!video.paused){token++;video.pause();stopSound();return;}
@@ -124,7 +146,7 @@ $('nrStop').onclick=()=>seek(0);$('nrPrev').onclick=()=>seek(video.currentTime-1
 $('nrRate').onchange=()=>{if(panel.open)video.playbackRate=Number($('nrRate').value);stopSound();wake();};
 $('nrMode').onchange=()=>{void audioReady().then(()=>{applyMode();wake();}).catch(e=>{$('nrAudioNotice').hidden=false;$('nrAudioNotice').textContent='抽出音を有効にできません：'+e.message;});};
 $('nrVolume').oninput=()=>{if(master)master.gain.setValueAtTime(Number($('nrVolume').value)/100,ctx.currentTime);};
-$('nrZoom').onchange=()=>{const wanted=$('nrZoom').value==='all'?duration:Number($('nrZoom').value);render();$('nrScroll').scrollLeft=Math.max(0,video.currentTime-wanted/2)*pixelsPerSecond;render();};$('nrPan').oninput=()=>{$('nrScroll').scrollLeft=Number($('nrPan').value)*pixelsPerSecond;$('nrFollow').checked=false;render();};$('nrFollow').onchange=()=>{followState();cursor(true);};
+$('nrPan').oninput=()=>{$('nrScroll').scrollLeft=Number($('nrPan').value)*pixelsPerSecond;$('nrFollow').checked=false;render();};$('nrFollow').onchange=()=>{followState();cursor(true);};
 for(const event of ['pause','ended','seeking','ratechange','waiting'])video.addEventListener(event,()=>{if(event==='waiting')buffering=true;stopSound();cursor();if(!video.paused)wake();});
 video.addEventListener('seeked',()=>{buffering=false;cursor();wake();});video.addEventListener('playing',()=>{buffering=false;wake();if(panel.open&&$('nrMode').value!=='video')void audioReady().catch(()=>{});});video.addEventListener('timeupdate',()=>{if(panel.open)cursor();});
 document.addEventListener('visibilitychange',()=>{stopSound();if(!document.hidden)wake();});
