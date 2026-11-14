@@ -73,3 +73,12 @@
 #noteReview .nr-mode-notice{position:absolute;z-index:3;top:90px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:7px;white-space:nowrap;background:#953549;color:#fff;border:1px solid #be6576;border-radius:18px;padding:6px 12px;font-size:12px;font-weight:600;box-shadow:0 3px 10px #51232a26;pointer-events:none}
 #noteReview .nr-mode-notice span{font-size:8px;color:#ffbeca}
 #noteReview .nr-toolbar button:disabled{opacity:.35}
+
+/* 0.7.12: prominent exit, follow selector adjacent, temporary mode notice. */
+#noteReview .nr-toolbar #nrDone{background:#245bd6;color:#fff;opacity:1;font-weight:600}
+#noteReview .nr-toolbar #nrDone:active{background:#1746aa}
+#noteReview .nr-bottom{grid-template-columns:36px 36px 110px minmax(65px,1fr) minmax(65px,1fr) 150px}
+#noteReview .nr-mode-notice:not([hidden]){animation:nrNoticeFade 2.35s linear both}
+@keyframes nrNoticeFade{0%,85%{opacity:1}100%{opacity:0}}
+@media(max-width:700px){#noteReview .nr-bottom{grid-template-columns:32px 32px 100px minmax(60px,1fr) minmax(60px,1fr)}}
+@media(max-width:370px){#noteReview .nr-bottom{grid-template-columns:28px 28px 90px minmax(45px,1fr) minmax(45px,1fr)}}
