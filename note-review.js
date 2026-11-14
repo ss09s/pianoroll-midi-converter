@@ -1,4 +1,4 @@
-/* 0.7.5: read-only seconds-based piano roll, synchronized with the original video. */
+/* 0.7.6: read-only seconds-based piano roll, synchronized with the original video. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),video=$('v'),core=PianoRollNoteCore,scan=PianoRollVideoNoteScan;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -6,7 +6,7 @@ const openButton=document.createElement('button');openButton.id='noteReviewOpen'
 const panel=document.createElement('details');panel.id='noteReview';panel.className='note-review';panel.innerHTML=`<summary>原動画と抽出ノートを比較</summary><div class="nr-body">
 <div class="nr-warning" id="nrWarning" hidden></div><div class="nr-layout"><div class="nr-video" id="nrVideo"></div><div class="nr-editor">
 <div class="nr-controls"><button id="nrPlay" type="button">▶ 再生</button><button id="nrStop" class="secondary" type="button">■ 停止</button><button id="nrPrev" class="secondary" type="button" aria-label="指定fpsで1コマ戻る">−1コマ</button><button id="nrNext" class="secondary" type="button" aria-label="指定fpsで1コマ進む">＋1コマ</button><output class="nr-time" id="nrTime">0.00秒</output></div>
-<div class="nr-controls"><label>聴き方<select id="nrMode"><option value="both">原曲 ＋ 抽出音</option><option value="video">原曲のみ</option><option value="notes">抽出音のみ</option></select></label></div>
+<div class="nr-controls"><label class="nr-mix"><span>原音</span><input id="nrMix" aria-label="原音と抽出音の比率" type="range" min="0" max="100" step="1" value="50"/><span>抽出音</span><output id="nrMixInfo">50 : 50</output></label></div>
 <div class="nr-controls nr-view-tools"><button type="button" id="nrExpand" aria-pressed="false">拡大表示</button><button type="button" id="nrFollowButton" aria-pressed="true">追従 オン</button><label>横ズーム<input id="nrZoomX" type="range" min="0" max="100" step="0.1" value="50"/></label><label>縦ズーム<input id="nrZoomY" type="range" min="1" max="48" step="0.1" value="16"/></label><label>追従方式<select id="nrFollowMode"><option value="fixed" selected>バー固定</option><option value="page">ページ送り</option></select></label></div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
 <label class="nr-pan" hidden>表示位置<input id="nrPan" type="range" min="0" max="1" step="0.01" value="0"/><span id="nrRange">0–8秒</span></label>
 </div></div><output class="nr-selected" id="nrSelected" aria-live="polite">ノートをタップすると、音高・開始・終了・長さを確認できます。</output>
@@ -14,16 +14,16 @@ const panel=document.createElement('details');panel.id='noteReview';panel.classN
 $('noteScanResults').before(panel);
 const home=document.createComment('original video position');video.before(home);
 let data=null,notes=[],duration=0,pitchMin=48,pitchMax=72,viewStart=0,span=8,width=340,keyW=44,rowH=16,selected=null,hitRects=[];
-let ctx=null,master=null,limiter=null,raf=null,buffering=false,starting=false,token=0,nextNote=0,needsActive=true,seen=new Set(),clock=null,oldVideo=null,lastText=0;
+let ctx=null,master=null,limiter=null,mediaSource=null,originalGain=null,raf=null,buffering=false,starting=false,token=0,nextNote=0,needsActive=true,seen=new Set(),clock=null,oldVideo=null,lastText=0;
 const voices=new Map();
 function stopSound(){
  for(const {osc,gain} of voices.values()){try{osc.stop();osc.disconnect();gain.disconnect();}catch(_){}}
  voices.clear();seen.clear();nextNote=0;needsActive=true;clock=null;
 }
 async function audioReady(){
- if($('nrMode').value==='video')return;
- if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();master=ctx.createGain();master.gain.value=Number($('nrVolume').value)/100;limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-18;limiter.ratio.value=6;master.connect(limiter);limiter.connect(ctx.destination);}
- await ctx.resume();$('nrAudioNotice').hidden=ctx.state==='running';
+
+ if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();master=ctx.createGain();master.gain.value=Number($('nrVolume').value)/100*mixValue();mediaSource=ctx.createMediaElementSource(video);originalGain=ctx.createGain();mediaSource.connect(originalGain);originalGain.connect(ctx.destination);originalGain.gain.value=panel.open?1-mixValue():1;limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-18;limiter.ratio.value=6;master.connect(limiter);limiter.connect(ctx.destination);}
+ applyMix();await ctx.resume();$('nrAudioNotice').hidden=ctx.state==='running';
 }
 function voice(note,time,rate){
  if(seen.has(note.id)||note.endSeconds<=time||!ctx||ctx.state!=='running')return;
@@ -33,7 +33,7 @@ function voice(note,time,rate){
  osc.connect(gain);gain.connect(master);voices.set(note.id,{osc,gain});osc.onended=()=>{if(voices.get(note.id)?.osc===osc)voices.delete(note.id);try{osc.disconnect();gain.disconnect();}catch(_){}};osc.start(when);osc.stop(end+.012);
 }
 function schedule(){
- if(!panel.open||video.paused||video.seeking||buffering||document.hidden||$('nrMode').value==='video'||!ctx||ctx.state!=='running')return;
+ if(!panel.open||video.paused||video.seeking||buffering||document.hidden||mixValue()===0||!ctx||ctx.state!=='running')return;
  const t=video.currentTime,rate=video.playbackRate;
  if(clock&&(rate!==clock.rate||Math.abs(t-(clock.t+(ctx.currentTime-clock.a)*rate))>.12))stopSound();
  clock={t,a:ctx.currentTime,rate};
@@ -77,7 +77,7 @@ function paintCursor(){
 }
 function cursor(force=false){
  const t=video.currentTime;
- if(!contacts.size&&panel.open&&$('nrFollow').checked&&($('nrFollowMode').value!=='page'||force||t<viewStart||t>viewStart+span*.88)){
+ if(!contacts.size&&panel.open&&$('nrFollow').checked&&(!video.paused||force)&&($('nrFollowMode').value!=='page'||force||t<viewStart||t>viewStart+span*.88)){
   const target=$('nrFollowMode').value==='page'?clamp(t-span*.18,0,Math.max(0,duration-span)):t;const left=target*pixelsPerSecond;if(Math.abs($('nrScroll').scrollLeft-left)>.5){$('nrScroll').scrollLeft=left;render();}else paintCursor();
  }else paintCursor();
 }
@@ -113,7 +113,7 @@ viewport.addEventListener('pointermove',e=>{
  const dx=p[0].x-start[0].x,dy=p[0].y-start[0].y;
  if(Math.hypot(dx,dy)>6)suppressTap=true;if(!suppressTap)return;
  // Vertical panning preserves follow. Only an intentional horizontal pan disengages it.
- if(Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)*1.2){$('nrFollow').checked=false;followState();}
+ if(!video.paused&&Math.abs(dx)>8&&Math.abs(dx)>Math.abs(dy)*1.2){$('nrFollow').checked=false;followState();}
  const now=performance.now(),dt=Math.max(1,now-lastMove.time);velocity={x:clamp((lastMove.x-p[0].x)/dt,-3,3),y:clamp((lastMove.y-p[0].y)/dt,-3,3)};lastMove={...p[0],time:now};viewport.scrollLeft=gesture.left-dx;viewport.scrollTop=gesture.top-dy;e.preventDefault();
 });
 function endPointer(e,cancelled){
@@ -122,8 +122,8 @@ function endPointer(e,cancelled){
 }
 viewport.addEventListener('pointerup',e=>endPointer(e,false));viewport.addEventListener('pointercancel',e=>endPointer(e,true));
 viewport.addEventListener('lostpointercapture',e=>{if(contacts.has(e.pointerId))endPointer(e,true);});
-viewport.addEventListener('wheel',e=>{stopInertia();if(Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.shiftKey){$('nrFollow').checked=false;followState();}},{passive:true});
-viewport.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){$('nrFollow').checked=false;followState();}});
+viewport.addEventListener('wheel',e=>{stopInertia();if(!video.paused&&(Math.abs(e.deltaX)>Math.abs(e.deltaY)||e.shiftKey)){$('nrFollow').checked=false;followState();}},{passive:true});
+viewport.addEventListener('keydown',e=>{if(!video.paused&&['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){$('nrFollow').checked=false;followState();}});
 viewport.tabIndex=0;viewport.setAttribute('aria-label','ノート表示。一指でスクロール、二指で縦横ズーム');
 viewport.addEventListener('scroll',()=>{if(scrollFrame===null)scrollFrame=requestAnimationFrame(()=>{scrollFrame=null;render();});},{passive:true});
 $('nrFollowButton').onclick=()=>{$('nrFollow').checked=!$('nrFollow').checked;followState();cursor(true);};
@@ -135,8 +135,10 @@ $('nrFollowMode').onchange=()=>{stopInertia();render();cursor(true);};
 $('nrZoomX').oninput=()=>zoomTo(Math.max(.25,duration)*Math.pow(.25/Math.max(.25,duration),Number($('nrZoomX').value)/100),rowH);
 $('nrZoomY').oninput=()=>zoomTo(span,Number($('nrZoomY').value));
 viewport.addEventListener('dblclick',e=>e.preventDefault());
-function applyMode(){if(panel.open)video.muted=$('nrMode').value==='notes';stopSound();wake();}
-function close(){panel.classList.remove('nr-expanded');$('nrExpand').textContent='拡大表示';$('nrExpand').setAttribute('aria-pressed','false');stopInertia();contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
+function mixValue(){return clamp(Number($('nrMix').value)/100,0,1);}
+function applyMix(){const mix=mixValue();$('nrMixInfo').textContent=`${Math.round((1-mix)*100)} : ${Math.round(mix*100)}`;if(panel.open)video.muted=mix===1;if(originalGain)originalGain.gain.setValueAtTime(panel.open?1-mix:1,ctx.currentTime);if(master)master.gain.setValueAtTime(Number($('nrVolume').value)/100*mix,ctx.currentTime);}
+function applyMode(){applyMix();stopSound();wake();}
+function close(){panel.classList.remove('nr-expanded');$('nrExpand').textContent='拡大表示';$('nrExpand').setAttribute('aria-pressed','false');stopInertia();contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){if(originalGain)originalGain.gain.setValueAtTime(1,ctx.currentTime);video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
 function onData(){
  const state=scan.getState();openButton.disabled=!state.hasResult||state.running;
  if(state.running||!state.hasResult){close();if(!state.hasResult){data=null;notes=[];selected=null;}return;}
@@ -161,14 +163,15 @@ $('nrPlay').onclick=async()=>{
 };
 $('nrStop').onclick=()=>seek(0);$('nrPrev').onclick=()=>seek(video.currentTime-1/Number($('nrFps').value));$('nrNext').onclick=()=>seek(video.currentTime+1/Number($('nrFps').value));
 $('nrRate').onchange=()=>{if(panel.open)video.playbackRate=Number($('nrRate').value);stopSound();wake();};
-$('nrMode').onchange=()=>{void audioReady().then(()=>{applyMode();wake();}).catch(e=>{$('nrAudioNotice').hidden=false;$('nrAudioNotice').textContent='抽出音を有効にできません：'+e.message;});};
-$('nrVolume').oninput=()=>{if(master)master.gain.setValueAtTime(Number($('nrVolume').value)/100,ctx.currentTime);};
-$('nrPan').oninput=()=>{$('nrScroll').scrollLeft=Number($('nrPan').value)*pixelsPerSecond;$('nrFollow').checked=false;render();};$('nrFollow').onchange=()=>{followState();cursor(true);};
+$('nrMix').oninput=()=>{applyMix();if(mixValue()===0)stopSound();else{needsActive=true;wake();}void audioReady().then(wake).catch(e=>{$('nrAudioNotice').hidden=false;$('nrAudioNotice').textContent='音声を有効にできません：'+e.message;});};
+$('nrVolume').oninput=applyMix;
+$('nrPan').oninput=()=>{$('nrScroll').scrollLeft=Number($('nrPan').value)*pixelsPerSecond;if(!video.paused)$('nrFollow').checked=false;render();};$('nrFollow').onchange=()=>{followState();cursor(true);};
 for(const event of ['pause','ended','seeking','ratechange','waiting'])video.addEventListener(event,()=>{if(event==='waiting')buffering=true;stopSound();cursor();if(!video.paused)wake();});
-video.addEventListener('seeked',()=>{buffering=false;cursor();wake();});video.addEventListener('playing',()=>{buffering=false;wake();if(panel.open&&$('nrMode').value!=='video')void audioReady().catch(()=>{});});video.addEventListener('timeupdate',()=>{if(panel.open)cursor();});
+video.addEventListener('seeked',()=>{buffering=false;cursor();wake();});video.addEventListener('playing',()=>{buffering=false;wake();if(panel.open)void audioReady().catch(()=>{});});video.addEventListener('timeupdate',()=>{if(panel.open)cursor();});
 document.addEventListener('visibilitychange',()=>{stopInertia();stopSound();if(!document.hidden)wake();});
-window.addEventListener('pianoroll-notes-change',onData);window.addEventListener('pagehide',()=>{close();if(ctx)void ctx.close();ctx=null;});
+window.addEventListener('pianoroll-notes-change',onData);window.addEventListener('pagehide',e=>{close();if(ctx){if(e.persisted)void ctx.suspend();else void ctx.close();}});
+video.addEventListener('pointerdown',()=>{if(ctx)void ctx.resume().catch(()=>{});});
 new ResizeObserver(()=>{if(panel.open)render();}).observe($('nrScroll'));
-window.PianoRollNoteReview={getState:()=>({open:panel.open,timeSeconds:video.currentTime,selectedNote:selected,noteCount:notes.length,viewStartSeconds:viewStart,viewSpanSeconds:span,pitchMin,pitchMax,keyWidth:keyW,width,rowHeight:rowH,minimumRowHeight:minRow(),inertiaActive:inertia!==null,followMode:$('nrFollowMode').value,scrollTop:viewport.scrollTop,following:$('nrFollow').checked,liveVoices:voices.size,mode:$('nrMode').value,audioState:ctx?.state||'not-created'}),close};
+window.PianoRollNoteReview={getState:()=>({open:panel.open,timeSeconds:video.currentTime,selectedNote:selected,noteCount:notes.length,viewStartSeconds:viewStart,viewSpanSeconds:span,pitchMin,pitchMax,keyWidth:keyW,width,rowHeight:rowH,minimumRowHeight:minRow(),inertiaActive:inertia!==null,followMode:$('nrFollowMode').value,scrollTop:viewport.scrollTop,following:$('nrFollow').checked,liveVoices:voices.size,mixRatio:mixValue(),originalLevel:originalGain?.gain.value??null,synthLevel:master?.gain.value??null,audioState:ctx?.state||'not-created'}),close};
 onData();
 })();
