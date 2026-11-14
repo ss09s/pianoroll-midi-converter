@@ -28,3 +28,32 @@
 .nr-editing .nr-ruler{background:#fff0f1;border-color:#d98c97}.nr-editing .nr-scroll{border-color:#d98c97}.nr-editing #nrEdit{background:#b52e45;color:white}
 #nrUnlimitedZoom{width:20px;height:20px}.nr-view-tools button:disabled{opacity:.35}
 @media(orientation:landscape) and (max-height:520px){.nr-expanded .nr-mix{max-width:300px}.nr-expanded .nr-controls{margin-bottom:2px}.nr-expanded .nr-controls button{min-height:28px}.nr-expanded .nr-view-tools label{min-width:90px}}
+
+/* 0.7.9: one wrapping toolbar; root-level overlay follows Safari visual viewport. */
+.nr-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:5px;width:100%}
+.nr-toolbar label{display:flex;flex:none;gap:4px;white-space:nowrap;font-size:12px}
+.nr-toolbar input[type=range]{width:100px;min-width:45px;max-width:120px;padding:0;accent-color:#245bd6;touch-action:pan-y}
+.nr-toolbar .nr-mix{width:auto;gap:4px}.nr-toolbar .nr-mix input{width:105px;flex:none}
+.nr-toolbar .nr-mix output{min-width:45px}.nr-toolbar button{touch-action:manipulation;transition:filter .1s,transform .1s}
+.nr-toolbar button:active:not(:disabled){filter:brightness(.72);transform:scale(.94)}
+.nr-toolbar button svg{width:21px;height:21px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nr-toolbar #nrStart,.nr-toolbar #nrUndo,.nr-toolbar #nrRedo{display:inline-flex;align-items:center;justify-content:center;min-width:36px;padding:6px}
+#nrDone{position:static;margin-left:auto;flex:none;min-height:34px}
+.nr-expanded{right:auto!important;bottom:auto!important;max-width:none!important;max-height:none!important;z-index:2147483000;overscroll-behavior:none}
+.nr-expanded>.nr-body{padding:max(4px,env(safe-area-inset-top)) max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left))}
+.nr-expanded .nr-editor>.nr-controls:first-of-type{padding-right:0;min-height:0}
+.nr-expanded .nr-toolbar{gap:4px;margin-bottom:4px;flex:none}
+.nr-expanded .nr-toolbar label{min-width:0;font-size:12px}
+.nr-expanded .nr-toolbar button{min-height:34px;font-size:13px;padding:5px 8px}
+.nr-expanded .nr-toolbar input[type=range]{width:95px;max-width:110px}
+.nr-expanded .nr-toolbar .nr-mix{max-width:none;width:auto}
+.nr-expanded #nrDone{order:99;display:block}
+.nr-expanded #nrExpand{display:none}
+.nr-toolbar #nrExpand{order:-1}
+@media(max-width:500px){.nr-toolbar{gap:4px}.nr-toolbar button{padding:6px;min-height:36px;font-size:12px}.nr-toolbar input[type=range]{width:75px}.nr-toolbar .nr-mix input{width:80px}.nr-time{font-size:12px}.nr-expanded .nr-toolbar input[type=range]{width:75px}}
+
+.nr-expanded .nr-toolbar{position:relative;padding-right:68px}.nr-expanded #nrDone{position:absolute;right:0;top:0;margin:0}
+
+.nr-toolbar{box-sizing:border-box}
+
+.nr-expanded .nr-editor>.nr-toolbar:first-of-type{padding-right:64px}
