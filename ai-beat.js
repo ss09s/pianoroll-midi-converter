@@ -8,9 +8,10 @@
   'use strict';
   const SAMPLE_RATE=22050, HOP=441, BANDS=128, WINDOW=1500, BORDER=6;
   const WASM_PATHS='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
-  const MODEL_LIGHT='https://cdn.jsdelivr.net/gh/danigb/beat-this-rs@main/models/beat_this_small.onnx';
-  const MODEL_FULL='https://huggingface.co/aaatmy/beat-this-onnx/resolve/main/beat-this-final0.onnx?download=true';
-  const MODEL_FULL_FALLBACK='https://github.com/jgorset/beat-this/releases/download/v1.0.0/beat-this.onnx';
+  const MODEL_LIGHT='./beat-this-small.onnx';
+  const MODEL_FULL='./beat-this-full.part1.bin';
+  const FULL_PARTS=[{"file": "beat-this-full.part1.bin", "bytes": 20971520, "sha256": "4206f52e7628b04dc70e08812d757611d8c5b552d2beeec1a28622fa5db7e067"}, {"file": "beat-this-full.part2.bin", "bytes": 20971520, "sha256": "98037a414a6fed2ebc9ff85ee67a118f068da62e5bc890963ea9a74591edbf44"}, {"file": "beat-this-full.part3.bin", "bytes": 20971520, "sha256": "7a47302547d0dc214d1cd65c7326518108ffbad7e6a57d7c2a3a7c4c424d06ab"}, {"file": "beat-this-full.part4.bin", "bytes": 19184286, "sha256": "5d15c23b891d4b83216379d96e86ccd98fce0ed80956413028e3cd37fbdb6361"}];
+  const FULL_BYTES=82098846;
   const LIBRARY_CDNS=[
     'https://esm.sh/@jgorset/beat-this@1.0.0?bundle',
     'https://cdn.jsdelivr.net/npm/@jgorset/beat-this@1.0.0/+esm'
@@ -58,37 +59,22 @@
     }
     return output;
   }
-  // Many browsers refuse model loading after a GitHub Releases redirect (CORS,
-  // intermediate auth or a URL fetch problem). Fetch explicitly and give a
-  // useful error, instead of passing a URL to ONNX Runtime and getting "Load failed".
-  // Hugging Face hosts the original final0 export (spectrogram -> beat/downbeat).
-  // This may still fail if the host is blocked, offline, or memory is exhausted.
+  // Same-origin model parts are assembled sequentially; no external-model fallback.
   async function fetchFullModel(progress,signal){
-    const origins=[MODEL_FULL,MODEL_FULL_FALLBACK],problems=[];
-    for(let ix=0;ix<origins.length;ix++){
+    const model=new Uint8Array(FULL_BYTES);let offset=0;
+    for(let i=0;i<FULL_PARTS.length;i++){
+      check(signal);const part=FULL_PARTS[i];
+      progress(`同梱の高精度モデルを読み込み中：${i+1}/${FULL_PARTS.length}…`);
+      const response=await fetch('./'+part.file,{cache:'default',signal});
+      if(!response.ok)throw new Error(part.file+' を読み込めません（HTTP '+response.status+'）。index.htmlと同じ場所に全パーツをアップロードしてください。');
+      const chunk=new Uint8Array(await response.arrayBuffer());
       check(signal);
-      const url=origins[ix];
-      let response;
-      try{
-        progress(`高精度モデルを取得中：提供元${ix+1}/${origins.length}（約82MB）…`);
-        response=await fetch(url,{mode:'cors',cache:'default',signal});
-        if(!response.ok)throw new Error('HTTP '+response.status);
-        const type=response.headers.get('content-type')||'';
-        const size=Number(response.headers.get('content-length')||0);
-        if(size && size < 30000000)throw new Error('応答がONNXモデルではありません（容量 '+size+' bytes）');
-        // The full ONNX model is ~82 MB. No extra copy: keep one ArrayBuffer.
-        const body=await response.arrayBuffer();
-        check(signal);
-        if(body.byteLength<30000000)throw new Error('不完全なモデル（'+body.byteLength+' bytes、HTML/認証画面の可能性）');
-        progress(`高精度モデル取得済み（${(body.byteLength/1048576).toFixed(1)}MiB）。初期化しています…`);
-        return new Uint8Array(body);
-      }catch(e){
-        if(signal.aborted)throw abortError();
-        problems.push(`提供元${ix+1}: ${e?.message||String(e)}`);
-      }
+      if(chunk.length!==part.bytes)throw new Error(part.file+' の容量が不正です。再アップロードしてください。');
+      model.set(chunk,offset);offset+=chunk.length;
     }
-    throw new Error('高精度モデルを自動取得できません。'+problems.join(' / ')+'。ダウンロード済みの .onnx を「手元のモデル」で選択すると利用できます。');
+    return model;
   }
+
   const logitValid=(v)=>v instanceof Float32Array && v.length>0;
   function getOutput(result,name,session){
     let tensor=result[name];
@@ -124,7 +110,7 @@
         modelSource=new Uint8Array(await options.modelFile.arrayBuffer());
         check(signal);
       }else if(isFull){
-        stage='高精度モデルのダウンロード';
+        stage='同梱モデルの読み込み';
         modelSource=await fetchFullModel(progress,signal);
       }
       stage='ONNXモデルの取得・初期化';progress('モデル初期化中（軽量：約10MB／高精度：約83MB）…');

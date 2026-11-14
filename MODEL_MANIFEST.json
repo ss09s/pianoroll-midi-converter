@@ -1,0 +1,27 @@
+{
+  "fullBytes": 82098846,
+  "fullSha256": "e5e37b7d1802895e42559c5a1ced7619b1601d257a5c8e167c9d45de37c1b078",
+  "parts": [
+    {
+      "file": "beat-this-full.part1.bin",
+      "bytes": 20971520,
+      "sha256": "4206f52e7628b04dc70e08812d757611d8c5b552d2beeec1a28622fa5db7e067"
+    },
+    {
+      "file": "beat-this-full.part2.bin",
+      "bytes": 20971520,
+      "sha256": "98037a414a6fed2ebc9ff85ee67a118f068da62e5bc890963ea9a74591edbf44"
+    },
+    {
+      "file": "beat-this-full.part3.bin",
+      "bytes": 20971520,
+      "sha256": "7a47302547d0dc214d1cd65c7326518108ffbad7e6a57d7c2a3a7c4c424d06ab"
+    },
+    {
+      "file": "beat-this-full.part4.bin",
+      "bytes": 19184286,
+      "sha256": "5d15c23b891d4b83216379d96e86ccd98fce0ed80956413028e3cd37fbdb6361"
+    }
+  ],
+  "smallSha256": "a5f8d39d989f31859454ba27afe61c5317ca95e4d9373e6853e5361b8937172f"
+}

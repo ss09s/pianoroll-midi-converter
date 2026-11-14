@@ -1,0 +1,24 @@
+{
+  "results": [
+    {
+      "model": "light",
+      "beats": 32,
+      "downbeats": 20,
+      "seconds": 28.573799999999814
+    },
+    {
+      "model": "full",
+      "beats": 32,
+      "downbeats": 13,
+      "seconds": 8.755300000000279
+    }
+  ],
+  "modelRequests": [
+    "http://127.0.0.1:8765/beat-this-small.onnx",
+    "http://127.0.0.1:8765/beat-this-full.part1.bin",
+    "http://127.0.0.1:8765/beat-this-full.part2.bin",
+    "http://127.0.0.1:8765/beat-this-full.part3.bin",
+    "http://127.0.0.1:8765/beat-this-full.part4.bin"
+  ],
+  "errors": []
+}
