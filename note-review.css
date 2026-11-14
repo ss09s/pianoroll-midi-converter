@@ -9,3 +9,22 @@
 .nr-expanded{margin:0!important;width:100%;max-width:100%}
 
 .nr-mix{display:flex;gap:8px;align-items:center;width:min(100%,400px)}.nr-mix input{min-width:60px;flex:1;accent-color:#245bd6;touch-action:pan-y}.nr-mix output{font-size:.75rem;min-width:55px}.nr-scroll{height:clamp(360px,55svh,640px)}@media(orientation:landscape) and (min-width:600px){.nr-scroll{height:clamp(360px,72svh,760px)}.nr-expanded .nr-scroll{height:auto;min-height:200px}.nr-expanded .nr-controls{margin-bottom:4px}.nr-expanded>.nr-body{height:calc(100dvh - 42px)}}
+
+/* 0.7.8 editor-only overlay; the grid owns all remaining viewport space. */
+#nrDone{position:absolute;right:max(8px,env(safe-area-inset-right));top:max(6px,env(safe-area-inset-top));z-index:2;min-height:36px;touch-action:manipulation}
+.nr-expanded{inset:0;height:100dvh;height:100svh;overflow:hidden;padding:0;background:#f8faff}
+.nr-expanded>summary,.nr-expanded .nr-video,.nr-expanded .nr-selected,.nr-expanded .nr-settings,.nr-expanded .nr-help,.nr-expanded .nr-warning,.nr-expanded .nr-pan{display:none!important}
+.nr-expanded>.nr-body{position:absolute;inset:0;height:auto;padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left));display:flex;flex-direction:column}
+.nr-expanded .nr-layout{gap:0;flex:1;min-height:0;width:100%}
+.nr-expanded .nr-editor{display:flex;flex-direction:column;flex:1;min-height:0}
+.nr-expanded .nr-editor>.nr-controls:first-of-type{padding-right:86px;min-height:36px}
+.nr-expanded .nr-controls{flex-shrink:0;gap:4px;margin-bottom:4px}
+.nr-expanded .nr-controls button{min-height:32px;padding:5px 8px;font-size:13px;line-height:1.2}
+.nr-expanded .nr-controls label{font-size:12px;min-width:90px}
+.nr-expanded .nr-controls select{font-size:14px;padding:3px}
+.nr-expanded .nr-scroll{flex:1 1 0;height:0;min-height:0;max-height:none}
+.nr-expanded .nr-ruler{flex:0 0 27px}
+.nr-expanded #nrExpand{display:none}
+.nr-editing .nr-ruler{background:#fff0f1;border-color:#d98c97}.nr-editing .nr-scroll{border-color:#d98c97}.nr-editing #nrEdit{background:#b52e45;color:white}
+#nrUnlimitedZoom{width:20px;height:20px}.nr-view-tools button:disabled{opacity:.35}
+@media(orientation:landscape) and (max-height:520px){.nr-expanded .nr-mix{max-width:300px}.nr-expanded .nr-controls{margin-bottom:2px}.nr-expanded .nr-controls button{min-height:28px}.nr-expanded .nr-view-tools label{min-width:90px}}
