@@ -18,7 +18,6 @@ function render(){const host=$('scanPerformanceBody'),comparison=$('scanPerforma
  para(host,m.engine==='webcodecs-worker'?'待機中に描画・判定も動くため、各時間は重複します。合計や割合にはできません。キュー待機は純粋なデコード時間ではありません。':'画像の描画・読み出しは「再生位置の移動待ち」と別に計測します。処理本体には進捗更新なども含みます。');
  if(m.fallbackReason)para(host,'高速方式から切り替え：'+String(m.fallbackReason).slice(0,500));
  para(host,'実測：描画・変換、画素読み出し、判定など。未確認：実際のCPUコア使用数、動画専用回路の使用、純粋なデコード時間。論理プロセッサ数は使用コア数ではありません。');
- if(m.imagePath)para(host,'画像取得：'+(m.imagePath==='source-strip'?'必要な領域の切り出し':'全体から取得')+(m.sourceStrip&&m.imagePath==='source-strip'?`（元画像の ${m.sourceStrip.width}×${m.sourceStrip.height}px）`:'')+'。');
  para(host,current.environment.browser);
  if(other){const c=compare(current,other);para(comparison,'比較：この端末 − 読み込んだ端末（＋はこの端末の方が遅い）');for(const w of c.warnings)para(comparison,'条件の違い：'+w);para(comparison,'名前・サイズ・長さの一致だけでは動画内容の同一性は保証できません。電源設定・温度・他アプリの負荷も揃えて比較してください。');
  table(comparison,['項目','この端末','読込結果','差'],c.rows.map(r=>[r.label,sec(r.current),sec(r.other),(r.difference>0?'+':'')+sec(r.difference)]));

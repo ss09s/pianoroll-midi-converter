@@ -1,13 +1,12 @@
-import {createRowReader} from './video-row-reader.mjs?v=0.7.19';
-import {videoPackets} from './video-demux.mjs?v=0.7.19';
-import './note-core.js?v=0.7.19';
-import {decoderColorSpace} from './video-color.mjs?v=0.7.19';
-import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.19';
+import {videoPackets} from './video-demux.mjs?v=0.7.18';
+import './note-core.js?v=0.7.18';
+import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
+import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
 const core=globalThis.PianoRollNoteCore;
 self.onmessage=async({data})=>{
  if(data.type!=='scan')return;
  const {file,width,height,hitLineY,lanes,fps,duration}=data,total=Math.ceil(duration*fps),started=performance.now();
- let display=null,codedSize=null,readRow=null,decoder,previous=null,index=0,error=null,lastProgress=0,decoded=0,lastTimestamp=-Infinity;
+ let display=null,codedSize=null,decoder,previous=null,index=0,error=null,lastProgress=0,decoded=0,lastTimestamp=-Infinity;
  const canvas=new OffscreenCanvas(width,1),ctx=canvas.getContext('2d',{willReadFrequently:true}),detect=core.createRowDetector(width,lanes),tracker=new core.Tracker({fps,duration});
  const audit=[],failure=new AbortController();
  const fail=e=>{if(!error){error=e;failure.abort(e);}};
@@ -18,7 +17,7 @@ self.onmessage=async({data})=>{
   let hits=null;
   while(index<total&&Math.floor(index*1e6/fps)<until){
    if(Math.floor(index*1e6/fps)<frame.timestamp)throw Error('映像の開始時刻を対応付けられません');
-   if(!hits){const row=readRow(frame);const d=performance.now();hits=detect(row);metrics.detectMs+=performance.now()-d;}
+   if(!hits){const start=performance.now();if(display.direct)ctx.drawImage(frame,0,-hitLineY,width,height);else{const [a,b,c,d,e,f]=display.transform,sx=width/display.width,sy=height/display.height;ctx.setTransform(sx*a,sy*b,sx*c,sy*d,sx*e,sy*f-hitLineY);ctx.drawImage(frame,0,0,codedSize.width,codedSize.height);ctx.resetTransform();}const drawEnd=performance.now();const row=ctx.getImageData(0,0,width,1).data;const readEnd=performance.now();metrics.drawMs+=drawEnd-start;metrics.pixelReadMs+=readEnd-drawEnd;metrics.imageMs+=readEnd-start;const d=performance.now();hits=detect(row);metrics.detectMs+=performance.now()-d;}
    if(data.audit){const row=ctx.getImageData(0,0,width,1).data;let hash=2166136261;for(const v of row)hash=Math.imul(hash^v,16777619);audit.push({index,timestamp:frame.timestamp,hash:hash>>>0,hits});}const trackingStart=performance.now();tracker.push(index/fps,hits);metrics.trackingMs+=performance.now()-trackingStart;index++;
   }
  };
@@ -32,7 +31,7 @@ self.onmessage=async({data})=>{
     previous=frame;frame=null;decoded++;progress();
    }catch(e){fail(e);}finally{frame?.close();}
   },error:e=>{fail(e);}});
-  const configure=async track=>{metrics.stage='decoder-check';progress(true);display=track.display;codedSize=track.video;metrics.display=display;readRow=createRowReader({ctx,width,height,hitLineY,display,codedSize,metrics,mode:data.imageMode||'auto',preserveColor:[16,18].includes(metrics.input?.containerColor?.transfer)||metrics.input?.containerColor?.primaries===9});const colorSpace=decoderColorSpace(data.colorSpace);metrics.colorSpaceOverride=colorSpace??null;const support=await VideoDecoder.isConfigSupported({...track.config,...(colorSpace?{colorSpace}:{})});if(!support.supported)throw Error('この映像設定はWebCodecsでデコードできません（'+track.codec+'）');decoder.configure(support.config);metrics.stage='decoding';metrics.codec=track.codec;metrics.codedWidth=track.video.width;metrics.codedHeight=track.video.height;metrics.mediaTime=track.mediaTime;metrics.colorSpace=data.colorSpace;};
+  const configure=async track=>{metrics.stage='decoder-check';progress(true);display=track.display;codedSize=track.video;metrics.display=display;const colorSpace=decoderColorSpace(data.colorSpace);metrics.colorSpaceOverride=colorSpace??null;const support=await VideoDecoder.isConfigSupported({...track.config,...(colorSpace?{colorSpace}:{})});if(!support.supported)throw Error('この映像設定はWebCodecsでデコードできません（'+track.codec+'）');decoder.configure(support.config);metrics.stage='decoding';metrics.codec=track.codec;metrics.codedWidth=track.video.width;metrics.codedHeight=track.video.height;metrics.mediaTime=track.mediaTime;metrics.colorSpace=data.colorSpace;};
   let readStart=performance.now();
   for await(const {sample:s,track} of videoPackets(file,configure,info=>{metrics.input=info;progress(true);})){
    metrics.readMs+=performance.now()-readStart;if(error)throw error;
