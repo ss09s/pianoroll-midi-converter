@@ -1,6 +1,7 @@
 import {videoPackets} from './video-demux.mjs?v=0.7.18';
-import './note-core.js?v=0.7.21';
-import './motion-core.js?v=0.7.21';
+import './note-core.js?v=0.7.22';
+import './motion-core.js?v=0.7.22';
+import './frame-reader.js?v=0.7.22';
 import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
 import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
 const core=globalThis.PianoRollNoteCore;
@@ -8,7 +9,7 @@ self.onmessage=async({data})=>{
  if(data.type!=='scan')return;
  const {file,width,height,hitLineY,lanes,fps,duration}=data,total=Math.ceil(duration*fps),started=performance.now();
  let display=null,codedSize=null,decoder,previous=null,index=0,error=null,lastProgress=0,decoded=0,lastTimestamp=-Infinity;
- const tracker=globalThis.PianoRollMotionCore.createScan({width,height,hitLineY,lanes,fps,duration,mode:data.detectionMode}),canvas=new OffscreenCanvas(width,tracker.lines.length),ctx=canvas.getContext('2d',{willReadFrequently:true}),detect=tracker.detect;
+ const tracker=globalThis.PianoRollMotionCore.createScan({width,height,hitLineY,lanes,fps,duration,mode:data.detectionMode,primaryPercent:data.primaryPercent}),canvas=new OffscreenCanvas(width,height),reader=globalThis.PianoRollFrameReader.createReader(canvas,width,height,tracker.lines),ctx=reader.ctx,detect=tracker.detect;
  const audit=[],failure=new AbortController();
  const fail=e=>{if(!error){error=e;failure.abort(e);}};
  const metrics={engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
@@ -18,8 +19,10 @@ self.onmessage=async({data})=>{
   let hits=null;
   while(index<total&&Math.floor(index*1e6/fps)<until){
    if(Math.floor(index*1e6/fps)<frame.timestamp)throw Error('映像の開始時刻を対応付けられません');
-   if(!hits){const start=performance.now();tracker.lines.forEach((y,j)=>{ctx.save();ctx.beginPath();ctx.rect(0,j,width,1);ctx.clip();if(display.direct)ctx.drawImage(frame,0,j-y,width,height);else{const [a,b,c,d,e,f]=display.transform,sx=width/display.width,sy=height/display.height;ctx.setTransform(sx*a,sy*b,sx*c,sy*d,sx*e,sy*f+j-y);ctx.drawImage(frame,0,0,codedSize.width,codedSize.height);}ctx.restore();});const drawEnd=performance.now();const row=ctx.getImageData(0,0,width,tracker.lines.length).data;const readEnd=performance.now();metrics.drawMs+=drawEnd-start;metrics.pixelReadMs+=readEnd-drawEnd;metrics.imageMs+=readEnd-start;const d=performance.now();hits=tracker.lines.map((_,j)=>detect(row.subarray(j*width*4,(j+1)*width*4)));metrics.detectMs+=performance.now()-d;}
-   if(data.audit){const row=ctx.getImageData(0,0,width,tracker.lines.length).data;let hash=2166136261;for(const v of row)hash=Math.imul(hash^v,16777619);audit.push({index,timestamp:frame.timestamp,hash:hash>>>0,hits:tracker.lines.length===1?hits[0]:hits});}const trackingStart=performance.now();tracker.push(index/fps,hits);metrics.trackingMs+=performance.now()-trackingStart;index++;
+   if(!hits){const rows=reader.read(frame,display,codedSize,metrics),d=performance.now();hits=rows.map(detect);metrics.detectMs+=performance.now()-d;
+    if(data.audit){let hash=2166136261;for(const row of rows)for(const v of row)hash=Math.imul(hash^v,16777619);audit.push({index,timestamp:frame.timestamp,hash:hash>>>0,hits:tracker.lines.length===1?hits[0]:hits});}
+   }
+   const trackingStart=performance.now();tracker.push(index/fps,hits);metrics.trackingMs+=performance.now()-trackingStart;index++;
   }
  };
  try{

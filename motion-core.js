@@ -1,92 +1,96 @@
-/* 0.7.21: sparse multi-height evidence, never a probability estimate. */
+/* 0.7.22: upper line owns candidates; lower lines only support timing, color and motion. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const colorDistance=(a,b)=>Math.hypot(...a.colorRGB.map((v,i)=>v-b.colorRGB[i]));
-function linePlan(y,height,mode='motion'){
- y=clamp(Math.round(y),0,height-1);
- // No independent upper evidence when the guide is too close to the top edge.
- return mode!=='motion'||y<32?[y]:[...new Set([.50,.69,.85,1].map(f=>Math.round(y*f)))];
+const median=a=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.floor(s.length/2)]:null;};
+const distance=(a,b)=>Math.hypot(...a.colorRGB.map((v,i)=>v-b.colorRGB[i]));
+function linePlan(referenceY,height,mode='motion',primaryPercent=20){
+ const y=clamp(Math.round(referenceY),0,height-1),upper=Math.min(Math.max(0,y-8),clamp(Math.round(height*clamp(Number(primaryPercent)||20,3,65)/100),0,height-1));
+ if(mode==='single')return[y];if(mode==='upper'||y<16)return[upper];
+ return[...new Set([upper,upper+Math.round((y-upper)*.20),upper+Math.round((y-upper)*.45),y])];
 }
-function compatible(a,b,fps){return a.midiPitch===b.midiPitch&&colorDistance(a,b)<100&&Math.abs(a.durationSeconds-b.durationSeconds)<=Math.max(3/fps,.22*Math.max(a.durationSeconds,b.durationSeconds));}
+function compatible(a,b,fps){return a.midiPitch===b.midiPitch&&distance(a,b)<135&&Math.abs(a.durationSeconds-b.durationSeconds)<=Math.max(3/fps,.25*Math.max(a.durationSeconds,b.durationSeconds));}
 function lowerBound(list,time){let a=0,b=list.length;while(a<b){const m=(a+b)>>1;if(list[m].startSeconds<time)a=m+1;else b=m;}return a;}
-function fuse(lines,observations,{fps,duration,height}){
- const base=observations.at(-1),referenceY=lines.at(-1),diagnostics={method:'multi-line-motion',lineYs:lines,baselineCandidates:base.length,motionTracks:0,rejectedBottomOnly:0,recoveredUpper:0,overlappingFragments:0,boundaryKept:0,unverifiedKept:0,confidenceMeaning:'relative evidence score, not probability'};
- if(lines.length<4)return{notes:base,diagnostics:{...diagnostics,fallbackReason:'上側の判定領域が不足しています'}};
- const groups=observations.map(list=>{const map=new Map();for(const n of list){if(!map.has(n.midiPitch))map.set(n.midiPitch,[]);map.get(n.midiPitch).push(n);}return map;});
- const candidates=[],minV=Math.max(2,height*.05),maxV=height*20;
- // Match start AND end edges. A static image or simultaneous flash has no positive travel delay.
- for(const a of observations[0]){
-  if(a.truncatedStart||a.truncatedEnd)continue;
+function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1)}){
+ const primary=observations[0],groups=observations.map(list=>{const m=new Map();for(const n of list){if(!m.has(n.midiPitch))m.set(n.midiPitch,[]);m.get(n.midiPitch).push(n);}return m;});
+ const diagnostics={method:'upper-primary-motion',lineYs:lines,primaryY:lines[0],referenceY,primaryCandidates:primary.length,motionTracks:0,estimatedTiming:0,unconfirmed:0,outsideClip:0,lowerOnlyIgnored:0,colorSupported:0,confidenceMeaning:'relative evidence score, not probability'};
+ const paths=[];
+ if(lines.length>=3)for(const a of primary){
+  // Partial upper edges cannot establish a transit time; they may use a proven local speed below.
+  if(a.truncatedStart)continue;
   const bs=groups[1].get(a.midiPitch)||[],cs=groups[2].get(a.midiPitch)||[];
   for(let j=lowerBound(bs,a.startSeconds+1/fps);j<bs.length;j++){
-   const b=bs[j],delay=b.startSeconds-a.startSeconds;if(delay>Math.min(8,(lines[1]-lines[0])/minV))break;
-   const velocity=(lines[1]-lines[0])/delay;if(velocity>maxV||b.truncatedStart||b.truncatedEnd||!compatible(a,b,fps))continue;
-   const expected=a.startSeconds+(lines[2]-lines[0])/velocity,tolerance=Math.max(2/fps,(expected-a.startSeconds)*.10);
-   for(let k=lowerBound(cs,expected-tolerance);k<cs.length&&cs[k].startSeconds<=expected+tolerance;k++){
-    const c=cs[k];if(c.truncatedStart||c.truncatedEnd||!compatible(a,c,fps)||!compatible(b,c,fps))continue;
-    const endDelay=c.endSeconds-a.endSeconds;if(endDelay<=1/fps)continue;
-    const v=(lines[2]-lines[0])/(c.startSeconds-a.startSeconds),ve=(lines[2]-lines[0])/endDelay;
-    if(Math.abs(v-ve)/v>.22)continue;
-    const residual=Math.abs(b.startSeconds-(a.startSeconds+(lines[1]-lines[0])/v));
-    if(residual>Math.max(1.5/fps,delay*.10))continue;
-    const score=residual*fps+Math.abs(v-ve)/v+Math.abs(a.durationSeconds-c.durationSeconds)*fps*.1+colorDistance(a,c)/1000;
-    candidates.push({parts:[a,b,c],v,score});
+   const b=bs[j],delay=b.startSeconds-a.startSeconds;if(delay>8)break;
+   if(b.truncatedStart||!compatible(a,b,fps)&&!b.truncatedEnd)continue;
+   if(distance(a,b)>=135)continue;
+   const v=(lines[1]-lines[0])/delay;if(v<Math.max(2,height*.04)||v>height*20)continue;
+   const expected=a.startSeconds+(lines[2]-lines[0])/v,tol=Math.max(2/fps,(expected-a.startSeconds)*.08);
+   for(let k=lowerBound(cs,expected-tol);k<cs.length&&cs[k].startSeconds<=expected+tol;k++){
+    const c=cs[k];if(c.truncatedStart||distance(a,c)>=135||!compatible(a,c,fps)&&!c.truncatedEnd)continue;
+    const velocity=(lines[2]-lines[0])/(c.startSeconds-a.startSeconds),residual=Math.abs(b.startSeconds-a.startSeconds-(lines[1]-lines[0])/velocity);
+    if(residual>Math.max(1.5/fps,delay*.08))continue;
+    let endError=0;
+    if(!a.truncatedEnd&&!c.truncatedEnd){const dt=c.endSeconds-a.endSeconds;if(dt<=1/fps)continue;endError=Math.abs((lines[2]-lines[0])/dt-velocity)/velocity;if(endError>.20)continue;}
+    paths.push({a,parts:[a,b,c],v:velocity,score:residual*fps+endError+Math.abs(a.durationSeconds-b.durationSeconds)*.05});
    }
   }
  }
- // One observation cannot vote for several repeated notes.
- candidates.sort((a,b)=>a.score-b.score);const used=new Set(),tracks=[];
- for(const candidate of candidates){if(candidate.parts.some(n=>used.has(n)))continue;candidate.parts.forEach(n=>used.add(n));tracks.push(candidate);}
- diagnostics.matchedPaths=tracks.length;
- if(!tracks.length)return{notes:base.map(n=>({...n,evidence:{lines:1,confidence:0,verified:false}})),diagnostics:{...diagnostics,fallbackReason:'一定速度で移動する候補を十分に確認できないため単線結果を保持しました'}};
- const claimed=new Set(),protectedLower=new Set(),output=[];
- for(const tr of tracks){
-  const weights=[.5,.3,.2];let start=0,end=0;
-  tr.parts.forEach((n,i)=>{start+=weights[i]*(n.startSeconds+(referenceY-lines[i])/tr.v);end+=weights[i]*(n.endSeconds+(referenceY-lines[i])/tr.v);});
-  if(start>=duration||end<=0)continue;
-  const tolerance=Math.max(3/fps,.12*(referenceY-lines[0])/tr.v),list=groups.at(-1).get(tr.parts[0].midiPitch)||[];
-  let match=null,best=Infinity;
-  for(let i=lowerBound(list,start-tolerance);i<list.length&&list[i].startSeconds<=start+tolerance;i++){
-   const n=list[i];if(claimed.has(n)||colorDistance(n,tr.parts[0])>=100)continue;
-   const d=Math.abs(n.startSeconds-start)+Math.abs(n.endSeconds-Math.min(duration,end));
-   if(d<best&&Math.abs(n.endSeconds-Math.min(duration,end))<=Math.max(tolerance,3/fps)){match=n;best=d;}
+ paths.sort((a,b)=>a.score-b.score);const used=new Set(),tracks=[];
+ for(const p of paths){if(p.parts.some(n=>used.has(n)))continue;p.parts.forEach(n=>used.add(n));tracks.push(p);}
+ const byPrimary=new Map(tracks.map(t=>[t.a,t])),usedLower=new Set(),notes=[],unconfirmed=[];
+ const common=median(tracks.map(t=>t.v)),stable=common&&tracks.filter(t=>Math.abs(t.v-common)/common<.15).length>=Math.max(2,tracks.length*.8);
+ for(const a of primary){
+  const track=byPrimary.get(a);
+  const stationary=!track&&lines.slice(1).filter((_,i)=>(groups[i+1].get(a.midiPitch)||[]).some(b=>Math.abs(a.startSeconds-b.startSeconds)<1.1/fps&&Math.abs(a.endSeconds-b.endSeconds)<1.1/fps&&distance(a,b)<70)).length>=2;
+  if(stationary){unconfirmed.push({...a,reason:'stationary-or-simultaneous'});continue;}
+  const nearby=tracks.filter(t=>Math.abs(t.a.startSeconds-a.startSeconds)<3).map(t=>t.v);
+  const velocity=track?.v||(nearby.length?median(nearby):stable?common:null);
+  if(!velocity){unconfirmed.push({...a,reason:'travel-time-unconfirmed'});continue;}
+  const delay=(referenceY-lines[0])/velocity;
+  let start=a.startSeconds+delay,end=a.truncatedEnd?duration:a.endSeconds+delay;
+  // If the leading edge passed above before t=0, a lower onset can time the
+  // already-seen upper candidate. Never invent t=0 or a candidate absent above.
+  if(a.truncatedStart){
+   const estimates=[];
+   if(!a.truncatedEnd)for(let i=1;i<lines.length;i++){
+    const transit=(lines[i]-lines[0])/velocity,predictedEnd=a.endSeconds+transit,tol=Math.max(3/fps,transit*.08);
+    for(const b of groups[i].get(a.midiPitch)||[]){if(b.truncatedStart||b.truncatedEnd||distance(a,b)>=135||b.startSeconds>transit+tol||Math.abs(b.endSeconds-predictedEnd)>tol)continue;estimates.push(b.startSeconds+(referenceY-lines[i])/velocity);}
+   }
+   if(!estimates.length){unconfirmed.push({...a,reason:'upper-onset-before-clip'});continue;}
+   start=median(estimates);
   }
-  // An upper fragment of a long/lower note must not become a second overlapping note.
-  // Preserve the lower interval when the full edges cannot be reconciled.
-  const overlap=!match&&list.find(n=>Math.max(0,Math.min(n.endSeconds,end)-Math.max(n.startSeconds,start))>=.5*Math.min(n.durationSeconds,end-start));
-  if(overlap){protectedLower.add(overlap);diagnostics.overlappingFragments++;continue;}
-  const startSeconds=clamp(start,0,duration),endSeconds=clamp(end,0,duration);
-  if(endSeconds-startSeconds<1/fps)continue;
-  diagnostics.motionTracks++;if(match)claimed.add(match);else diagnostics.recoveredUpper++;
-  output.push({...tr.parts[0],startSeconds,endSeconds,durationSeconds:endSeconds-startSeconds,truncatedStart:start<=0,truncatedEnd:end>=duration,evidence:{lines:match?4:3,confidence:clamp(.95-tr.score*.1,.6,.95),verified:true,velocityPixelsPerSecond:tr.v}});
- }
- for(const n of base){
-  if(claimed.has(n))continue;
-  // Require nearby proven motion before rejecting an isolated lower candidate.
-  // Keep clip boundaries: the corresponding upper crossing can be outside the file.
-  const nearby=tracks.filter(t=>Math.abs(t.parts[2].startSeconds+(referenceY-lines[2])/t.v-n.startSeconds)<=2);
-  const speed=nearby.length?nearby.map(t=>t.v).sort((a,b)=>a-b)[Math.floor(nearby.length/2)]:null;
-  const travel=speed?(referenceY-lines[0])/speed:0;
-  const boundary=n.truncatedStart||n.truncatedEnd||speed&&n.startSeconds<travel+2/fps;
-  let support=protectedLower.has(n);
-  if(speed&&!boundary)for(let line=0;line<3&&!support;line++){
-   const expected=n.startSeconds-(referenceY-lines[line])/speed,tolerance=Math.max(3/fps,travel*.15),list=groups[line].get(n.midiPitch)||[];
-   for(let j=lowerBound(list,expected-tolerance);j<list.length&&list[j].startSeconds<=expected+tolerance;j++)if(compatible(n,list[j],fps)){support=true;break;}
+  if(start>=duration||end<=0){diagnostics.outsideClip++;continue;}
+  const parts=track?track.parts.slice():[a];
+  // The keyboard observation may refine an already established upper candidate only.
+  const last=groups.length-1,expectedStart=a.startSeconds+(lines[last]-lines[0])/velocity,tol=Math.max(2/fps,(lines[last]-lines[0])/velocity*.06),list=groups[last].get(a.midiPitch)||[];
+  let best=null,bestError=Infinity;
+  for(let j=lowerBound(list,expectedStart-tol);j<list.length&&list[j].startSeconds<=expectedStart+tol;j++){
+   const b=list[j];if(usedLower.has(b)||distance(a,b)>=135||!compatible(a,b,fps)&&!b.truncatedEnd)continue;
+   const err=Math.abs(b.startSeconds-expectedStart);if(err<bestError){best=b;bestError=err;}
   }
-  if(speed&&!boundary&&!support){diagnostics.rejectedBottomOnly++;continue;}
-  if(boundary)diagnostics.boundaryKept++;else diagnostics.unverifiedKept++;
-  output.push({...n,evidence:{lines:support?2:1,confidence:support?.55:.2,verified:false}});
+  if(best){usedLower.add(best);if(!parts.includes(best))parts.push(best);
+   if(track&&!best.truncatedStart&&Math.abs(best.startSeconds-start)<=2/fps)start=start*.75+best.startSeconds*.25;
+   if(track&&!best.truncatedEnd&&Math.abs(best.endSeconds-end)<=2/fps)end=end*.75+best.endSeconds*.25;
+  }
+  const colors=parts.filter(n=>Math.max(...n.colorRGB)-Math.min(...n.colorRGB)>=25);
+  const colorRGB=colors.length>=2?[0,1,2].map(k=>median(colors.map(n=>n.colorRGB[k]))):a.colorRGB;
+  const startSeconds=clamp(start,0,duration),endSeconds=clamp(end,0,duration);if(endSeconds-startSeconds<1/fps)continue;
+  if(track)diagnostics.motionTracks++;else diagnostics.estimatedTiming++;
+  if(colors.length>=2)diagnostics.colorSupported++;
+  notes.push({...a,startSeconds,endSeconds,durationSeconds:endSeconds-startSeconds,colorRGB,truncatedStart:start<=0,truncatedEnd:a.truncatedEnd||end>=duration,evidence:{primaryStartSeconds:a.startSeconds,primaryEndSeconds:a.endSeconds,lines:parts.length,confidence:track?clamp(.95-track.score*.1,.6,.95):.4,verified:!!track,timingSource:track?'own-motion':'nearby-motion',velocityPixelsPerSecond:velocity,colorSamples:colors.length}});
  }
- output.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
- return{notes:output,diagnostics};
+ diagnostics.unconfirmed=unconfirmed.length;
+ diagnostics.lowerOnlyIgnored=observations.at(-1).filter(n=>!usedLower.has(n)).length;
+ if(!tracks.length)diagnostics.warning='落下速度を確認できませんでした。未確定の上側候補は確定結果に含めません。';
+ notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
+ return{notes,unconfirmedNotes:unconfirmed,diagnostics};
 }
-function createScan({width,height,hitLineY,lanes,fps,duration,mode='single'}){
- const lines=linePlan(hitLineY,height,mode),trackers=lines.map(()=>new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
+function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20}){
+ const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
  return{lines,detect,push(time,rows){rows.forEach((hits,i)=>trackers[i].push(time,hits));},finish(){
-  const observations=trackers.map(t=>t.finish()),discarded=trackers.reduce((sum,t)=>sum+t.discarded,0);
-  if(mode!=='motion')return{notes:observations[0],discarded,diagnostics:{method:'single-line',lineYs:lines}};
-  return{...fuse(lines,observations,{fps,duration,height}),discarded};
+  const observations=trackers.map(t=>t.finish()),discarded=trackers.reduce((n,t)=>n+t.discarded,0);
+  if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{method:mode==='upper'?'upper-single':'single-line',lineYs:lines,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
+  return{...fuse(lines,observations,{fps,duration,height,referenceY:hitLineY}),discarded};
  }};
 }
 const api={linePlan,fuse,createScan};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollMotionCore=api;
