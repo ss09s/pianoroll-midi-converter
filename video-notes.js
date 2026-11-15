@@ -1,4 +1,4 @@
-/* 0.7.17 browser video scan. One reusable canvas; no frame history or audio upload. */
+/* 0.7.18 browser video scan. One reusable canvas; no frame history or audio upload. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),core=window.PianoRollNoteCore,scriptBase=document.currentScript?.src||document.baseURI;
 let controller=null,result=null,page=0,stale=false;
@@ -33,7 +33,7 @@ function scanWorker(snap,lanes,fps,duration,signal,progress){return new Promise(
  const cancel=()=>finish(abort()),arm=()=>{clearTimeout(timer);timer=setTimeout(()=>finish(Error('高速方式の応答がタイムアウトしました')),20000);};
  signal.addEventListener('abort',cancel,{once:true});
  try{
-  worker=new Worker(new URL('video-scan-worker.mjs?v=0.7.17',scriptBase),{type:'module'});arm();
+  worker=new Worker(new URL('video-scan-worker.mjs?v=0.7.18',scriptBase),{type:'module'});arm();
   worker.onerror=e=>{e.preventDefault();finish(Error('高速方式を読み込めません。Worker・追加ファイルの対応を確認してください'));};
   worker.onmessage=({data})=>{arm();if(data.type==='progress')progress(data.processed,data.total);else if(data.type==='result')finish(null,data);else if(data.type==='error')finish(Object.assign(Error(data.message),{diagnostics:data.diagnostics}));};
   let colorSpace;const probe=new VideoFrame(snap.video,{timestamp:0});try{colorSpace=probe.colorSpace.toJSON();}finally{probe.close();}
@@ -42,13 +42,13 @@ function scanWorker(snap,lanes,fps,duration,signal,progress){return new Promise(
 });}
 async function scanCompat(snap,lanes,fps,duration,signal,progress){
  const video=snap.video,total=Math.ceil(duration*fps),canvas=document.createElement('canvas');canvas.width=snap.width;canvas.height=1;const ctx=canvas.getContext('2d',{willReadFrequently:true});
- const tracker=new core.Tracker({fps,duration}),detect=core.createRowDetector(snap.width,lanes),metrics={engine:'video-seek',seekMs:0,imageMs:0,detectMs:0,frames:total},started=performance.now();let lastProgress=started;
+ const tracker=new core.Tracker({fps,duration}),detect=core.createRowDetector(snap.width,lanes),metrics={engine:'video-seek',seekMs:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,frames:total},started=performance.now();let lastProgress=started;
  for(let i=0;i<total;i++){
   check(signal);if(PianoRollMainData.getActiveFile()!==snap.file)throw Error('動画が変更されたため中断しました。');
   const time=i/fps,seekStart=performance.now();await seek(video,time,signal);check(signal);metrics.seekMs+=performance.now()-seekStart;const imageStart=performance.now();
-  ctx.drawImage(video,0,-snap.hitLineY,snap.width,snap.height);let row=ctx.getImageData(0,0,snap.width,1).data;
+  ctx.drawImage(video,0,-snap.hitLineY,snap.width,snap.height);metrics.drawMs+=performance.now()-imageStart;const readStart=performance.now();let row=ctx.getImageData(0,0,snap.width,1).data;metrics.pixelReadMs+=performance.now()-readStart;
   if(i===0&&!row.some((v,k)=>k%4===3&&v>0)){await seek(video,Math.min(duration/2,1/(fps*2)),signal);await seek(video,0,signal);check(signal);ctx.drawImage(video,0,-snap.hitLineY,snap.width,snap.height);row=ctx.getImageData(0,0,snap.width,1).data;}
-  metrics.imageMs+=performance.now()-imageStart;const detectStart=performance.now();tracker.push(time,detect(row));metrics.detectMs+=performance.now()-detectStart;
+  metrics.imageMs+=performance.now()-imageStart;const detectStart=performance.now();const hits=detect(row);metrics.detectMs+=performance.now()-detectStart;const trackingStart=performance.now();tracker.push(time,hits);metrics.trackingMs+=performance.now()-trackingStart;
   if(performance.now()-lastProgress>=100||i===total-1){lastProgress=performance.now();progress(i+1,total,`${time.toFixed(1)} / ${duration.toFixed(1)}秒`);await new Promise(r=>setTimeout(r,0));}
  }
  check(signal);metrics.totalMs=performance.now()-started;return {notes:tracker.finish(),discarded:tracker.discarded,metrics};
@@ -75,7 +75,8 @@ async function run(){
   if(!extraction)extraction=await scanCompat(snap,lanes,fps,duration,signal,progress);
   check(signal);if(PianoRollMainData.getActiveFile()!==snap.file)throw Error('動画が変更されたため中断しました。');
   const metrics={...extraction.metrics,wallMs:performance.now()-wallStart,fallbackReason,fallbackDiagnostics};
-  result={performance:metrics,format:'pianoroll-video-notes-seconds-v1',applicationVersion:'0.7.17',source:{name:snap.file.name,size:snap.file.size,durationSeconds:duration},sampling:{samplesPerSecond:fps,intervalSeconds:1/fps,framesProcessed:total,minimumConsecutiveSamples:2},hitLine:{yPixels:snap.hitLineY,width:snap.width,height:snap.height},guide:{...snap.guide,reference:snap.reference,lanes},notes:extraction.notes,discardedSingleSampleCandidates:extraction.discarded,notice:'Unverified visual candidates. Times refer to hit-line crossings, not beat quantization. No sustain or MIDI export.'};page=0;stale=false;$('noteScanProgress').value=1;render();
+  result={performance:metrics,format:'pianoroll-video-notes-seconds-v1',applicationVersion:'0.7.18',source:{name:snap.file.name,size:snap.file.size,durationSeconds:duration},sampling:{samplesPerSecond:fps,intervalSeconds:1/fps,framesProcessed:total,minimumConsecutiveSamples:2},hitLine:{yPixels:snap.hitLineY,width:snap.width,height:snap.height},guide:{...snap.guide,reference:snap.reference,lanes},notes:extraction.notes,discardedSingleSampleCandidates:extraction.discarded,notice:'Unverified visual candidates. Times refer to hit-line crossings, not beat quantization. No sustain or MIDI export.'};page=0;stale=false;$('noteScanProgress').value=1;render();
+  window.PianoRollPerformance?.show(result);
   if($('noteScanDiagnostics'))$('noteScanDiagnostics').textContent=JSON.stringify({source:result.source,performance:metrics,browser:navigator.userAgent,logicalProcessors:navigator.hardwareConcurrency??null,workerSupported:typeof Worker==='function',videoDecoderSupported:typeof VideoDecoder==='function',note:'Logical processor count does not prove decoder parallelism. Hardware decoding use is not exposed.'},null,2);
   if(modeInfo&&!fallbackReason)modeInfo.textContent=metrics.engine==='webcodecs-worker'?'高速方式で抽出しました（'+metrics.codec+'）。':'互換方式で抽出しました。';
   const truncated=result.notes.filter(n=>n.truncatedStart||n.truncatedEnd).length;
@@ -88,8 +89,8 @@ async function run(){
  }
 }
 $('noteScanRun').onclick=run;$('noteScanCancel').onclick=()=>controller?.abort();
-$('noteScanExport').onclick=()=>{if(!result||stale)return;const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='pianoroll-video-notes-v0.7.17.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-$('file').addEventListener('change',()=>{if($('noteScanModeInfo')){$('noteScanModeInfo').hidden=true;$('noteScanModeInfo').textContent='';}if($('noteScanDiagnostics'))$('noteScanDiagnostics').textContent='抽出後に表示します。';controller?.abort();result=null;stale=false;page=0;render();$('noteScanRun').disabled=true;$('noteScanStatus').textContent='新しい動画を読み込んでいます。鍵盤ガイドと音名を合わせてください。';});
+$('noteScanExport').onclick=()=>{if(!result||stale)return;const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='pianoroll-video-notes-v0.7.18.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('file').addEventListener('change',()=>{window.PianoRollPerformance?.clear();if($('noteScanModeInfo')){$('noteScanModeInfo').hidden=true;$('noteScanModeInfo').textContent='';}if($('noteScanDiagnostics'))$('noteScanDiagnostics').textContent='抽出後に表示します。';controller?.abort();result=null;stale=false;page=0;render();$('noteScanRun').disabled=true;$('noteScanStatus').textContent='新しい動画を読み込んでいます。鍵盤ガイドと音名を合わせてください。';});
 $('v').addEventListener('loadeddata',()=>{if(!controller){$('noteScanRun').disabled=false;$('noteScanStatus').textContent='鍵盤ガイドと基準鍵の音名を合わせてから抽出してください。';}});
 window.PianoRollVideoNoteScan={replaceNotes:notes=>{if(!result||controller||stale)return false;result.notes=JSON.parse(JSON.stringify(notes));page=0;render();$('noteScanStatus').textContent=`編集済み：${result.notes.length}音。`;return true;},getResult:()=>result?JSON.parse(JSON.stringify(result)):null,getState:()=>({hasResult:!!result,stale,running:!!controller}),get running(){return !!controller}};
 const guideSection=$('refName').closest('section');

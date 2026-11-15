@@ -1,7 +1,7 @@
-import {videoPackets} from './video-demux.mjs?v=0.7.17';
-import './note-core.js?v=0.7.17';
-import {decoderColorSpace} from './video-color.mjs?v=0.7.17';
-import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.17';
+import {videoPackets} from './video-demux.mjs?v=0.7.18';
+import './note-core.js?v=0.7.18';
+import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
+import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
 const core=globalThis.PianoRollNoteCore;
 self.onmessage=async({data})=>{
  if(data.type!=='scan')return;
@@ -10,15 +10,15 @@ self.onmessage=async({data})=>{
  const canvas=new OffscreenCanvas(width,1),ctx=canvas.getContext('2d',{willReadFrequently:true}),detect=core.createRowDetector(width,lanes),tracker=new core.Tracker({fps,duration});
  const audit=[],failure=new AbortController();
  const fail=e=>{if(!error){error=e;failure.abort(e);}};
- const metrics={engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
+ const metrics={engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
  const progress=(force=false)=>{const now=performance.now();if(force||now-lastProgress>=100){lastProgress=now;postMessage({type:'progress',processed:index,total,elapsedMs:now-started,stage:metrics.stage});}};
  // Match the HTML media timeline at integer microsecond precision (floor sampling targets).
  const consume=(frame,until)=>{
   let hits=null;
   while(index<total&&Math.floor(index*1e6/fps)<until){
    if(Math.floor(index*1e6/fps)<frame.timestamp)throw Error('映像の開始時刻を対応付けられません');
-   if(!hits){const start=performance.now();if(display.direct)ctx.drawImage(frame,0,-hitLineY,width,height);else{const [a,b,c,d,e,f]=display.transform,sx=width/display.width,sy=height/display.height;ctx.setTransform(sx*a,sy*b,sx*c,sy*d,sx*e,sy*f-hitLineY);ctx.drawImage(frame,0,0,codedSize.width,codedSize.height);ctx.resetTransform();}const row=ctx.getImageData(0,0,width,1).data;metrics.imageMs+=performance.now()-start;const d=performance.now();hits=detect(row);metrics.detectMs+=performance.now()-d;}
-   if(data.audit){const row=ctx.getImageData(0,0,width,1).data;let hash=2166136261;for(const v of row)hash=Math.imul(hash^v,16777619);audit.push({index,timestamp:frame.timestamp,hash:hash>>>0,hits});}tracker.push(index/fps,hits);index++;
+   if(!hits){const start=performance.now();if(display.direct)ctx.drawImage(frame,0,-hitLineY,width,height);else{const [a,b,c,d,e,f]=display.transform,sx=width/display.width,sy=height/display.height;ctx.setTransform(sx*a,sy*b,sx*c,sy*d,sx*e,sy*f-hitLineY);ctx.drawImage(frame,0,0,codedSize.width,codedSize.height);ctx.resetTransform();}const drawEnd=performance.now();const row=ctx.getImageData(0,0,width,1).data;const readEnd=performance.now();metrics.drawMs+=drawEnd-start;metrics.pixelReadMs+=readEnd-drawEnd;metrics.imageMs+=readEnd-start;const d=performance.now();hits=detect(row);metrics.detectMs+=performance.now()-d;}
+   if(data.audit){const row=ctx.getImageData(0,0,width,1).data;let hash=2166136261;for(const v of row)hash=Math.imul(hash^v,16777619);audit.push({index,timestamp:frame.timestamp,hash:hash>>>0,hits});}const trackingStart=performance.now();tracker.push(index/fps,hits);metrics.trackingMs+=performance.now()-trackingStart;index++;
   }
  };
  try{
@@ -41,7 +41,7 @@ self.onmessage=async({data})=>{
    decoder.decode(new EncodedVideoChunk({type:s.is_sync?'key':'delta',timestamp:Math.round((s.cts-track.mediaTime)*1e6/track.timescale),duration:Math.round(s.duration*1e6/track.timescale),data:s.data}));
    metrics.maxDecodeQueue=Math.max(metrics.maxDecodeQueue,decoder.decodeQueueSize);readStart=performance.now();progress();
   }
-  metrics.stage='flush';progress(true);await decoder.flush();if(error)throw error;if(!previous)throw Error('映像フレームがありません');
+  metrics.stage='flush';progress(true);const flushStart=performance.now();await decoder.flush();metrics.flushMs=performance.now()-flushStart;if(error)throw error;if(!previous)throw Error('映像フレームがありません');
   consume(previous,Infinity);if(index!==total)throw Error('サンプリングが完了しませんでした');
   metrics.stage='complete';metrics.decodedFrames=decoded;metrics.totalMs=performance.now()-started;
   postMessage({type:'result',notes:tracker.finish(),discarded:tracker.discarded,metrics,...(data.audit?{audit}:{})});
