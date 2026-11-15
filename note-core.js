@@ -27,6 +27,22 @@ function detectRow(pixels,width,lanes){
  }
  return hits;
 }
+// Prepared lane geometry; same thresholds and integer RGB distances as detectRow.
+function createRowDetector(width,lanes){
+ const prepared=lanes.filter(l=>l.pitch>=0&&l.pitch<=127&&l.x>=1&&l.x<width-1&&l.w>=3).map(l=>({...l,c:Math.round(l.x),cap:Math.ceil(l.w*1.6),a:Math.max(0,Math.ceil(l.x-l.w*.2)),b:Math.min(width-1,Math.floor(l.x+l.w*.2))}));
+ return pixels=>{const hits=[];
+ for(const l of prepared){const i=l.c*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2],lum=.2126*r+.7152*g+.0722*b;if(lum<45||Math.max(r,g,b)-Math.min(r,g,b)<18&&lum<85)continue;
+ const near=x=>{const k=x*4,dr=pixels[k]-r,dg=pixels[k+1]-g,db=pixels[k+2]-b;return dr*dr+dg*dg+db*db<2304;};
+ let left=l.c,right=l.c;
+ while(left>0&&right-left<=l.cap&&near(left-1))left--;
+ while(right<width-1&&right-left<=l.cap&&near(right+1))right++;
+ const run=right-left+1;if(run<Math.max(3,l.w*.45)||run>l.w*1.5)continue;
+ let solid=0,rr=0,gg=0,bb=0;const total=l.b-l.a+1;
+ for(let x=l.a;x<=l.b;x++){const k=x*4;if(near(x))solid++;rr+=pixels[k];gg+=pixels[k+1];bb+=pixels[k+2];}
+ if(!total||solid/total<.84||left===0||right===width-1||near(left-1)||near(right+1))continue;
+ hits.push({pitch:l.pitch,laneType:l.type,colorRGB:[Math.round(rr/total),Math.round(gg/total),Math.round(bb/total)]});
+ }return hits;};
+}
 class Tracker{
  constructor({fps=30,duration}){if(!(fps>0&&Number.isFinite(duration)&&duration>0))throw Error('Invalid sampling configuration');this.fps=fps;this.duration=duration;this.previous=null;this.active=new Map();this.notes=[];this.discarded=0;}
  push(time,hits){
@@ -39,5 +55,5 @@ class Tracker{
  close(tr,end,truncatedEnd){if(tr.frames<2){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:tr.colorRGB,laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
  finish(){for(const tr of this.active.values())this.close(tr,this.duration,true);this.active.clear();return this.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);}
 }
-const api={whitePitch,noteName,detectRow,Tracker};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
+const api={whitePitch,noteName,detectRow,createRowDetector,Tracker};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
 })(globalThis);
