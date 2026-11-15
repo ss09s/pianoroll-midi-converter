@@ -1,5 +1,6 @@
-import {videoPackets} from './video-demux.mjs?v=0.7.14';
-import './note-core.js?v=0.7.14';
+import {videoPackets} from './video-demux.mjs?v=0.7.15';
+import './note-core.js?v=0.7.15';
+import {decoderColorSpace} from './video-color.mjs?v=0.7.15';
 const core=globalThis.PianoRollNoteCore;
 self.onmessage=async({data})=>{
  if(data.type!=='scan')return;
@@ -21,16 +22,16 @@ self.onmessage=async({data})=>{
  try{
   if(typeof VideoDecoder!=='function')throw Error('このブラウザーはWorker内VideoDecoderに非対応です');
   if(!ctx)throw Error('Worker内の画像処理に非対応です');
-  if(!data.colorSpace||!['bt709','smpte170m'].includes(data.colorSpace.matrix)||!['bt709','smpte170m'].includes(data.colorSpace.primaries)||!['bt709','smpte170m'].includes(data.colorSpace.transfer))throw Error('HDR・特殊な色空間は互換方式を使用します');
+  metrics.nativeColorSpace=data.colorSpace??null;metrics.canvasColorSpace=ctx.getContextAttributes?.().colorSpace||'srgb';
   decoder=new VideoDecoder({output:frame=>{
    try{if(error)return;if(frame.timestamp<lastTimestamp)throw Error('映像の表示時刻が前後しています');lastTimestamp=frame.timestamp;
     if(previous){consume(previous,frame.timestamp);previous.close();previous=null;}
     previous=frame;frame=null;decoded++;progress();
    }catch(e){error=e;}finally{frame?.close();}
   },error:e=>{error=e;}});
-  const configure=async track=>{const support=await VideoDecoder.isConfigSupported({...track.config,colorSpace:data.colorSpace});if(!support.supported)throw Error('このH.264設定はWebCodecsでデコードできません');decoder.configure(support.config);metrics.codec=track.codec;metrics.codedWidth=track.video.width;metrics.codedHeight=track.video.height;metrics.mediaTime=track.mediaTime;metrics.colorSpace=data.colorSpace;};
+  const configure=async track=>{const colorSpace=decoderColorSpace(data.colorSpace);metrics.colorSpaceOverride=colorSpace??null;const support=await VideoDecoder.isConfigSupported({...track.config,...(colorSpace?{colorSpace}:{})});if(!support.supported)throw Error('この映像設定はWebCodecsでデコードできません（'+track.codec+'）');decoder.configure(support.config);metrics.codec=track.codec;metrics.codedWidth=track.video.width;metrics.codedHeight=track.video.height;metrics.mediaTime=track.mediaTime;metrics.colorSpace=data.colorSpace;};
   let readStart=performance.now();
-  for await(const {sample:s,track} of videoPackets(file,configure)){
+  for await(const {sample:s,track} of videoPackets(file,configure,info=>{metrics.input=info;})){
    metrics.readMs+=performance.now()-readStart;if(error)throw error;
    const waitStart=performance.now();
    while(decoder.decodeQueueSize>=8){
@@ -44,6 +45,6 @@ self.onmessage=async({data})=>{
   consume(previous,Infinity);if(index!==total)throw Error('サンプリングが完了しませんでした');
   metrics.decodedFrames=decoded;metrics.totalMs=performance.now()-started;
   postMessage({type:'result',notes:tracker.finish(),discarded:tracker.discarded,metrics,...(data.audit?{audit}:{})});
- }catch(e){postMessage({type:'error',message:e.message||String(e)});}
+ }catch(e){postMessage({type:'error',message:e.message||String(e),diagnostics:{...metrics,nativeColorSpace:data.colorSpace??null}});}
  finally{previous?.close();if(decoder&&decoder.state!=='closed')decoder.close();}
 };
