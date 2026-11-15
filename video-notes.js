@@ -1,4 +1,4 @@
-/* 0.7.18 browser video scan. One reusable canvas; no frame history or audio upload. */
+/* 0.7.20 browser video scan. One reusable canvas; no frame history or audio upload. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),core=window.PianoRollNoteCore,scriptBase=document.currentScript?.src||document.baseURI;
 let controller=null,result=null,page=0,stale=false;
@@ -33,7 +33,7 @@ function scanWorker(snap,lanes,fps,duration,signal,progress){return new Promise(
  const cancel=()=>finish(abort()),arm=()=>{clearTimeout(timer);timer=setTimeout(()=>finish(Error('高速方式の応答がタイムアウトしました')),20000);};
  signal.addEventListener('abort',cancel,{once:true});
  try{
-  worker=new Worker(new URL('video-scan-worker.mjs?v=0.7.18',scriptBase),{type:'module'});arm();
+  worker=new Worker(new URL('video-scan-worker.mjs?v=0.7.20',scriptBase),{type:'module'});arm();
   worker.onerror=e=>{e.preventDefault();finish(Error('高速方式を読み込めません。Worker・追加ファイルの対応を確認してください'));};
   worker.onmessage=({data})=>{arm();if(data.type==='progress')progress(data.processed,data.total);else if(data.type==='result')finish(null,data);else if(data.type==='error')finish(Object.assign(Error(data.message),{diagnostics:data.diagnostics}));};
   let colorSpace;const probe=new VideoFrame(snap.video,{timestamp:0});try{colorSpace=probe.colorSpace.toJSON();}finally{probe.close();}
@@ -55,7 +55,7 @@ async function scanCompat(snap,lanes,fps,duration,signal,progress){
 }
 async function run(){
  if(controller)return;
- let snap,restore;try{snap=PianoRollVideoNotes.snapshot();restore=PianoRollVideoNotes.begin();}catch(e){$('noteScanStatus').textContent=e.message;return;}
+ let snap,restore,completed=false;try{snap=PianoRollVideoNotes.snapshot();restore=PianoRollVideoNotes.begin();}catch(e){$('noteScanStatus').textContent=e.message;return;}
  const ctrl=controller=new AbortController(),signal=ctrl.signal,video=snap.video,original=video.currentTime,fps=Number($('noteScanFps').value),duration=video.duration;
  const locked=Array.from(document.querySelector('main').children).filter(el=>el!==$('noteScanRun').closest('section')).map(el=>[el,el.inert]);for(const [el]of locked)el.inert=true;
  notify();
@@ -75,21 +75,21 @@ async function run(){
   if(!extraction)extraction=await scanCompat(snap,lanes,fps,duration,signal,progress);
   check(signal);if(PianoRollMainData.getActiveFile()!==snap.file)throw Error('動画が変更されたため中断しました。');
   const metrics={...extraction.metrics,wallMs:performance.now()-wallStart,fallbackReason,fallbackDiagnostics};
-  result={performance:metrics,format:'pianoroll-video-notes-seconds-v1',applicationVersion:'0.7.18',source:{name:snap.file.name,size:snap.file.size,durationSeconds:duration},sampling:{samplesPerSecond:fps,intervalSeconds:1/fps,framesProcessed:total,minimumConsecutiveSamples:2},hitLine:{yPixels:snap.hitLineY,width:snap.width,height:snap.height},guide:{...snap.guide,reference:snap.reference,lanes},notes:extraction.notes,discardedSingleSampleCandidates:extraction.discarded,notice:'Unverified visual candidates. Times refer to hit-line crossings, not beat quantization. No sustain or MIDI export.'};page=0;stale=false;$('noteScanProgress').value=1;render();
+  result={performance:metrics,format:'pianoroll-video-notes-seconds-v1',applicationVersion:'0.7.20',source:{name:snap.file.name,size:snap.file.size,durationSeconds:duration},sampling:{samplesPerSecond:fps,intervalSeconds:1/fps,framesProcessed:total,minimumConsecutiveSamples:2},hitLine:{yPixels:snap.hitLineY,width:snap.width,height:snap.height},guide:{...snap.guide,reference:snap.reference,lanes},notes:extraction.notes,discardedSingleSampleCandidates:extraction.discarded,notice:'Unverified visual candidates. Times refer to hit-line crossings, not beat quantization. No sustain or MIDI export.'};page=0;stale=false;$('noteScanProgress').value=1;render();
   window.PianoRollPerformance?.show(result);
   if($('noteScanDiagnostics'))$('noteScanDiagnostics').textContent=JSON.stringify({source:result.source,performance:metrics,browser:navigator.userAgent,logicalProcessors:navigator.hardwareConcurrency??null,workerSupported:typeof Worker==='function',videoDecoderSupported:typeof VideoDecoder==='function',note:'Logical processor count does not prove decoder parallelism. Hardware decoding use is not exposed.'},null,2);
   if(modeInfo&&!fallbackReason)modeInfo.textContent=metrics.engine==='webcodecs-worker'?'高速方式で抽出しました（'+metrics.codec+'）。':'互換方式で抽出しました。';
   const truncated=result.notes.filter(n=>n.truncatedStart||n.truncatedEnd).length;
-  $('noteScanStatus').textContent=`抽出完了：${result.notes.length}音（${metrics.engine==='webcodecs-worker'?'高速方式':'互換方式'}・${(metrics.wallMs/1000).toFixed(1)}秒）。${truncated?`動画の端で途切れた候補 ${truncated}音。`:''}音名を押すと開始位置を確認できます。`;
+  $('noteScanStatus').textContent=`抽出完了：${result.notes.length}音（${metrics.engine==='webcodecs-worker'?'高速方式':'互換方式'}・${(metrics.wallMs/1000).toFixed(1)}秒）。${truncated?`動画の端で途切れた候補 ${truncated}音。`:''}音名を押すと開始位置を確認できます。`;completed=true;
  }catch(e){const info=$('noteScanModeInfo');if(info)info.textContent=e.name==='AbortError'?'処理を中止しました。':'処理に失敗しました：'+e.message;$('noteScanStatus').textContent=e.name==='AbortError'?'抽出を中止しました。前回の結果がある場合は保持しています。':'抽出できません：'+e.message;}
  finally{
   if(PianoRollMainData.getActiveFile()===snap.file){try{await seek(video,Math.min(original,Math.max(0,duration-.0001)),new AbortController().signal);}catch(_){}}
   restore();controller=null;for(const [el,value]of locked)el.inert=value;
-  oldDetails.inert=false;$('noteScanSetup').disabled=false;$('noteScanResults').inert=false;$('noteScanRun').disabled=false;$('noteScanCancel').hidden=true;$('noteScanExport').disabled=!result||stale;notify();
+  oldDetails.inert=false;$('noteScanSetup').disabled=false;$('noteScanResults').inert=false;$('noteScanRun').disabled=false;$('noteScanCancel').hidden=true;$('noteScanExport').disabled=!result||stale;notify();if(completed)window.dispatchEvent(new CustomEvent('pianoroll-notes-ready'));
  }
 }
 $('noteScanRun').onclick=run;$('noteScanCancel').onclick=()=>controller?.abort();
-$('noteScanExport').onclick=()=>{if(!result||stale)return;const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='pianoroll-video-notes-v0.7.18.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('noteScanExport').onclick=()=>{if(!result||stale)return;const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='pianoroll-video-notes-v0.7.20.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('file').addEventListener('change',()=>{window.PianoRollPerformance?.clear();if($('noteScanModeInfo')){$('noteScanModeInfo').hidden=true;$('noteScanModeInfo').textContent='';}if($('noteScanDiagnostics'))$('noteScanDiagnostics').textContent='抽出後に表示します。';controller?.abort();result=null;stale=false;page=0;render();$('noteScanRun').disabled=true;$('noteScanStatus').textContent='新しい動画を読み込んでいます。鍵盤ガイドと音名を合わせてください。';});
 $('v').addEventListener('loadeddata',()=>{if(!controller){$('noteScanRun').disabled=false;$('noteScanStatus').textContent='鍵盤ガイドと基準鍵の音名を合わせてから抽出してください。';}});
 window.PianoRollVideoNoteScan={replaceNotes:notes=>{if(!result||controller||stale)return false;result.notes=JSON.parse(JSON.stringify(notes));page=0;render();$('noteScanStatus').textContent=`編集済み：${result.notes.length}音。`;return true;},getResult:()=>result?JSON.parse(JSON.stringify(result)):null,getState:()=>({hasResult:!!result,stale,running:!!controller}),get running(){return !!controller}};

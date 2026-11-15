@@ -82,3 +82,6 @@
 @keyframes nrNoticeFade{0%,85%{opacity:1}100%{opacity:0}}
 @media(max-width:700px){#noteReview .nr-bottom{grid-template-columns:32px 32px 100px minmax(60px,1fr) minmax(60px,1fr)}}
 @media(max-width:370px){#noteReview .nr-bottom{grid-template-columns:28px 28px 90px minmax(45px,1fr) minmax(45px,1fr)}}
+
+/* 0.7.20: virtual canvas cannot extend the scrollable pitch range. */
+#noteReview .nr-surface{overflow:hidden}
