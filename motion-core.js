@@ -1,4 +1,4 @@
-/* 0.7.35: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.36: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));

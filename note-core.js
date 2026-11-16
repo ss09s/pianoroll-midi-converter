@@ -66,12 +66,14 @@ function resolveOverlaps(notes,fps=30){
   const kept=[];
   for(const n of list){let a=kept[kept.length-1];if(a&&a.endSeconds>n.startSeconds){
    const overlap=Math.min(a.endSeconds,n.endSeconds)-n.startSeconds;
-   if(Math.abs(a.startSeconds-n.startSeconds)<=1/fps&&overlap>=Math.min(a.durationSeconds,n.durationSeconds)*.8){
+   const identical=Math.abs(a.startSeconds-n.startSeconds)<=1e-6;
+   const sameOrigin=a.evidence?.primaryStartSeconds!==undefined&&a.evidence.primaryStartSeconds===n.evidence?.primaryStartSeconds&&!(a.evidence.splitParts>1)&&!(n.evidence.splitParts>1);
+   if(identical||sameOrigin&&Math.abs(a.startSeconds-n.startSeconds)<=1/fps&&overlap>=Math.min(a.durationSeconds,n.durationSeconds)*.8){
     const score=x=>(x.evidence?.independentStartRows||0)+(x.evidence?.independentEndRows||0)+(x.evidence?.edgeRows||0);
     if(score(n)>score(a)||score(n)===score(a)&&n.durationSeconds<a.durationSeconds)kept[kept.length-1]=n;stats.duplicates++;continue;
    }
    a.endSeconds=n.startSeconds;a.durationSeconds=a.endSeconds-a.startSeconds;stats.trimmed++;
-   if(a.durationSeconds<1/fps){kept.pop();stats.trimFragmentsRemoved++;}
+   // Keep every positive interval after trimming: sample rate is not a deletion rule.
   }kept.push(n);}out.push(...kept);
  }
  return{notes:out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),stats};
