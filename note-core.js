@@ -77,7 +77,7 @@ function resolveOverlaps(notes,fps=30){
  return{notes:out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),stats};
 }
 class Tracker{
- constructor({fps=30,duration}){if(!(fps>0&&Number.isFinite(duration)&&duration>0))throw Error('Invalid sampling configuration');this.fps=fps;this.duration=duration;this.previous=null;this.active=new Map();this.notes=[];this.discarded=0;}
+ constructor({fps=30,duration,minimumSamples=2}){if(!(fps>0&&Number.isFinite(duration)&&duration>0))throw Error('Invalid sampling configuration');this.minimumSamples=minimumSamples;this.fps=fps;this.duration=duration;this.previous=null;this.active=new Map();this.notes=[];this.discarded=0;}
  push(time,hits){
   if(!Number.isFinite(time)||time<0||time>this.duration||this.previous!==null&&time<=this.previous)throw Error('Sample times must increase');
   const present=new Map(hits.map(h=>[h.pitch,h])),boundary=this.previous===null?0:(this.previous+time)/2;
@@ -85,7 +85,7 @@ class Tracker{
   for(const [pitch,hit] of present){let tr=this.active.get(pitch);if(!tr){tr={...hit,startSeconds:boundary,frames:0,colors:new Map(),truncatedStart:this.previous===null};this.active.set(pitch,tr);}tr.frames++;if(tr.frames>3&&tr.pendingColor){const c=tr.pendingColor,key=c.map(v=>v>>3).join(',');let bin=tr.colors.get(key);if(!bin){bin={n:0,sum:[0,0,0]};tr.colors.set(key,bin);}bin.n++;c.forEach((v,i)=>bin.sum[i]+=v);}tr.pendingColor=hit.colorRGB.slice();}
   this.previous=time;
  }
- close(tr,end,truncatedEnd){if(tr.frames<2){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:representative(tr.colors,tr.colorRGB),rawColorRGB:tr.colorRGB.slice(),colorSamples:[...tr.colors.values()].reduce((n,b)=>n+b.n,0),laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
+ close(tr,end,truncatedEnd){if(tr.frames<this.minimumSamples){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({...(this.minimumSamples===1?{observationSamples:tr.frames}:{}),midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:representative(tr.colors,tr.colorRGB),rawColorRGB:tr.colorRGB.slice(),colorSamples:[...tr.colors.values()].reduce((n,b)=>n+b.n,0),laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
  finish(){for(const tr of this.active.values())this.close(tr,this.duration,true);this.active.clear();return this.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);}
 }
 const api={whitePitch,noteName,detectRow,createRowDetector,Tracker,normalizeColors,resolveOverlaps};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;

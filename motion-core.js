@@ -1,4 +1,4 @@
-/* 0.7.33: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.34: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -35,7 +35,7 @@ function robustEdge(points,key,v,{fps,height,referenceY,minSpan}){
 }
 // A separator must travel at the note speed, rather than merely flicker at nearby rows.
 function movingGap(points,v,fps){
- if(new Set(points.map(p=>p.time)).size<3||Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y))<6)return false;
+ if(new Set(points.map(p=>p.time)).size<2||Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y))<6)return false;
  const mt=points.reduce((s,p)=>s+p.time,0)/points.length,my=points.reduce((s,p)=>s+p.y,0)/points.length,den=points.reduce((s,p)=>s+(p.time-mt)**2,0);if(!den)return false;
  const speed=points.reduce((s,p)=>s+(p.time-mt)*(p.y-my),0)/den;
  return speed>0&&Math.abs(speed-v)/v<=.15&&points.every(p=>Math.abs(p.y-my-speed*(p.time-mt))<=Math.max(1.5,v/fps*.4));
@@ -161,11 +161,11 @@ function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null,dens
 }
 function splitSpatial(primary,base,gaps,v,{fps,referenceY}){
  if(!(v>0)||primary.truncatedStart||primary.truncatedEnd||base.evidence.timingSource==='surface-split')return[base];
- const projected=(gaps.get(primary.midiPitch)||[]).map(g=>({...g,t:g.time+(referenceY-g.y)/v})).filter(g=>g.t>base.startSeconds+2/fps&&g.t<base.endSeconds-2/fps).sort((a,b)=>a.t-b.t),clusters=[];
+ const projected=(gaps.get(primary.midiPitch)||[]).map(g=>({...g,t:g.time+(referenceY-g.y)/v})).filter(g=>g.t>base.startSeconds+1/120&&g.t<base.endSeconds-1/120).sort((a,b)=>a.t-b.t),clusters=[];
  for(const g of projected){let c=clusters.find(c=>Math.abs(c.t-g.t)<=1/fps);if(!c){c={t:g.t,points:[]};clusters.push(c);}c.points.push(g);c.t=median(c.points.map(p=>p.t));}
  const cuts=clusters.filter(c=>movingGap(c.points,v,fps)).map(c=>({t:c.t,gap:median(c.points.map(p=>p.height))/v,frames:new Set(c.points.map(p=>p.time)).size}));
- if(!cuts.length||cuts.some((c,i)=>i&&c.t-cuts[i-1].t<2/fps))return[base];
- const pieces=[];let start=base.startSeconds;for(const c of cuts){const end=c.t-c.gap/2;if(end-start<1/fps)return[base];pieces.push({startSeconds:start,endSeconds:end});start=c.t+c.gap/2;}if(base.endSeconds-start<1/fps)return[base];pieces.push({startSeconds:start,endSeconds:base.endSeconds});
+ if(!cuts.length||cuts.some((c,i)=>i&&c.t-cuts[i-1].t<1/60))return[base];
+ const pieces=[];let start=base.startSeconds;for(const c of cuts){const end=c.t-c.gap/2;if(end-start<1/120)return[base];pieces.push({startSeconds:start,endSeconds:end});start=c.t+c.gap/2;}if(base.endSeconds-start<1/120)return[base];pieces.push({startSeconds:start,endSeconds:base.endSeconds});
  return pieces.map((p,i)=>({...base,...p,durationSeconds:p.endSeconds-p.startSeconds,evidence:{...base.evidence,timingSource:'local-surface-split',intervalFloor:i?cuts[i-1].t:undefined,intervalCeiling:i<cuts.length?cuts[i].t:undefined,splitParts:pieces.length,gapFrames:Math.min(...cuts.map(c=>c.frames)),verified:true}}));
 }
 
@@ -304,6 +304,7 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
 
  // A short event needs a moving body supported at separated heights.
  const uncertain=[];if(supported){notes=notes.filter(n=>{
+  if(n.startSeconds>=duration){uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'outside-video'}});return false;}
   if(n.durationSeconds>=2/30||n.truncatedStart||n.truncatedEnd)return true;
   const v=diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),ys=[];
   for(let i=1;i<lines.length;i++){const shift=(referenceY-lines[i])/v;
@@ -319,7 +320,7 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
 // Missing bright/distorted pixels are unknown, never positive note evidence.
 // Keep at most 150 ms and bridge only after the same body is seen again.
 class OcclusionTracker {
- constructor(options,lanes,width){this.inner=new core.Tracker(options);this.fps=options.fps;this.lanes=lanes;this.width=width;this.queue=[];this.active=new Map();this.bridged=0;}
+ constructor(options,lanes,width){this.inner=new core.Tracker({...options,minimumSamples:1});this.fps=options.fps;this.lanes=lanes;this.width=width;this.queue=[];this.active=new Map();this.bridged=0;}
  push(time,hits,raw){
   const present=new Map(hits.map(h=>[h.pitch,h])),frame={time,hits:hits.slice(),unknown:new Set()};
   for(const [pitch,last] of this.active){
