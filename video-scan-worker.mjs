@@ -1,7 +1,7 @@
 import {videoPackets} from './video-demux.mjs?v=0.7.18';
-import './note-core.js?v=0.7.30';
-import './motion-core.js?v=0.7.30';
-import './frame-reader.js?v=0.7.30';
+import './note-core.js?v=0.7.31';
+import './motion-core.js?v=0.7.31';
+import './frame-reader.js?v=0.7.31';
 import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
 import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
 const core=globalThis.PianoRollNoteCore;

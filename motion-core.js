@@ -1,4 +1,4 @@
-/* 0.7.30: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.31: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -145,9 +145,9 @@ function refineEdges(primary,base,lines,groups,velocity,{fps,height,referenceY,d
 }
 
 function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null,denseBand=null){
- const near=lines.map((y,i)=>({y,h:hits[i],raw:rawRows?.[i]})).filter(r=>denseBand?r.y>=denseBand.top&&r.y<=denseBand.bottom:Math.abs(r.y-primaryY)<=24).sort((a,b)=>a.y-b.y),pitches=new Set(near.flatMap(r=>r.h.map(h=>h.pitch))),out=[];
+ const near=lines.map((y,i)=>({y,h:hits[i],lookup:new Map(hits[i].map(h=>[h.pitch,h.colorRGB])),raw:rawRows?.[i]})).filter(r=>denseBand?r.y>=denseBand.top&&r.y<=denseBand.bottom:Math.abs(r.y-primaryY)<=24).sort((a,b)=>a.y-b.y),pitches=new Set(near.flatMap(r=>r.h.map(h=>h.pitch))),out=[];
  if(near.length<10)return out;
- for(const pitch of pitches){const rows=near.map(r=>{const c=r.h.find(h=>h.pitch===pitch)?.colorRGB,k=laneCenters?.get(pitch);return{y:r.y,c,raw:r.raw&&k!==undefined?[r.raw[k],r.raw[k+1],r.raw[k+2]]:c};}),lum=c=>c?(.2126*c[0]+.7152*c[1]+.0722*c[2]):0;
+ for(const pitch of pitches){const rows=near.map(r=>{const c=r.lookup.get(pitch),k=laneCenters?.get(pitch);return{y:r.y,c,raw:r.raw&&k!==undefined?[r.raw[k],r.raw[k+1],r.raw[k+2]]:c};}),lum=c=>c?(.2126*c[0]+.7152*c[1]+.0722*c[2]):0;
   for(let i=3;i<rows.length-3;i++){
    // A narrow dark separator must have a solid body on both sides.
    const a=rows[i-1],left=rows.slice(i-3,i);if(!left.every(r=>r.c)||left.some(r=>Math.abs(r.y-a.y)>2))continue;
@@ -305,13 +305,31 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
 
  return{notes,unconfirmedNotes:[],diagnostics};
 }
+// Missing bright/distorted pixels are unknown, never positive note evidence.
+// Keep at most 150 ms and bridge only after the same body is seen again.
+class OcclusionTracker {
+ constructor(options,lanes,width){this.inner=new core.Tracker(options);this.fps=options.fps;this.lanes=lanes;this.width=width;this.queue=[];this.active=new Map();this.bridged=0;}
+ push(time,hits,raw){
+  const present=new Map(hits.map(h=>[h.pitch,h])),frame={time,hits:hits.slice(),unknown:new Set()};
+  for(const [pitch,last] of this.active){
+   const hit=present.get(pitch);
+   if(hit){if(bodyDistance(last.hit,hit)<40&&time-last.time<=.15){for(const f of this.queue)if(f.unknown.has(pitch)){f.hits.push(last.hit);f.unknown.delete(pitch);this.bridged++;}}this.active.set(pitch,{hit,time});continue;}
+   const l=this.lanes.get(pitch),i=l?Math.round(l.x)*4:-1,c=raw&&i>=0?[raw[i],raw[i+1],raw[i+2]]:null,lum=x=>.2126*x[0]+.7152*x[1]+.0722*x[2];
+   // A dark, empty lane is negative evidence; a bright changed body is ambiguous.
+   if(c&&time-last.time<=.15&&lum(c)>=Math.max(85,lum(last.hit.colorRGB)*.9)&&Math.hypot(...c.map((v,k)=>v-last.hit.colorRGB[k]))>48){frame.unknown.add(pitch);}else this.active.delete(pitch);
+  }
+  for(const hit of hits)this.active.set(hit.pitch,{hit,time});
+  this.queue.push(frame);while(this.queue.length&&time-this.queue[0].time>=.15){const f=this.queue.shift();this.inner.push(f.time,f.hits);}
+ }
+ finish(){for(const f of this.queue)this.inner.push(f.time,f.hits);this.queue=[];const notes=this.inner.finish();this.discarded=this.inner.discarded;return notes;}
+}
 function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20}){
- const localGaps=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
+ const localGaps=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>mode==='motion'?new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
  const denseBand={top:Math.max(Math.min(...lines),lines[0]-Math.max(72,Math.round(height*.15))),bottom:Math.min(Math.max(...lines),lines[0]+Math.max(36,Math.round(height*.08)))};
- return{lines,detect,push(time,rows,rawRows=null){if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(lines,rows,time,lines[0],rawRows,laneCenters,denseBand));rows.forEach((hits,i)=>trackers[i].push(time,hits));},finish(){
+ return{lines,detect,push(time,rows,rawRows=null){if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(lines,rows,time,lines[0],rawRows,laneCenters,denseBand));rows.forEach((hits,i)=>trackers[i].push(time,hits,rawRows?.[i]));},finish(){
   const observations=trackers.map(t=>t.finish()),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{method:mode==='upper'?'upper-single':'single-line',lineYs:lines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
-  const result=fuse(lines,observations,{fps,duration,height,referenceY:hitLineY,localGaps});result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
+  const result=fuse(lines,observations,{fps,duration,height,referenceY:hitLineY,localGaps});result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
 }
 const api={linePlan,fuse,createScan};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollMotionCore=api;

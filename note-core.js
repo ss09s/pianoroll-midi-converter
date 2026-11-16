@@ -57,6 +57,25 @@ function normalizeColors(notes,mode='two'){
  for(const [id,es] of assigned){if(es.length<2)continue;const rgb=[0,1,2].map(k=>{const v=es.map(e=>e.c[k]).sort((a,b)=>a-b);return v[Math.floor(v.length/2)];});palette.push({id,family:Number(id.split('-')[0])+1,laneType:es[0].lane,colorRGB:rgb,notes:es.length});for(const e of es){input[e.i].colorRGB=rgb.slice();input[e.i].colorClass=id;input[e.i].colorConfidence=Math.max(0,1-hueGap(e.h,families[Number(id.split('-')[0])])/26);}}
  return {notes:input,palette,unclassified:input.filter(n=>!n.colorClass).length};
 }
+// Final constraints use classified colors; different voices/colors may overlap.
+function resolveOverlaps(notes,fps=30){
+ const out=[],groups=new Map(),stats={duplicates:0,trimmed:0,trimFragmentsRemoved:0};
+ for(const n of notes){const c=n.colorClass||n.colorRGB.join(','),key=n.midiPitch+':'+c;if(!groups.has(key))groups.set(key,[]);groups.get(key).push({...n});}
+ for(const list of groups.values()){
+  list.sort((a,b)=>a.startSeconds-b.startSeconds);
+  const kept=[];
+  for(const n of list){let a=kept[kept.length-1];if(a&&a.endSeconds>n.startSeconds){
+   const overlap=Math.min(a.endSeconds,n.endSeconds)-n.startSeconds;
+   if(Math.abs(a.startSeconds-n.startSeconds)<=1/fps&&overlap>=Math.min(a.durationSeconds,n.durationSeconds)*.8){
+    const score=x=>(x.evidence?.independentStartRows||0)+(x.evidence?.independentEndRows||0)+(x.evidence?.edgeRows||0);
+    if(score(n)>score(a)||score(n)===score(a)&&n.durationSeconds<a.durationSeconds)kept[kept.length-1]=n;stats.duplicates++;continue;
+   }
+   a.endSeconds=n.startSeconds;a.durationSeconds=a.endSeconds-a.startSeconds;stats.trimmed++;
+   if(a.durationSeconds<1/fps){kept.pop();stats.trimFragmentsRemoved++;}
+  }kept.push(n);}out.push(...kept);
+ }
+ return{notes:out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),stats};
+}
 class Tracker{
  constructor({fps=30,duration}){if(!(fps>0&&Number.isFinite(duration)&&duration>0))throw Error('Invalid sampling configuration');this.fps=fps;this.duration=duration;this.previous=null;this.active=new Map();this.notes=[];this.discarded=0;}
  push(time,hits){
@@ -69,5 +88,5 @@ class Tracker{
  close(tr,end,truncatedEnd){if(tr.frames<2){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:representative(tr.colors,tr.colorRGB),rawColorRGB:tr.colorRGB.slice(),colorSamples:[...tr.colors.values()].reduce((n,b)=>n+b.n,0),laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
  finish(){for(const tr of this.active.values())this.close(tr,this.duration,true);this.active.clear();return this.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);}
 }
-const api={whitePitch,noteName,detectRow,createRowDetector,Tracker,normalizeColors};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
+const api={whitePitch,noteName,detectRow,createRowDetector,Tracker,normalizeColors,resolveOverlaps};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
 })(globalThis);
