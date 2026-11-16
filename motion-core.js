@@ -1,4 +1,4 @@
-/* 0.7.23: upper candidates are immutable; dense observations calibrate a common transit delay. */
+/* 0.7.27: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -63,6 +63,74 @@ function splitSpatial(primary,base,gaps,v,{fps,referenceY}){
  return pieces.map(p=>({...base,...p,durationSeconds:p.endSeconds-p.startSeconds,evidence:{...base.evidence,timingSource:'local-surface-split',splitParts:pieces.length,gapFrames:Math.min(...cuts.map(c=>c.frames)),verified:true}}));
 }
 
+// Reconsider primary mistakes using independent complete intervals from other rows.
+// A common, well-supported speed is required. Missing evidence alone never removes a note.
+function reconcileSurface(notes,primary,lines,groups,v,{fps,height,referenceY,duration}){
+ const tol=1.5/fps, spanMin=Math.max(48,height*.2), maxShift=Math.min(1,Math.max(4/fps,(referenceY-lines[0])/v*.5));
+ const parents=new Map(primary.map(a=>[a.midiPitch+':'+a.startSeconds,a]));
+ let repaired=0;const rejected=[],out=[],repairOriginals=new Map();
+ function fit(points,key){
+  const my=points.reduce((s,p)=>s+p.y,0)/points.length,mt=points.reduce((s,p)=>s+p.b[key],0)/points.length;
+  const den=points.reduce((s,p)=>s+(p.y-my)**2,0);if(!den)return null;
+  const slope=points.reduce((s,p)=>s+(p.y-my)*(p.b[key]-mt),0)/den;
+  if(!(slope>0)||Math.abs(1/slope-v)/v>.12)return null;
+  if(points.some(p=>Math.abs(p.b[key]-(mt+slope*(p.y-my)))>tol))return null;
+  return {time:mt+slope*(referenceY-my),slope};
+ }
+ for(const base of notes){
+  const a=parents.get(base.midiPitch+':'+base.evidence.primaryStartSeconds);
+  if(!a||a.truncatedStart||a.truncatedEnd){out.push(base);continue;}
+  const clusters=[];
+  for(let i=1;i<lines.length;i++){
+   const shift=(referenceY-lines[i])/v,list=groups[i].get(a.midiPitch)||[];
+   for(let k=lowerBound(list,base.startSeconds-maxShift-shift-tol);k<list.length&&list[k].startSeconds<=base.endSeconds-shift+tol;k++){
+    const b=list[k];if(b.truncatedStart||b.truncatedEnd||distance(a,b)>=65)continue;
+    const s=b.startSeconds+shift,e=b.endSeconds+shift,overlap=Math.min(e,base.endSeconds)-Math.max(s,base.startSeconds);
+    // One trustworthy edge anchors a delayed/early opposite edge. Don't jump to neighbors.
+    if(overlap<.5*Math.min(e-s,base.durationSeconds)||Math.min(Math.abs(s-base.startSeconds),Math.abs(e-base.endSeconds))>2/fps||Math.max(Math.abs(s-base.startSeconds),Math.abs(e-base.endSeconds))>maxShift)continue;
+    let c=clusters.find(c=>Math.abs(c.s-s)<=tol&&Math.abs(c.e-e)<=tol);
+    if(!c){c={s,e,points:[]};clusters.push(c);}
+    if(!c.points.some(p=>p.row===i)){c.points.push({row:i,y:lines[i],b});c.s=median(c.points.map(p=>p.b.startSeconds+(referenceY-p.y)/v));c.e=median(c.points.map(p=>p.b.endSeconds+(referenceY-p.y)/v));}
+   }
+  }
+  const valid=[];
+  for(const c of clusters){
+   if(c.points.length<8||Math.max(...c.points.map(p=>p.y))-Math.min(...c.points.map(p=>p.y))<spanMin)continue;
+   const start=fit(c.points,'startSeconds'),end=fit(c.points,'endSeconds');
+   if(!start||!end||Math.abs(start.slope-end.slope)/start.slope>.08||start.time<0||end.time>duration||end.time-start.time<1/fps)continue;
+   valid.push({start:start.time,end:end.time,rows:c.points.length});
+  }
+  if(valid.length===1){const t=valid[0];
+   if(Math.max(Math.abs(t.start-base.startSeconds),Math.abs(t.end-base.endSeconds))>1/fps){
+    repaired++;const fixed={...base,startSeconds:t.start,endSeconds:t.end,durationSeconds:t.end-t.start,evidence:{...base.evidence,timingSource:'surface-repaired',surfaceRows:t.rows,previousStartSeconds:base.startSeconds,previousEndSeconds:base.endSeconds,offsetSeconds:t.start-a.startSeconds,verified:true}};repairOriginals.set(fixed,base);out.push(fixed);continue;
+   }
+   out.push(base);continue;
+  }
+  // Positive counter-evidence: a broad object appears/disappears simultaneously
+  // above and below the primary, instead of travelling at the measured speed.
+  // Competing moving tracks are ambiguous and must never be removed here.
+  if(!valid.length){
+   const stationary=[];
+   for(let i=1;i<lines.length;i++){
+    if(Math.abs(lines[i]-lines[0])>24)continue;
+    const list=groups[i].get(a.midiPitch)||[];
+    for(let k=lowerBound(list,a.startSeconds-.5/fps);k<list.length&&list[k].startSeconds<=a.startSeconds+.5/fps;k++){
+     const b=list[k];if(!b.truncatedStart&&!b.truncatedEnd&&distance(a,b)<40&&Math.abs(b.endSeconds-a.endSeconds)<=.5/fps){stationary.push(lines[i]);break;}
+    }
+   }
+   if(stationary.length>=8&&Math.min(...stationary)<=lines[0]-5&&Math.max(...stationary)>=lines[0]+5&&Math.max(...stationary)-Math.min(...stationary)>=Math.max(12,4*v/fps)){
+    rejected.push({...base,evidence:{...base.evidence,verified:false,rejectionReason:'stationary-across-rows',stationaryRows:stationary.length}});continue;
+   }
+  }
+  out.push(base);
+ }
+ // Two primary fragments must not both expand onto the same moving interval.
+ const collisions=new Set();for(const a of repairOriginals.keys())for(const b of out){if(a!==b&&a.midiPitch===b.midiPitch&&distance(a,b)<65&&Math.abs(a.startSeconds-b.startSeconds)<=tol&&Math.abs(a.endSeconds-b.endSeconds)<=tol)collisions.add(a);}
+ for(let i=0;i<out.length;i++)if(collisions.has(out[i])){out[i]=repairOriginals.get(out[i]);repaired--;}
+ out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
+ return {notes:out,repaired,rejected};
+}
+
 function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[]}){
  const primary=observations[0],groups=observations.map(list=>{const m=new Map();for(const n of list){if(!m.has(n.midiPitch))m.set(n.midiPitch,[]);m.get(n.midiPitch).push(n);}for(const ns of m.values())ns.sort((a,b)=>a.startSeconds-b.startSeconds);return m;});
  const votes=[];const tolerance=2/fps;
@@ -114,6 +182,8 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  const beforeRefine=notes;notes=primary.flatMap((a,i)=>refineEdges(a,beforeRefine[i],lines,groups,byPrimary.get(a)?.v||(supported?median(inliers.map(v=>v.v)):0),{fps,height,referenceY,duration}));notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
  diagnostics.edgeRefined=notes.filter(n=>n.evidence.timingSource==='surface-edges').length;diagnostics.splitCandidates=primary.filter((a,i)=>notes.filter(n=>n.evidence.primaryStartSeconds===a.startSeconds&&n.midiPitch===a.midiPitch&&n.evidence.timingSource==='surface-split').length>1).length;diagnostics.splitNotes=notes.filter(n=>n.evidence.timingSource==='surface-split').length;
  const gapGroups=new Map();for(const g of localGaps){if(!gapGroups.has(g.pitch))gapGroups.set(g.pitch,[]);gapGroups.get(g.pitch).push(g);}let localSplit=0;notes=notes.flatMap(base=>{const a=primary.find(a=>a.midiPitch===base.midiPitch&&a.startSeconds===base.evidence.primaryStartSeconds);if(!a)return[base];const parts=splitSpatial(a,base,gapGroups,byPrimary.get(a)?.v||(supported?median(inliers.map(x=>x.v)):0),{fps,referenceY});if(parts.length>1)localSplit++;return parts;});diagnostics.localSplitCandidates=localSplit;diagnostics.localGapObservations=localGaps.length;diagnostics.localSplitNotes=notes.filter(n=>n.evidence.timingSource==='local-surface-split').length;
+ const reconsidered=supported?reconcileSurface(notes,primary,lines,groups,median(inliers.map(v=>v.v)),{fps,height,referenceY,duration}):{notes,repaired:0,rejected:[]};
+ notes=reconsidered.notes;diagnostics.surfaceRepairedNotes=reconsidered.repaired;diagnostics.surfaceRejectedNotes=reconsidered.rejected.length;diagnostics.rejectedCandidates=reconsidered.rejected;
  diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=notes.filter(n=>!n.evidence.verified).length;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
 
  return{notes,unconfirmedNotes:[],diagnostics};
