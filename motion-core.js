@@ -1,4 +1,4 @@
-/* 0.7.29: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.30: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -8,13 +8,14 @@ function linePlan(referenceY,height,mode='motion',primaryPercent=20){
  if(mode==='single')return[y];if(mode==='upper'||y<16)return[upper];
  // Dense spatial observations across the falling area. The first row alone owns notes.
  const top=Math.min(upper,Math.round(height*.03)),bottom=Math.max(upper,Math.round(upper+(y-upper)*.85));
- return [...new Set([upper,...Array.from({length:49},(_,i)=>clamp(upper+i-24,0,height-1)),...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31))])];
+ const readTop=Math.min(top,Math.max(0,upper-24)),readBottom=Math.max(bottom,Math.min(height-1,upper+24)),denseTop=Math.max(readTop,upper-Math.max(72,Math.round(height*.15))),denseBottom=Math.min(readBottom,upper+Math.max(36,Math.round(height*.08)));
+ return [...new Set([upper,...Array.from({length:denseBottom-denseTop+1},(_,i)=>denseTop+i),...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31)),readTop,readBottom])];
 }
 const distance=(a,b)=>Math.hypot(...(a.rawColorRGB||a.colorRGB).map((v,i)=>v-(b.rawColorRGB||b.colorRGB)[i]));
 const bodyDistance=(a,b)=>Math.hypot(...a.colorRGB.map((v,i)=>v-b.colorRGB[i]));
 function compatible(a,b,fps){return a.midiPitch===b.midiPitch&&!b.truncatedStart&&!b.truncatedEnd&&distance(a,b)<65&&Math.abs(a.durationSeconds-b.durationSeconds)<=Math.max(2/fps,.12*a.durationSeconds);}
 function lowerBound(list,time){let a=0,b=list.length;while(a<b){const m=(a+b)>>1;if(list[m].startSeconds<time)a=m+1;else b=m;}return a;}
-// Balance height regions so the 49 nearby rows cannot outweigh distant evidence.
+// Balance height regions so dense adjacent rows cannot outweigh distant evidence.
 // Robust slope/offset seed -> reject residual outliers -> weighted mean of arrival times.
 function robustEdge(points,key,v,{fps,height,referenceY,minSpan}){
  if(points.length<8)return null;
@@ -97,18 +98,23 @@ function healTails(primary,lines,groups,v,localGaps,{fps,height,referenceY,allow
   list.sort((a,b)=>a.startSeconds-b.startSeconds);let a=list[0];
   for(let k=1;k<list.length;k++){
    const b=list[k],gap=b.startSeconds-a.endSeconds,total=b.endSeconds-a.startSeconds;
-   let rows=[];
+   let rows=[],upstreamRecovery=false;
    if(!a.truncatedStart&&!b.truncatedEnd&&gap>=(allowOverlap?-2/fps:0)&&gap<=Math.max(2/fps,.15)&&b.durationSeconds<=Math.min(.25,total*.25)&&a.durationSeconds>=4/fps&&bodyDistance(a,b)<40){
     const cutTime=(a.endSeconds+b.startSeconds)/2+(referenceY-lines[0])/v,gaps=localGaps.filter(g=>g.pitch===a.midiPitch&&Math.abs(g.time+(referenceY-g.y)/v-cutTime)<=2/fps);
     const hasMovingGap=movingGap(gaps,v,fps);
-    if(!hasMovingGap)for(let i=1;i<lines.length;i++){
+    for(let i=1;i<lines.length;i++){
      const shift=(lines[i]-lines[0])/v,ns=groups[i].get(a.midiPitch)||[];
-     const candidates=ns.filter(n=>!n.truncatedStart&&!n.truncatedEnd&&bodyDistance(a,n)<65&&Math.abs(n.startSeconds-shift-a.startSeconds)<=2/fps&&Math.abs(n.endSeconds-shift-b.endSeconds)<=2/fps&&n.startSeconds-shift<a.endSeconds-.5/fps&&n.endSeconds-shift>b.startSeconds+.5/fps);
+     const candidates=ns.filter(n=>!n.truncatedStart&&!n.truncatedEnd&&bodyDistance(a,n)<65&&n.startSeconds-shift<=a.endSeconds-2/fps&&n.endSeconds-shift>=b.startSeconds+2/fps&&n.startSeconds-shift>=a.startSeconds-2/fps&&n.endSeconds-shift<=b.endSeconds+2/fps);
      if(candidates.length===1)rows.push(lines[i]);
+    }
+    if(hasMovingGap){
+     // A real separator continues through upstream regions. A localized effect
+     // can be contradicted only by positively continuous, separated upper rows.
+     if(gaps.length&&gaps.every(g=>g.extendedBand)){const firstGapY=Math.min(...gaps.map(g=>g.y));rows=rows.filter(y=>y<=firstGapY-2);upstreamRecovery=true;}else rows=[];
     }
    }
    if(rows.length>=8&&new Set(rows.map(y=>Math.floor(y/(height/24)))).size>=4&&Math.max(...rows)-Math.min(...rows)>=height*.12){
-    const parts=(a.evidence?.splitParts>1?1:(a.surfaceJoinedParts||1))+(b.evidence?.splitParts>1?1:(b.surfaceJoinedParts||1)),combined={...a,endSeconds:b.endSeconds,durationSeconds:total,surfaceJoinedParts:parts,surfaceJoinRows:rows.length,...(a.evidence?{evidence:{...a.evidence,intervalCeiling:b.evidence?.intervalCeiling,splitParts:1,joinedParts:parts,postSurfaceJoin:true}}:{})};joined.push({midiPitch:a.midiPitch,gapStart:a.endSeconds,gapEnd:b.startSeconds,rows:rows.length});a=combined;
+    const parts=(a.evidence?.splitParts>1?1:(a.surfaceJoinedParts||1))+(b.evidence?.splitParts>1?1:(b.surfaceJoinedParts||1)),combined={...a,endSeconds:b.endSeconds,durationSeconds:total,surfaceJoinedParts:parts,surfaceJoinRows:rows.length,occlusionRecovered:upstreamRecovery,...(a.evidence?{evidence:{...a.evidence,intervalCeiling:b.evidence?.intervalCeiling,splitParts:1,joinedParts:parts,postSurfaceJoin:true}}:{})};joined.push({midiPitch:a.midiPitch,gapStart:a.endSeconds,gapEnd:b.startSeconds,rows:rows.length,reason:upstreamRecovery?'upstream-continuity':'continuous-interior'});a=combined;
    }else{out.push(a);a=b;}
   }out.push(a);
  }
@@ -138,8 +144,8 @@ function refineEdges(primary,base,lines,groups,velocity,{fps,height,referenceY,d
  return valid.map((c,i)=>({...base,startSeconds:c.start,endSeconds:c.end,durationSeconds:Math.abs(c.end-c.start-primary.durationSeconds)<1e-9?primary.durationSeconds:c.end-c.start,evidence:{...base.evidence,timingSource:valid.length>1?'surface-split':'surface-edges',intervalFloor:i?(valid[i-1].end+c.start)/2:undefined,intervalCeiling:i+1<valid.length?(c.end+valid[i+1].start)/2:undefined,offsetSeconds:c.start-primary.startSeconds,edgeRows:Math.min(c.startFit.rows,c.endFit.rows),edgeVelocityPixelsPerSecond:2/(c.startFit.slope+c.endFit.slope),timingEstimator:'outlier-filtered-height-balanced-mean',timingOutliers:c.startFit.outliers+c.endFit.outliers,timingSpreadSeconds:Math.max(c.startFit.spreadSeconds,c.endFit.spreadSeconds),splitParts:valid.length,primaryStartSeconds:primary.startSeconds,primaryEndSeconds:primary.endSeconds,verified:true}}));
 }
 
-function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null){
- const near=lines.map((y,i)=>({y,h:hits[i],raw:rawRows?.[i]})).filter(r=>Math.abs(r.y-primaryY)<=24).sort((a,b)=>a.y-b.y),pitches=new Set(near.flatMap(r=>r.h.map(h=>h.pitch))),out=[];
+function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null,denseBand=null){
+ const near=lines.map((y,i)=>({y,h:hits[i],raw:rawRows?.[i]})).filter(r=>denseBand?r.y>=denseBand.top&&r.y<=denseBand.bottom:Math.abs(r.y-primaryY)<=24).sort((a,b)=>a.y-b.y),pitches=new Set(near.flatMap(r=>r.h.map(h=>h.pitch))),out=[];
  if(near.length<10)return out;
  for(const pitch of pitches){const rows=near.map(r=>{const c=r.h.find(h=>h.pitch===pitch)?.colorRGB,k=laneCenters?.get(pitch);return{y:r.y,c,raw:r.raw&&k!==undefined?[r.raw[k],r.raw[k+1],r.raw[k+2]]:c};}),lum=c=>c?(.2126*c[0]+.7152*c[1]+.0722*c[2]):0;
   for(let i=3;i<rows.length-3;i++){
@@ -150,7 +156,7 @@ function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null){
    if(j-i>6||j+2>=rows.length)continue;const right=rows.slice(j,j+3);if(!right.every(r=>r.c)||right.some((r,k)=>r.y!==rows[j].y+k))continue;
    if(right.some(r=>lum(r.c)<level*.7)||Math.hypot(...a.c.map((v,k)=>v-right[0].c[k]))>65)continue;
    if(rows[j].y-rows[i].y!==j-i)continue;
-   out.push({pitch,time,y:(rows[i].y+rows[j-1].y)/2,height:j-i});i=j;
+   out.push({pitch,time,y:(rows[i].y+rows[j-1].y)/2,height:j-i,...(denseBand?{extendedBand:true}:{} )});i=j;
   }
  }return out;
 }
@@ -261,11 +267,11 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
     }
     if(Number.isFinite(best)){points.push([lines[i],bestNote.startSeconds,bestNote.endSeconds]);matches++;minY=Math.min(minY,lines[i]);maxY=Math.max(maxY,lines[i]);error+=best;}
    }
-   if(matches>=8&&maxY-minY>=height*.25){const mean=points.reduce((n,p)=>n+p[0],0)/points.length,den=points.reduce((n,p)=>n+(p[0]-mean)**2,0),slope=points.reduce((n,p)=>n+(p[0]-mean)*(p[1]+p[2])*.5,0)/den;scored.push({v,fit:1/slope,matches,error:error/matches});}
+   if(matches>=8&&maxY-minY>=height*.25){const mean=points.reduce((n,p)=>n+p[0],0)/points.length,den=points.reduce((n,p)=>n+(p[0]-mean)**2,0),slope=points.reduce((n,p)=>n+(p[0]-mean)*(p[1]+p[2])*.5,0)/den;const regions=new Set(points.map(p=>Math.floor(p[0]/(height/16)))).size;if(regions>=5)scored.push({v,fit:1/slope,matches,regions,error:error/matches});}
   }
-  scored.sort((a,b)=>b.matches-a.matches||a.error-b.error);const best=scored[0];if(!best)continue;
+  scored.sort((a,b)=>b.regions-a.regions||a.error-b.error||b.matches-a.matches);const best=scored[0];if(!best)continue;
   const rival=scored.find(s=>Math.abs(s.v-best.v)/best.v>.12);
-  if(rival&&rival.matches>=best.matches*.85)continue;
+  if(rival&&rival.regions>=best.regions*.85)continue;
   votes.push({v:best.fit,primary:a,support:best.matches});
  }
  const speed=median(votes.map(v=>v.v)),inliers=speed?votes.filter(v=>Math.abs(v.v-speed)/speed<=.08):[];
@@ -301,10 +307,11 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
 }
 function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20}){
  const localGaps=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
- return{lines,detect,push(time,rows,rawRows=null){if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(lines,rows,time,lines[0],rawRows,laneCenters));rows.forEach((hits,i)=>trackers[i].push(time,hits));},finish(){
+ const denseBand={top:Math.max(Math.min(...lines),lines[0]-Math.max(72,Math.round(height*.15))),bottom:Math.min(Math.max(...lines),lines[0]+Math.max(36,Math.round(height*.08)))};
+ return{lines,detect,push(time,rows,rawRows=null){if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(lines,rows,time,lines[0],rawRows,laneCenters,denseBand));rows.forEach((hits,i)=>trackers[i].push(time,hits));},finish(){
   const observations=trackers.map(t=>t.finish()),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{method:mode==='upper'?'upper-single':'single-line',lineYs:lines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
-  return{...fuse(lines,observations,{fps,duration,height,referenceY:hitLineY,localGaps}),discarded};
+  const result=fuse(lines,observations,{fps,duration,height,referenceY:hitLineY,localGaps});result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
 }
 const api={linePlan,fuse,createScan};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollMotionCore=api;
