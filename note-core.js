@@ -58,23 +58,19 @@ function normalizeColors(notes,mode='two'){
  return {notes:input,palette,unclassified:input.filter(n=>!n.colorClass).length};
 }
 // Final constraints use classified colors; different voices/colors may overlap.
-function resolveOverlaps(notes,fps=30,bpm=120){
- const tempo=Number(bpm),duplicateWindowSeconds=60/((Number.isFinite(tempo)&&tempo>=20&&tempo<=400)?tempo:120)/16;
- const out=[],groups=new Map(),stats={duplicates:0,trimmed:0,trimFragmentsRemoved:0,duplicateWindowSeconds};
+function resolveOverlaps(notes,fps=30){
+ const out=[],groups=new Map(),stats={duplicates:0,trimmed:0,trimFragmentsRemoved:0};
  for(const n of notes){const c=n.colorClass||n.colorRGB.join(','),key=n.midiPitch+':'+c;if(!groups.has(key))groups.set(key,[]);groups.get(key).push({...n});}
  for(const list of groups.values()){
-  list.sort((a,b)=>a.startSeconds-b.startSeconds);
-  const kept=[];
-  for(const n of list){let a=kept[kept.length-1];if(a&&a.endSeconds>n.startSeconds){
-   const overlap=Math.min(a.endSeconds,n.endSeconds)-n.startSeconds;
-   const protectedSplit=a.evidence?.splitParts>1||n.evidence?.splitParts>1;
-   if(!protectedSplit&&Math.abs(a.startSeconds-n.startSeconds)<=duplicateWindowSeconds+1e-9&&overlap>=Math.min(a.durationSeconds,n.durationSeconds)*.8){
-    const score=x=>(x.evidence?.independentStartRows||0)+(x.evidence?.independentEndRows||0)+(x.evidence?.edgeRows||0);
-    if(score(n)>score(a)||score(n)===score(a)&&n.durationSeconds<a.durationSeconds)kept[kept.length-1]=n;stats.duplicates++;continue;
-   }
-   a.endSeconds=n.startSeconds;a.durationSeconds=a.endSeconds-a.startSeconds;stats.trimmed++;
-   // Keep every positive interval after trimming: sample rate is not a deletion rule.
-  }kept.push(n);}out.push(...kept);
+  // Inspect original intervals before trimming: partial overlaps must never
+  // become duplicate evidence merely because a previous interval was shortened.
+  list.sort((a,b)=>a.startSeconds-b.startSeconds||b.endSeconds-a.endSeconds);
+  const kept=[];let enclosingEnd=-Infinity;
+  for(const n of list){const protectedSplit=n.evidence?.splitParts>1,contained=!protectedSplit&&enclosingEnd>=n.endSeconds;
+   if(contained){stats.duplicates++;continue;}kept.push(n);if(!protectedSplit)enclosingEnd=Math.max(enclosingEnd,n.endSeconds);
+  }
+  for(let i=1;i<kept.length;i++){const a=kept[i-1],n=kept[i];if(a.endSeconds>n.startSeconds&&a.startSeconds<n.startSeconds){a.endSeconds=n.startSeconds;a.durationSeconds=a.endSeconds-a.startSeconds;stats.trimmed++;}}
+  out.push(...kept);
  }
  return{notes:out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),stats};
 }
