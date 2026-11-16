@@ -1,4 +1,4 @@
-/* 0.7.28: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.29: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -33,9 +33,64 @@ function robustEdge(points,key,v,{fps,height,referenceY,minSpan}){
  if(times.some(t=>Math.abs(t-time)>1.5/fps))return null;
  return{time,slope,rows:kept.length,outliers:points.length-kept.length,spreadSeconds:Math.sqrt(times.reduce((s,t,i)=>s+weighted[i].w*(t-time)**2,0)/sum)};
 }
+// A separator must travel at the note speed, rather than merely flicker at nearby rows.
+function movingGap(points,v,fps){
+ if(new Set(points.map(p=>p.time)).size<3||Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y))<6)return false;
+ const mt=points.reduce((s,p)=>s+p.time,0)/points.length,my=points.reduce((s,p)=>s+p.y,0)/points.length,den=points.reduce((s,p)=>s+(p.time-mt)**2,0);if(!den)return false;
+ const speed=points.reduce((s,p)=>s+(p.time-mt)*(p.y-my),0)/den;
+ return speed>0&&Math.abs(speed-v)/v<=.15&&points.every(p=>Math.abs(p.y-my-speed*(p.time-mt))<=Math.max(1.5,v/fps*.4));
+}
+// Estimate one boundary with a confirmed shared speed. The opposite edge anchors
+// object identity, but its timing is not included in this boundary's mean.
+function independentBoundary(note,key,lines,groups,v,{fps,height,referenceY,duration}){
+ const other=key==='startSeconds'?'endSeconds':'startSeconds',tol=1.5/fps,limit=Math.min(.5,Math.max(4/fps,note.durationSeconds)),clusters=[];
+ for(let i=1;i<lines.length;i++){
+  const shift=(referenceY-lines[i])/v;
+  for(const b of groups[i].get(note.midiPitch)||[]){
+   if((key==='startSeconds'?b.truncatedStart:b.truncatedEnd)||bodyDistance(note,b)>=65||Math.abs(b[other]+shift-note[other])>2/fps)continue;
+   const t=b[key]+shift;if(Math.abs(t-note[key])>limit)continue;
+   let c=clusters.find(c=>Math.abs(c.t-t)<=tol);if(!c){c={t,points:[]};clusters.push(c);}
+   if(!c.points.some(p=>p.row===i)){c.points.push({row:i,y:lines[i],t});c.t=median(c.points.map(p=>p.t));}
+  }
+ }
+ const fits=[];
+ for(const c of clusters){
+  const bins=new Map();for(const p of c.points){const k=Math.floor(p.y/(height/24));if(!bins.has(k))bins.set(k,[]);bins.get(k).push(p.t);}
+  if(bins.size<3)continue;const centers=[...bins.values()].map(median),center=median(centers),mad=median(centers.map(t=>Math.abs(t-center))),cut=Math.min(tol,Math.max(.75/fps,3*1.4826*mad)),kept=c.points.filter(p=>Math.abs(p.t-center)<=cut);
+  if(kept.length<8||Math.max(...kept.map(p=>p.y))-Math.min(...kept.map(p=>p.y))<height*.08)continue;
+  const keptBins=new Map();for(const p of kept){const k=Math.floor(p.y/(height/24));if(!keptBins.has(k))keptBins.set(k,[]);keptBins.get(k).push(p.t);}
+  if(keptBins.size<3||keptBins.size<bins.size*.6)continue;
+  const means=[...keptBins.values()].map(ts=>ts.reduce((a,b)=>a+b,0)/ts.length),time=means.reduce((a,b)=>a+b,0)/means.length;
+  if(time<0||time>duration||key==='startSeconds'&&(time< (note.evidence.intervalFloor??0)||time>note.endSeconds-1/fps)||key==='endSeconds'&&(time> (note.evidence.intervalCeiling??duration)||time<note.startSeconds+1/fps))continue;
+  fits.push({time,rows:kept.length,bins:keptBins.size,minY:Math.min(...kept.map(p=>p.y)),maxY:Math.max(...kept.map(p=>p.y)),outliers:c.points.length-kept.length});
+ }
+ if(fits.length===1)return fits[0];
+ // Prefer a separately supported upper region only when competing regions lie below it.
+ const upper=fits.slice().sort((a,b)=>a.maxY-b.maxY)[0];
+ return upper&&fits.every(f=>f===upper||upper.maxY<=f.minY+height*.05)?{...upper,upperConsensus:true}:null;
+}
+function refineIndependent(notes,lines,groups,v,opts){
+ let startCount=0,endCount=0,blocked=0;const proposed=notes.map(n=>{
+  const start=independentBoundary(n,'startSeconds',lines,groups,v,opts),end=independentBoundary(n,'endSeconds',lines,groups,v,opts);
+  let a=start?.time??n.startSeconds,b=end?.time??n.endSeconds;
+  // Never let a repaired edge run across a distinct original event.
+  for(const other of notes){if(other===n||other.midiPitch!==n.midiPitch||bodyDistance(n,other)>=65)continue;
+   if(n.endSeconds<=other.startSeconds+.25/opts.fps&&b>other.startSeconds+.25/opts.fps){b=n.endSeconds;blocked++;}
+   if(n.startSeconds>=other.endSeconds-.25/opts.fps&&a<other.endSeconds-.25/opts.fps){a=n.startSeconds;blocked++;}
+  }
+  if(b-a<1/opts.fps)return n;
+  const usedStart=!!start&&a===start.time,usedEnd=!!end&&b===end.time;if(!usedStart&&!usedEnd)return n;
+  if(usedStart)startCount++;if(usedEnd)endCount++;
+  return{...n,startSeconds:a,endSeconds:b,durationSeconds:Math.abs(b-a-n.durationSeconds)<1e-9?n.durationSeconds:b-a,evidence:{...n.evidence,timingEstimator:'outlier-filtered-height-balanced-mean',independentStartRows:usedStart?start.rows:0,independentEndRows:usedEnd?end.rows:0,independentStartOutliers:usedStart?start.outliers:0,independentEndOutliers:usedEnd?end.outliers:0,offsetSeconds:a-n.evidence.primaryStartSeconds}};
+ });
+ // Competing proposals must not create new overlap between originally disjoint notes.
+ const cancel=new Set();for(let i=0;i<notes.length;i++)for(let j=i+1;j<notes.length;j++)if(notes[i].midiPitch===notes[j].midiPitch&&notes[i].endSeconds<=notes[j].startSeconds+.25/opts.fps&&proposed[i].endSeconds>proposed[j].startSeconds+.25/opts.fps){if(proposed[i]!==notes[i])cancel.add(i);if(proposed[j]!==notes[j])cancel.add(j);}
+ for(const i of cancel){if(proposed[i].evidence.independentStartRows)startCount--;if(proposed[i].evidence.independentEndRows)endCount--;proposed[i]=notes[i];blocked++;}
+ return{notes:proposed.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),startCount,endCount,blocked};
+}
 // Join a short detached tail only when other heights observe one continuous body.
 // A travelling separator vetoes joining, preserving true close repeated notes.
-function healTails(primary,lines,groups,v,localGaps,{fps,height,referenceY}){
+function healTails(primary,lines,groups,v,localGaps,{fps,height,referenceY,allowOverlap=false}){
  const byPitch=new Map();for(const n of primary){if(!byPitch.has(n.midiPitch))byPitch.set(n.midiPitch,[]);byPitch.get(n.midiPitch).push(n);}
  const joined=[],out=[];
  for(const list of byPitch.values()){
@@ -43,17 +98,17 @@ function healTails(primary,lines,groups,v,localGaps,{fps,height,referenceY}){
   for(let k=1;k<list.length;k++){
    const b=list[k],gap=b.startSeconds-a.endSeconds,total=b.endSeconds-a.startSeconds;
    let rows=[];
-   if(!a.truncatedStart&&!b.truncatedEnd&&gap>=0&&gap<=2/fps&&b.durationSeconds<=Math.min(.25,total*.25)&&a.durationSeconds>=4/fps&&bodyDistance(a,b)<40){
+   if(!a.truncatedStart&&!b.truncatedEnd&&gap>=(allowOverlap?-2/fps:0)&&gap<=Math.max(2/fps,.15)&&b.durationSeconds<=Math.min(.25,total*.25)&&a.durationSeconds>=4/fps&&bodyDistance(a,b)<40){
     const cutTime=(a.endSeconds+b.startSeconds)/2+(referenceY-lines[0])/v,gaps=localGaps.filter(g=>g.pitch===a.midiPitch&&Math.abs(g.time+(referenceY-g.y)/v-cutTime)<=2/fps);
-    const hasMovingGap=new Set(gaps.map(g=>g.time)).size>=3&&Math.max(...gaps.map(g=>g.y))-Math.min(...gaps.map(g=>g.y))>=6;
+    const hasMovingGap=movingGap(gaps,v,fps);
     if(!hasMovingGap)for(let i=1;i<lines.length;i++){
      const shift=(lines[i]-lines[0])/v,ns=groups[i].get(a.midiPitch)||[];
      const candidates=ns.filter(n=>!n.truncatedStart&&!n.truncatedEnd&&bodyDistance(a,n)<65&&Math.abs(n.startSeconds-shift-a.startSeconds)<=2/fps&&Math.abs(n.endSeconds-shift-b.endSeconds)<=2/fps&&n.startSeconds-shift<a.endSeconds-.5/fps&&n.endSeconds-shift>b.startSeconds+.5/fps);
      if(candidates.length===1)rows.push(lines[i]);
     }
    }
-   if(rows.length>=8&&Math.max(...rows)-Math.min(...rows)>=height*.2){
-    const combined={...a,endSeconds:b.endSeconds,durationSeconds:total,surfaceJoinedParts:(a.surfaceJoinedParts||1)+(b.surfaceJoinedParts||1),surfaceJoinRows:rows.length};joined.push({midiPitch:a.midiPitch,gapStart:a.endSeconds,gapEnd:b.startSeconds,rows:rows.length});a=combined;
+   if(rows.length>=8&&new Set(rows.map(y=>Math.floor(y/(height/24)))).size>=4&&Math.max(...rows)-Math.min(...rows)>=height*.12){
+    const parts=(a.evidence?.splitParts>1?1:(a.surfaceJoinedParts||1))+(b.evidence?.splitParts>1?1:(b.surfaceJoinedParts||1)),combined={...a,endSeconds:b.endSeconds,durationSeconds:total,surfaceJoinedParts:parts,surfaceJoinRows:rows.length,...(a.evidence?{evidence:{...a.evidence,intervalCeiling:b.evidence?.intervalCeiling,splitParts:1,joinedParts:parts,postSurfaceJoin:true}}:{})};joined.push({midiPitch:a.midiPitch,gapStart:a.endSeconds,gapEnd:b.startSeconds,rows:rows.length});a=combined;
    }else{out.push(a);a=b;}
   }out.push(a);
  }
@@ -80,7 +135,7 @@ function refineEdges(primary,base,lines,groups,velocity,{fps,height,referenceY,d
  if(valid.some((c,i)=>i&&c.s<valid[i-1].e+.5/fps))return[base];
  if(Math.abs(valid[0].s-primary.startSeconds)>tol||Math.abs(valid.at(-1).e-primary.endSeconds)>tol)return[base];
  if(valid.some(c=>c.start<0||c.end>duration))return[base];
- return valid.map(c=>({...base,startSeconds:c.start,endSeconds:c.end,durationSeconds:Math.abs(c.end-c.start-primary.durationSeconds)<1e-9?primary.durationSeconds:c.end-c.start,evidence:{...base.evidence,timingSource:valid.length>1?'surface-split':'surface-edges',offsetSeconds:c.start-primary.startSeconds,edgeRows:Math.min(c.startFit.rows,c.endFit.rows),timingEstimator:'outlier-filtered-height-balanced-mean',timingOutliers:c.startFit.outliers+c.endFit.outliers,timingSpreadSeconds:Math.max(c.startFit.spreadSeconds,c.endFit.spreadSeconds),splitParts:valid.length,primaryStartSeconds:primary.startSeconds,primaryEndSeconds:primary.endSeconds,verified:true}}));
+ return valid.map((c,i)=>({...base,startSeconds:c.start,endSeconds:c.end,durationSeconds:Math.abs(c.end-c.start-primary.durationSeconds)<1e-9?primary.durationSeconds:c.end-c.start,evidence:{...base.evidence,timingSource:valid.length>1?'surface-split':'surface-edges',intervalFloor:i?(valid[i-1].end+c.start)/2:undefined,intervalCeiling:i+1<valid.length?(c.end+valid[i+1].start)/2:undefined,offsetSeconds:c.start-primary.startSeconds,edgeRows:Math.min(c.startFit.rows,c.endFit.rows),edgeVelocityPixelsPerSecond:2/(c.startFit.slope+c.endFit.slope),timingEstimator:'outlier-filtered-height-balanced-mean',timingOutliers:c.startFit.outliers+c.endFit.outliers,timingSpreadSeconds:Math.max(c.startFit.spreadSeconds,c.endFit.spreadSeconds),splitParts:valid.length,primaryStartSeconds:primary.startSeconds,primaryEndSeconds:primary.endSeconds,verified:true}}));
 }
 
 function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null){
@@ -103,10 +158,10 @@ function splitSpatial(primary,base,gaps,v,{fps,referenceY}){
  if(!(v>0)||primary.truncatedStart||primary.truncatedEnd||base.evidence.timingSource==='surface-split')return[base];
  const projected=(gaps.get(primary.midiPitch)||[]).map(g=>({...g,t:g.time+(referenceY-g.y)/v})).filter(g=>g.t>base.startSeconds+2/fps&&g.t<base.endSeconds-2/fps).sort((a,b)=>a.t-b.t),clusters=[];
  for(const g of projected){let c=clusters.find(c=>Math.abs(c.t-g.t)<=1/fps);if(!c){c={t:g.t,points:[]};clusters.push(c);}c.points.push(g);c.t=median(c.points.map(p=>p.t));}
- const cuts=clusters.filter(c=>new Set(c.points.map(p=>p.time)).size>=3&&Math.max(...c.points.map(p=>p.y))-Math.min(...c.points.map(p=>p.y))>=6).map(c=>({t:c.t,gap:median(c.points.map(p=>p.height))/v,frames:new Set(c.points.map(p=>p.time)).size}));
+ const cuts=clusters.filter(c=>movingGap(c.points,v,fps)).map(c=>({t:c.t,gap:median(c.points.map(p=>p.height))/v,frames:new Set(c.points.map(p=>p.time)).size}));
  if(!cuts.length||cuts.some((c,i)=>i&&c.t-cuts[i-1].t<2/fps))return[base];
  const pieces=[];let start=base.startSeconds;for(const c of cuts){const end=c.t-c.gap/2;if(end-start<1/fps)return[base];pieces.push({startSeconds:start,endSeconds:end});start=c.t+c.gap/2;}if(base.endSeconds-start<1/fps)return[base];pieces.push({startSeconds:start,endSeconds:base.endSeconds});
- return pieces.map(p=>({...base,...p,durationSeconds:p.endSeconds-p.startSeconds,evidence:{...base.evidence,timingSource:'local-surface-split',splitParts:pieces.length,gapFrames:Math.min(...cuts.map(c=>c.frames)),verified:true}}));
+ return pieces.map((p,i)=>({...base,...p,durationSeconds:p.endSeconds-p.startSeconds,evidence:{...base.evidence,timingSource:'local-surface-split',intervalFloor:i?cuts[i-1].t:undefined,intervalCeiling:i<cuts.length?cuts[i].t:undefined,splitParts:pieces.length,gapFrames:Math.min(...cuts.map(c=>c.frames)),verified:true}}));
 }
 
 // Reconsider primary mistakes using independent complete intervals from other rows.
@@ -118,7 +173,7 @@ function reconcileSurface(notes,primary,lines,groups,v,{fps,height,referenceY,du
  const fit=(points,key)=>robustEdge(points,key,v,{fps,height,referenceY,minSpan:spanMin});
  for(const base of notes){
   const a=parents.get(base.midiPitch+':'+base.evidence.primaryStartSeconds);
-  if(!a||a.truncatedStart||a.truncatedEnd){out.push(base);continue;}
+  if(!a||a.truncatedStart||a.truncatedEnd||base.evidence.splitParts>1){out.push(base);continue;}
   const clusters=[];
   for(let i=1;i<lines.length;i++){
    const shift=(referenceY-lines[i])/v,list=groups[i].get(a.midiPitch)||[];
@@ -162,6 +217,11 @@ function reconcileSurface(notes,primary,lines,groups,v,{fps,height,referenceY,du
    }
   }
   out.push(base);
+ }
+ for(let i=0;i<out.length;i++){const fixed=out[i],original=repairOriginals.get(fixed);if(!original)continue;
+  const crosses=out.some(other=>{if(other===fixed||other.midiPitch!==fixed.midiPitch||bodyDistance(fixed,other)>=65)return false;const prior=repairOriginals.get(other)||other;
+   return original.endSeconds<=prior.startSeconds+.25/fps&&fixed.endSeconds>prior.startSeconds+.25/fps||original.startSeconds>=prior.endSeconds-.25/fps&&fixed.startSeconds<prior.endSeconds-.25/fps;});
+  if(crosses){out[i]=original;repairOriginals.delete(fixed);repaired--;}
  }
  // Two primary fragments must not both expand onto the same moving interval.
  const collisions=new Set();for(const a of repairOriginals.keys())for(const b of out){if(a!==b&&a.midiPitch===b.midiPitch&&bodyDistance(a,b)<65&&Math.abs(a.startSeconds-b.startSeconds)<=tol&&Math.abs(a.endSeconds-b.endSeconds)<=tol)collisions.add(a);}
@@ -212,7 +272,7 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  const supported=inliers.length>=3&&inliers.length>=votes.length*.85;
  // A common shift preserves every primary pitch, color, duration and ordering.
  // Only well-supported dense tracks may override the common delay; never add/delete notes.
- const delay=supported?(referenceY-lines[0])/median(inliers.map(v=>v.v)):0,byPrimary=new Map(votes.map(v=>[v.primary,v]));
+ const delay=supported?(referenceY-lines[0])/median(inliers.map(v=>v.v)):0,byPrimary=new Map((supported?inliers:votes).map(v=>[v.primary,v]));
  const healed=supported?healTails(primary,lines,groups,median(inliers.map(v=>v.v)),localGaps,{fps,height,referenceY}):{primary,joined:[]};
  primary=healed.primary;for(const a of primary)if(a.surfaceJoinedParts)byPrimary.set(a,{v:median(inliers.map(v=>v.v)),support:a.surfaceJoinRows});
  const diagnostics={method:'dense-primary-calibration',lineYs:lines,primaryY:lines[0],referenceY,primaryCandidates:originalPrimaryCount,tailJoins:healed.joined,tailJoinedCandidates:healed.joined.length,motionTracks:inliers.length,velocityVotes:votes.length,calibrated:supported,offsetSeconds:delay,velocityPixelsPerSecond:supported?median(inliers.map(v=>v.v)):null,unconfirmed:supported?0:primary.length,outsideClip:0,timingReference:supported?'keyboard-line-estimated':'upper-line',warning:supported?'一定速度の一致から全候補へ同じ移動時間を加算しました。原音との同期を保証するものではありません。':'速度の一致が不十分です。候補を削除せず上側通過時刻のまま保持しました。同期補正で調整してください。'};
@@ -225,6 +285,15 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  const gapGroups=new Map();for(const g of localGaps){if(!gapGroups.has(g.pitch))gapGroups.set(g.pitch,[]);gapGroups.get(g.pitch).push(g);}let localSplit=0;notes=notes.flatMap(base=>{const a=primary.find(a=>a.midiPitch===base.midiPitch&&a.startSeconds===base.evidence.primaryStartSeconds);if(!a)return[base];const parts=splitSpatial(a,base,gapGroups,byPrimary.get(a)?.v||(supported?median(inliers.map(x=>x.v)):0),{fps,referenceY});if(parts.length>1)localSplit++;return parts;});diagnostics.localSplitCandidates=localSplit;diagnostics.localGapObservations=localGaps.length;diagnostics.localSplitNotes=notes.filter(n=>n.evidence.timingSource==='local-surface-split').length;
  const reconsidered=supported?reconcileSurface(notes,primary,lines,groups,median(inliers.map(v=>v.v)),{fps,height,referenceY,duration}):{notes,repaired:0,rejected:[]};
  notes=reconsidered.notes;diagnostics.surfaceRepairedNotes=reconsidered.repaired;diagnostics.surfaceRejectedNotes=reconsidered.rejected.length;diagnostics.rejectedCandidates=reconsidered.rejected;
+ if(supported){
+  const commonV=median(inliers.map(v=>v.v)),edgeSpeeds=new Map();for(const n of notes){const v=n.evidence.edgeVelocityPixelsPerSecond;if(v>0&&Math.abs(v-commonV)/commonV<=.08)edgeSpeeds.set(n.midiPitch+':'+n.evidence.primaryStartSeconds,v);}
+  const v=edgeSpeeds.size>=3?median([...edgeSpeeds.values()]):commonV,outputLines=lines.slice();outputLines[0]=referenceY;diagnostics.boundaryVelocityPixelsPerSecond=v;
+  const joined=healTails(notes,outputLines,groups,v,localGaps,{fps,height,referenceY,allowOverlap:true});
+  notes=joined.primary.map(n=>n.evidence?.postSurfaceJoin?{...n,evidence:{...n.evidence,joinedParts:n.surfaceJoinedParts,joinRows:n.surfaceJoinRows,postSurfaceJoin:true}}:n);
+  diagnostics.postSurfaceTailJoins=joined.joined;diagnostics.postSurfaceTailJoined=joined.joined.length;
+  const independent=refineIndependent(notes,lines,groups,v,{fps,height,referenceY,duration});notes=independent.notes;
+  diagnostics.independentStartAveraged=independent.startCount;diagnostics.independentEndAveraged=independent.endCount;diagnostics.overlapRepairsBlocked=independent.blocked;
+ }else{diagnostics.postSurfaceTailJoins=[];diagnostics.postSurfaceTailJoined=0;diagnostics.independentStartAveraged=0;diagnostics.independentEndAveraged=0;diagnostics.overlapRepairsBlocked=0;}
  diagnostics.surfaceAveragedNotes=notes.filter(n=>n.evidence.timingEstimator==='outlier-filtered-height-balanced-mean').length;
  diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=notes.filter(n=>!n.evidence.verified).length;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
 
