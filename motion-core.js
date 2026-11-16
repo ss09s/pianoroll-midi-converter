@@ -1,23 +1,8 @@
-/* 0.7.38: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.39: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const median=a=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.floor(s.length/2)]:null;};
-// Piece-relative short-note veto: weak evidence alone never removes an ordinary note.
-function applyRareShortPolicy(notes,uncertain,diagnostics){
- const candidates=uncertain.filter(n=>n.evidence?.rejectionReason==='short-without-separated-motion');
- const all=[...notes,...candidates],lengths=all.map(n=>n.endSeconds-n.startSeconds).filter(d=>Number.isFinite(d)&&d>0).sort((a,b)=>a-b);
- const typical=lengths[Math.min(lengths.length-1,Math.floor(lengths.length*.25))]||0,limit=typical/8;
- const restored=[];
- const kept=uncertain.filter(n=>{
-  if(n.evidence?.rejectionReason!=='short-without-separated-motion')return true;
-  if(n.endSeconds-n.startSeconds<=limit+1e-9)return true;
-  const evidence={...n.evidence,verified:n.evidence.shortOriginalVerified,shortRetainedReason:'not-an-extreme-piece-outlier'};
-  delete evidence.rejectionReason;delete evidence.shortOriginalVerified;restored.push({...n,evidence});return false;
- });
- diagnostics.shortTypicalSeconds=typical;diagnostics.shortExtremeLimitSeconds=limit;diagnostics.shortRestored=restored.length;diagnostics.shortUnconfirmed=kept.length;
- return{notes:[...notes,...restored].sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),unconfirmedNotes:kept,diagnostics};
-}
 function linePlan(referenceY,height,mode='motion',primaryPercent=20){
  const y=clamp(Math.round(referenceY),0,height-1),upper=Math.min(Math.max(0,y-8),clamp(Math.round(height*clamp(Number(primaryPercent)||20,3,65)/100),0,height-1));
  if(mode==='single')return[y];if(mode==='upper'||y<16)return[upper];
@@ -334,9 +319,10 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   const ys=[...new Set([...starts,...ends])],bins=new Set(ys.map(y=>Math.floor(y/(height/16))));
   n.evidence={...n.evidence,shortStartRows:starts.length,shortEndRows:ends.length,shortRequiredRows:required,shortObservationOpportunities:opportunities};
   if(supports(starts)&&supports(ends))return true;
-  uncertain.push({...n,evidence:{...n.evidence,verified:false,shortOriginalVerified:n.evidence?.verified,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
+  uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
  });}
- return applyRareShortPolicy(notes,uncertain,diagnostics);
+ diagnostics.shortUnconfirmed=uncertain.length;
+ return{notes,unconfirmedNotes:uncertain,diagnostics};
 }
 // Missing bright/distorted pixels are unknown, never positive note evidence.
 // Keep at most 150 ms and bridge only after the same body is seen again.
@@ -679,9 +665,10 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   }
   const bins=new Set(ys.map(y=>Math.floor(y/(height/16))));
   if(ys.length>=8&&bins.size>=3&&Math.max(...ys)-Math.min(...ys)>=height*.08)return true;
-  uncertain.push({...n,evidence:{...n.evidence,verified:false,shortOriginalVerified:n.evidence?.verified,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
+  uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
  });}
- return applyRareShortPolicy(notes,uncertain,diagnostics);
+ diagnostics.shortUnconfirmed=uncertain.length;
+ return{notes,unconfirmedNotes:uncertain,diagnostics};
 }
 // Missing bright/distorted pixels are unknown, never positive note evidence.
 // Keep at most 150 ms and bridge only after the same body is seen again.

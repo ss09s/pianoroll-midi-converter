@@ -58,17 +58,17 @@ function normalizeColors(notes,mode='two'){
  return {notes:input,palette,unclassified:input.filter(n=>!n.colorClass).length};
 }
 // Final constraints use classified colors; different voices/colors may overlap.
-function resolveOverlaps(notes,fps=30){
- const out=[],groups=new Map(),stats={duplicates:0,trimmed:0,trimFragmentsRemoved:0};
+function resolveOverlaps(notes,fps=30,bpm=120){
+ const tempo=Number(bpm),duplicateWindowSeconds=60/((Number.isFinite(tempo)&&tempo>=20&&tempo<=400)?tempo:120)/16;
+ const out=[],groups=new Map(),stats={duplicates:0,trimmed:0,trimFragmentsRemoved:0,duplicateWindowSeconds};
  for(const n of notes){const c=n.colorClass||n.colorRGB.join(','),key=n.midiPitch+':'+c;if(!groups.has(key))groups.set(key,[]);groups.get(key).push({...n});}
  for(const list of groups.values()){
   list.sort((a,b)=>a.startSeconds-b.startSeconds);
   const kept=[];
   for(const n of list){let a=kept[kept.length-1];if(a&&a.endSeconds>n.startSeconds){
    const overlap=Math.min(a.endSeconds,n.endSeconds)-n.startSeconds;
-   const identical=Math.abs(a.startSeconds-n.startSeconds)<=1e-6;
-   const sameOrigin=a.evidence?.primaryStartSeconds!==undefined&&a.evidence.primaryStartSeconds===n.evidence?.primaryStartSeconds&&!(a.evidence.splitParts>1)&&!(n.evidence.splitParts>1);
-   if(identical||sameOrigin&&Math.abs(a.startSeconds-n.startSeconds)<=1/fps&&overlap>=Math.min(a.durationSeconds,n.durationSeconds)*.8){
+   const protectedSplit=a.evidence?.splitParts>1||n.evidence?.splitParts>1;
+   if(!protectedSplit&&Math.abs(a.startSeconds-n.startSeconds)<=duplicateWindowSeconds+1e-9&&overlap>=Math.min(a.durationSeconds,n.durationSeconds)*.8){
     const score=x=>(x.evidence?.independentStartRows||0)+(x.evidence?.independentEndRows||0)+(x.evidence?.edgeRows||0);
     if(score(n)>score(a)||score(n)===score(a)&&n.durationSeconds<a.durationSeconds)kept[kept.length-1]=n;stats.duplicates++;continue;
    }
