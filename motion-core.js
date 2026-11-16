@@ -8,7 +8,7 @@ function linePlan(referenceY,height,mode='motion',primaryPercent=20){
  if(mode==='single')return[y];if(mode==='upper'||y<16)return[upper];
  // Dense spatial observations across the falling area. The first row alone owns notes.
  const top=Math.min(upper,Math.round(height*.03)),bottom=Math.max(upper,Math.round(upper+(y-upper)*.85));
- return [...new Set([upper,...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31))])];
+ return [...new Set([upper,...Array.from({length:49},(_,i)=>clamp(upper+i-24,0,height-1)),...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31))])];
 }
 const distance=(a,b)=>Math.hypot(...(a.rawColorRGB||a.colorRGB).map((v,i)=>v-(b.rawColorRGB||b.colorRGB)[i]));
 function compatible(a,b,fps){return a.midiPitch===b.midiPitch&&!b.truncatedStart&&!b.truncatedEnd&&distance(a,b)<65&&Math.abs(a.durationSeconds-b.durationSeconds)<=Math.max(2/fps,.12*a.durationSeconds);}
@@ -37,7 +37,33 @@ function refineEdges(primary,base,lines,groups,velocity,{fps,height,referenceY,d
  return valid.map(c=>({...base,startSeconds:c.start,endSeconds:c.end,durationSeconds:Math.abs(c.end-c.start-primary.durationSeconds)<1e-9?primary.durationSeconds:c.end-c.start,evidence:{...base.evidence,timingSource:valid.length>1?'surface-split':'surface-edges',offsetSeconds:c.start-primary.startSeconds,edgeRows:c.points.length,splitParts:valid.length,primaryStartSeconds:primary.startSeconds,primaryEndSeconds:primary.endSeconds,verified:true}}));
 }
 
-function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1)}){
+function spatialGaps(lines,hits,time,primaryY){
+ const near=lines.map((y,i)=>({y,h:hits[i]})).filter(r=>Math.abs(r.y-primaryY)<=24).sort((a,b)=>a.y-b.y),pitches=new Set(near.flatMap(r=>r.h.map(h=>h.pitch))),out=[];
+ if(near.length<10)return out;
+ for(const pitch of pitches){const rows=near.map(r=>({y:r.y,c:r.h.find(h=>h.pitch===pitch)?.colorRGB})),lum=c=>c?(.2126*c[0]+.7152*c[1]+.0722*c[2]):0;
+  for(let i=3;i<rows.length-3;i++){
+   // A narrow dark separator must have a solid body on both sides.
+   const a=rows[i-1],left=rows.slice(i-3,i);if(!left.every(r=>r.c)||left.some(r=>Math.abs(r.y-a.y)>2))continue;
+   const level=median(left.map(r=>lum(r.c)));if(level<65||lum(rows[i].c)>=level*.55)continue;
+   let j=i;while(j<rows.length&&j-i<7&&lum(rows[j].c)<level*.55)j++;
+   if(j-i>6||j+2>=rows.length)continue;const right=rows.slice(j,j+3);if(!right.every(r=>r.c)||right.some((r,k)=>r.y!==rows[j].y+k))continue;
+   if(right.some(r=>lum(r.c)<level*.7)||Math.hypot(...a.c.map((v,k)=>v-right[0].c[k]))>65)continue;
+   if(rows[j].y-rows[i].y!==j-i)continue;
+   out.push({pitch,time,y:(rows[i].y+rows[j-1].y)/2,height:j-i});i=j;
+  }
+ }return out;
+}
+function splitSpatial(primary,base,gaps,v,{fps,referenceY}){
+ if(!(v>0)||primary.truncatedStart||primary.truncatedEnd||base.evidence.timingSource==='surface-split')return[base];
+ const projected=(gaps.get(primary.midiPitch)||[]).map(g=>({...g,t:g.time+(referenceY-g.y)/v})).filter(g=>g.t>base.startSeconds+2/fps&&g.t<base.endSeconds-2/fps).sort((a,b)=>a.t-b.t),clusters=[];
+ for(const g of projected){let c=clusters.find(c=>Math.abs(c.t-g.t)<=1/fps);if(!c){c={t:g.t,points:[]};clusters.push(c);}c.points.push(g);c.t=median(c.points.map(p=>p.t));}
+ const cuts=clusters.filter(c=>new Set(c.points.map(p=>p.time)).size>=3&&Math.max(...c.points.map(p=>p.y))-Math.min(...c.points.map(p=>p.y))>=6).map(c=>({t:c.t,gap:median(c.points.map(p=>p.height))/v,frames:new Set(c.points.map(p=>p.time)).size}));
+ if(!cuts.length||cuts.some((c,i)=>i&&c.t-cuts[i-1].t<2/fps))return[base];
+ const pieces=[];let start=base.startSeconds;for(const c of cuts){const end=c.t-c.gap/2;if(end-start<1/fps)return[base];pieces.push({startSeconds:start,endSeconds:end});start=c.t+c.gap/2;}if(base.endSeconds-start<1/fps)return[base];pieces.push({startSeconds:start,endSeconds:base.endSeconds});
+ return pieces.map(p=>({...base,...p,durationSeconds:p.endSeconds-p.startSeconds,evidence:{...base.evidence,timingSource:'local-surface-split',splitParts:pieces.length,gapFrames:Math.min(...cuts.map(c=>c.frames)),verified:true}}));
+}
+
+function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[]}){
  const primary=observations[0],groups=observations.map(list=>{const m=new Map();for(const n of list){if(!m.has(n.midiPitch))m.set(n.midiPitch,[]);m.get(n.midiPitch).push(n);}for(const ns of m.values())ns.sort((a,b)=>a.startSeconds-b.startSeconds);return m;});
  const votes=[];const tolerance=2/fps;
  // Each primary may contribute only one vote. Ambiguous repeated patterns abstain.
@@ -87,16 +113,17 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1)}){
  let notes=primary.map(a=>{const own=byPrimary.get(a),offset=own?(referenceY-lines[0])/own.v:delay,startSeconds=Math.max(0,(recovered.has(a)?recovered.get(a):a.startSeconds)+offset),endSeconds=startSeconds<duration?Math.min(duration,a.endSeconds+offset):a.endSeconds+offset;if(startSeconds>=duration)diagnostics.outsideClip++;return{...a,startSeconds,endSeconds,durationSeconds:recovered.has(a)||(a.endSeconds+offset>duration&&startSeconds<duration)?endSeconds-startSeconds:a.durationSeconds,truncatedStart:recovered.has(a)?false:a.truncatedStart,truncatedEnd:a.truncatedEnd||a.endSeconds+offset>duration,evidence:{primaryStartSeconds:a.startSeconds,primaryEndSeconds:a.endSeconds,recoveredLeadingEdge:recovered.has(a),timingSource:own?'dense-motion':supported?'common-motion':'uncalibrated',offsetSeconds:offset,verified:!!own||supported,matchedLines:own?.support||0}};});
  const beforeRefine=notes;notes=primary.flatMap((a,i)=>refineEdges(a,beforeRefine[i],lines,groups,byPrimary.get(a)?.v||(supported?median(inliers.map(v=>v.v)):0),{fps,height,referenceY,duration}));notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
  diagnostics.edgeRefined=notes.filter(n=>n.evidence.timingSource==='surface-edges').length;diagnostics.splitCandidates=primary.filter((a,i)=>notes.filter(n=>n.evidence.primaryStartSeconds===a.startSeconds&&n.midiPitch===a.midiPitch&&n.evidence.timingSource==='surface-split').length>1).length;diagnostics.splitNotes=notes.filter(n=>n.evidence.timingSource==='surface-split').length;
+ const gapGroups=new Map();for(const g of localGaps){if(!gapGroups.has(g.pitch))gapGroups.set(g.pitch,[]);gapGroups.get(g.pitch).push(g);}let localSplit=0;notes=notes.flatMap(base=>{const a=primary.find(a=>a.midiPitch===base.midiPitch&&a.startSeconds===base.evidence.primaryStartSeconds);if(!a)return[base];const parts=splitSpatial(a,base,gapGroups,byPrimary.get(a)?.v||(supported?median(inliers.map(x=>x.v)):0),{fps,referenceY});if(parts.length>1)localSplit++;return parts;});diagnostics.localSplitCandidates=localSplit;diagnostics.localGapObservations=localGaps.length;diagnostics.localSplitNotes=notes.filter(n=>n.evidence.timingSource==='local-surface-split').length;
  diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=notes.filter(n=>!n.evidence.verified).length;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
 
  return{notes,unconfirmedNotes:[],diagnostics};
 }
 function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20}){
- const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
- return{lines,detect,push(time,rows){rows.forEach((hits,i)=>trackers[i].push(time,hits));},finish(){
+ const localGaps=[];const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
+ return{lines,detect,push(time,rows){if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(lines,rows,time,lines[0]));rows.forEach((hits,i)=>trackers[i].push(time,hits));},finish(){
   const observations=trackers.map(t=>t.finish()),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{method:mode==='upper'?'upper-single':'single-line',lineYs:lines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
-  return{...fuse(lines,observations,{fps,duration,height,referenceY:hitLineY}),discarded};
+  return{...fuse(lines,observations,{fps,duration,height,referenceY:hitLineY,localGaps}),discarded};
  }};
 }
 const api={linePlan,fuse,createScan};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollMotionCore=api;
