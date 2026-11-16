@@ -1,4 +1,4 @@
-/* 0.7.32: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.33: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -112,7 +112,7 @@ function healTails(primary,lines,groups,v,localGaps,{fps,height,referenceY,allow
      if(gaps.length&&gaps.every(g=>g.extendedBand)){const firstGapY=Math.min(...gaps.map(g=>g.y));rows=rows.filter(y=>y<=firstGapY-2);upstreamRecovery=true;}else rows=[];
     }
    }
-   if(rows.length>=8&&new Set(rows.map(y=>Math.floor(y/(height/24)))).size>=4&&Math.max(...rows)-Math.min(...rows)>=height*.12){
+   if(rows.length>=8&&new Set(rows.map(y=>Math.floor(y/(height/24)))).size>=3&&Math.max(...rows)-Math.min(...rows)>=Math.min(40,height*.12)){
     const parts=(a.evidence?.splitParts>1?1:(a.surfaceJoinedParts||1))+(b.evidence?.splitParts>1?1:(b.surfaceJoinedParts||1)),combined={...a,endSeconds:b.endSeconds,durationSeconds:total,surfaceJoinedParts:parts,surfaceJoinRows:rows.length,occlusionRecovered:upstreamRecovery,...(a.evidence?{evidence:{...a.evidence,intervalCeiling:b.evidence?.intervalCeiling,splitParts:1,joinedParts:parts,postSurfaceJoin:true}}:{})};joined.push({midiPitch:a.midiPitch,gapStart:a.endSeconds,gapEnd:b.startSeconds,rows:rows.length,reason:upstreamRecovery?'upstream-continuity':'continuous-interior'});a=combined;
    }else{out.push(a);a=b;}
   }out.push(a);
@@ -302,7 +302,19 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  diagnostics.surfaceAveragedNotes=notes.filter(n=>n.evidence.timingEstimator==='outlier-filtered-height-balanced-mean').length;
  diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=notes.filter(n=>!n.evidence.verified).length;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
 
- return{notes,unconfirmedNotes:[],diagnostics};
+ // A short event needs a moving body supported at separated heights.
+ const uncertain=[];if(supported){notes=notes.filter(n=>{
+  if(n.durationSeconds>=2/30||n.truncatedStart||n.truncatedEnd)return true;
+  const v=diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),ys=[];
+  for(let i=1;i<lines.length;i++){const shift=(referenceY-lines[i])/v;
+   if((groups[i].get(n.midiPitch)||[]).some(b=>!b.truncatedStart&&!b.truncatedEnd&&bodyDistance(n,b)<65&&Math.abs(b.startSeconds+shift-n.startSeconds)<=1.5/fps&&Math.abs(b.endSeconds+shift-n.endSeconds)<=1.5/fps))ys.push(lines[i]);
+  }
+  const bins=new Set(ys.map(y=>Math.floor(y/(height/16))));
+  if(ys.length>=8&&bins.size>=3&&Math.max(...ys)-Math.min(...ys)>=height*.08)return true;
+  uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
+ });}
+ diagnostics.shortUnconfirmed=uncertain.length;
+ return{notes,unconfirmedNotes:uncertain,diagnostics};
 }
 // Missing bright/distorted pixels are unknown, never positive note evidence.
 // Keep at most 150 ms and bridge only after the same body is seen again.
