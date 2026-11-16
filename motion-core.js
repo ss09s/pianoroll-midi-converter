@@ -13,6 +13,30 @@ function linePlan(referenceY,height,mode='motion',primaryPercent=20){
 const distance=(a,b)=>Math.hypot(...(a.rawColorRGB||a.colorRGB).map((v,i)=>v-(b.rawColorRGB||b.colorRGB)[i]));
 function compatible(a,b,fps){return a.midiPitch===b.midiPitch&&!b.truncatedStart&&!b.truncatedEnd&&distance(a,b)<65&&Math.abs(a.durationSeconds-b.durationSeconds)<=Math.max(2/fps,.12*a.durationSeconds);}
 function lowerBound(list,time){let a=0,b=list.length;while(a<b){const m=(a+b)>>1;if(list[m].startSeconds<time)a=m+1;else b=m;}return a;}
+// A supported space-time interval must be observed on >=8 distinct rows.
+// Never split from color changes alone or a single-frame hole on one row.
+function refineEdges(primary,base,lines,groups,velocity,{fps,height,referenceY,duration}){
+ if(!(velocity>0)||primary.truncatedStart||primary.truncatedEnd)return[base];
+ const tol=1.5/fps, projected=[];
+ for(let i=1;i<lines.length;i++)for(const b of groups[i].get(primary.midiPitch)||[]){
+  if(b.truncatedStart||b.truncatedEnd||distance(primary,b)>=65)continue;
+  const shift=(lines[i]-lines[0])/velocity,s=b.startSeconds-shift,e=b.endSeconds-shift;
+  if(s<primary.startSeconds-tol||e>primary.endSeconds+tol||e<=s)continue;
+  projected.push({row:i,y:lines[i],s,e,b});
+ }
+ const clusters=[];
+ for(const p of projected.sort((a,b)=>a.s-b.s||a.e-b.e)){let c=clusters.find(c=>Math.abs(c.s-p.s)<=tol&&Math.abs(c.e-p.e)<=tol);if(!c){c={s:p.s,e:p.e,points:[]};clusters.push(c);}if(!c.points.some(q=>q.row===p.row)){c.points.push(p);c.s=median(c.points.map(q=>q.s));c.e=median(c.points.map(q=>q.e));}}
+ function fit(points,key){const ys=points.map(p=>p.y),ts=points.map(p=>p.b[key]),my=ys.reduce((a,b)=>a+b,0)/ys.length,mt=ts.reduce((a,b)=>a+b,0)/ts.length,den=ys.reduce((s,y)=>s+(y-my)**2,0);if(!den)return null;const slope=ys.reduce((s,y,i)=>s+(y-my)*(ts[i]-mt),0)/den;if(!(slope>0)||Math.abs(1/slope-velocity)/velocity>.12)return null;const residual=ts.map((t,i)=>Math.abs(t-(mt+slope*(ys[i]-my))));if(residual.some(x=>x>tol))return null;return{time:mt+slope*(referenceY-my),slope};}
+ const valid=[];
+ for(const c of clusters){if(c.points.length<8||Math.max(...c.points.map(p=>p.y))-Math.min(...c.points.map(p=>p.y))<height*.25)continue;const start=fit(c.points,'startSeconds'),end=fit(c.points,'endSeconds');if(!start||!end||Math.abs(start.slope-end.slope)/start.slope>.08||end.time-start.time<1/fps)continue;valid.push({...c,start:start.time,end:end.time});}
+ valid.sort((a,b)=>a.s-b.s);if(!valid.length)return[base];
+ // Conflicting/overlapping tracks are ambiguous; keep the original candidate.
+ if(valid.some((c,i)=>i&&c.s<valid[i-1].e+.5/fps))return[base];
+ if(Math.abs(valid[0].s-primary.startSeconds)>tol||Math.abs(valid.at(-1).e-primary.endSeconds)>tol)return[base];
+ if(valid.some(c=>c.start<0||c.end>duration))return[base];
+ return valid.map(c=>({...base,startSeconds:c.start,endSeconds:c.end,durationSeconds:Math.abs(c.end-c.start-primary.durationSeconds)<1e-9?primary.durationSeconds:c.end-c.start,evidence:{...base.evidence,timingSource:valid.length>1?'surface-split':'surface-edges',offsetSeconds:c.start-primary.startSeconds,edgeRows:c.points.length,splitParts:valid.length,primaryStartSeconds:primary.startSeconds,primaryEndSeconds:primary.endSeconds,verified:true}}));
+}
+
 function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1)}){
  const primary=observations[0],groups=observations.map(list=>{const m=new Map();for(const n of list){if(!m.has(n.midiPitch))m.set(n.midiPitch,[]);m.get(n.midiPitch).push(n);}for(const ns of m.values())ns.sort((a,b)=>a.startSeconds-b.startSeconds);return m;});
  const votes=[];const tolerance=2/fps;
@@ -60,8 +84,10 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1)}){
  // Recover only an already-present primary whose leading edge was outside the clip.
  // Require a shared speed plus eight complete same-color observations of its trailing edge.
  const recovered=new Map();if(supported){const v=median(inliers.map(v=>v.v));for(const a of primary){if(!a.truncatedStart||a.truncatedEnd)continue;const edges=[];for(let i=1;i<lines.length;i++){const dt=(lines[i]-lines[0])/v,candidates=(groups[i].get(a.midiPitch)||[]).filter(b=>!b.truncatedStart&&!b.truncatedEnd&&distance(a,b)<65&&Math.abs(b.endSeconds-a.endSeconds-dt)<=tolerance&&b.startSeconds-dt<=tolerance);if(candidates.length===1)edges.push({y:lines[i],start:candidates[0].startSeconds-dt});}if(edges.length>=8&&Math.max(...edges.map(e=>e.y))-Math.min(...edges.map(e=>e.y))>=height*.25){const start=median(edges.map(e=>e.start)),consistent=edges.filter(e=>Math.abs(e.start-start)<=tolerance);if(consistent.length>=8&&consistent.length>=edges.length*.85)recovered.set(a,start);}}}
- const notes=primary.map(a=>{const own=byPrimary.get(a),offset=own?(referenceY-lines[0])/own.v:delay,startSeconds=Math.max(0,(recovered.has(a)?recovered.get(a):a.startSeconds)+offset),endSeconds=startSeconds<duration?Math.min(duration,a.endSeconds+offset):a.endSeconds+offset;if(startSeconds>=duration)diagnostics.outsideClip++;return{...a,startSeconds,endSeconds,durationSeconds:recovered.has(a)||(a.endSeconds+offset>duration&&startSeconds<duration)?endSeconds-startSeconds:a.durationSeconds,truncatedStart:recovered.has(a)?false:a.truncatedStart,truncatedEnd:a.truncatedEnd||a.endSeconds+offset>duration,evidence:{primaryStartSeconds:a.startSeconds,primaryEndSeconds:a.endSeconds,recoveredLeadingEdge:recovered.has(a),timingSource:own?'dense-motion':supported?'common-motion':'uncalibrated',offsetSeconds:offset,verified:!!own||supported,matchedLines:own?.support||0}};});
- diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=primary.length-diagnostics.correctedCandidates;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
+ let notes=primary.map(a=>{const own=byPrimary.get(a),offset=own?(referenceY-lines[0])/own.v:delay,startSeconds=Math.max(0,(recovered.has(a)?recovered.get(a):a.startSeconds)+offset),endSeconds=startSeconds<duration?Math.min(duration,a.endSeconds+offset):a.endSeconds+offset;if(startSeconds>=duration)diagnostics.outsideClip++;return{...a,startSeconds,endSeconds,durationSeconds:recovered.has(a)||(a.endSeconds+offset>duration&&startSeconds<duration)?endSeconds-startSeconds:a.durationSeconds,truncatedStart:recovered.has(a)?false:a.truncatedStart,truncatedEnd:a.truncatedEnd||a.endSeconds+offset>duration,evidence:{primaryStartSeconds:a.startSeconds,primaryEndSeconds:a.endSeconds,recoveredLeadingEdge:recovered.has(a),timingSource:own?'dense-motion':supported?'common-motion':'uncalibrated',offsetSeconds:offset,verified:!!own||supported,matchedLines:own?.support||0}};});
+ const beforeRefine=notes;notes=primary.flatMap((a,i)=>refineEdges(a,beforeRefine[i],lines,groups,byPrimary.get(a)?.v||(supported?median(inliers.map(v=>v.v)):0),{fps,height,referenceY,duration}));notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
+ diagnostics.edgeRefined=notes.filter(n=>n.evidence.timingSource==='surface-edges').length;diagnostics.splitCandidates=primary.filter((a,i)=>notes.filter(n=>n.evidence.primaryStartSeconds===a.startSeconds&&n.midiPitch===a.midiPitch&&n.evidence.timingSource==='surface-split').length>1).length;diagnostics.splitNotes=notes.filter(n=>n.evidence.timingSource==='surface-split').length;
+ diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=notes.filter(n=>!n.evidence.verified).length;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
 
  return{notes,unconfirmedNotes:[],diagnostics};
 }
