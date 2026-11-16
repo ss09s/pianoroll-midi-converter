@@ -1,7 +1,7 @@
 import {videoPackets} from './video-demux.mjs?v=0.7.18';
-import './note-core.js?v=0.7.27';
-import './motion-core.js?v=0.7.27';
-import './frame-reader.js?v=0.7.27';
+import './note-core.js?v=0.7.28';
+import './motion-core.js?v=0.7.28';
+import './frame-reader.js?v=0.7.28';
 import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
 import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
 const core=globalThis.PianoRollNoteCore;
@@ -16,13 +16,13 @@ self.onmessage=async({data})=>{
  const progress=(force=false)=>{const now=performance.now();if(force||now-lastProgress>=100){lastProgress=now;postMessage({type:'progress',processed:index,total,elapsedMs:now-started,stage:metrics.stage});}};
  // Match the HTML media timeline at integer microsecond precision (floor sampling targets).
  const consume=(frame,until)=>{
-  let hits=null;
+  let hits=null,rows=null;
   while(index<total&&Math.floor(index*1e6/fps)<until){
    if(Math.floor(index*1e6/fps)<frame.timestamp)throw Error('映像の開始時刻を対応付けられません');
-   if(!hits){const rows=reader.read(frame,display,codedSize,metrics),d=performance.now();hits=rows.map(detect);metrics.detectMs+=performance.now()-d;
+   if(!hits){rows=reader.read(frame,display,codedSize,metrics);const d=performance.now();hits=rows.map(detect);metrics.detectMs+=performance.now()-d;
     if(data.audit){let hash=2166136261;for(const row of rows)for(const v of row)hash=Math.imul(hash^v,16777619);audit.push({index,timestamp:frame.timestamp,hash:hash>>>0,hits:tracker.lines.length===1?hits[0]:hits});}
    }
-   const trackingStart=performance.now();tracker.push(index/fps,hits);metrics.trackingMs+=performance.now()-trackingStart;index++;
+   const trackingStart=performance.now();tracker.push(index/fps,hits,rows);metrics.trackingMs+=performance.now()-trackingStart;index++;
   }
  };
  try{
