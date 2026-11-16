@@ -1,4 +1,4 @@
-/* 0.7.41: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.42: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -6,7 +6,7 @@ const median=a=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.floor
 function linePlan(referenceY,height,mode='motion',primaryPercent=20){
  const y=clamp(Math.round(referenceY),0,height-1),upper=Math.min(Math.max(0,y-8),clamp(Math.round(height*clamp(Number(primaryPercent)||20,3,65)/100),0,height-1));
  if(mode==='single')return[y];if(mode==='upper'||y<16)return[upper];
- // Dense spatial observations across the falling area. The first row alone owns notes.
+ // Shared spatial observations; primary candidates plus strongly supported short-repeat recovery.
  const top=Math.min(upper,Math.round(height*.03)),bottom=Math.max(upper,Math.round(upper+(y-upper)*.85));
  return [...new Set([upper,...Array.from({length:49},(_,i)=>clamp(upper+i-24,0,height-1)),...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31))])];
 }
@@ -235,6 +235,44 @@ function reconcileSurface(notes,primary,lines,groups,v,{fps,height,referenceY,du
  return {notes:out,repaired,rejected};
 }
 
+// Recover short repeated bodies independently of primary-line occupancy.
+// Each accepted interval must travel at the calibrated speed across separated
+// height regions; proximity to an existing same-pitch event limits recovery.
+function recoverSurfaceRepeats(notes,lines,groups,v,{fps,height,referenceY,duration}){
+ const sameColor=(a,b)=>{const ca=a.colorRGB,cb=b.colorRGB,ma=Math.max(...ca),mb=Math.max(...cb);return ma>0&&mb>0&&Math.hypot(...ca.map((v,i)=>v/ma-cb[i]/mb))<.22;};
+ const byPitch=new Map();for(const n of notes){if(!byPitch.has(n.midiPitch))byPitch.set(n.midiPitch,[]);byPitch.get(n.midiPitch).push(n);}
+ const replacements=new Map(),additions=[],tol=1/fps,tracks=[];
+ for(const [pitch,existing] of byPitch){
+  const projected=[];
+  for(let i=1;i<lines.length;i++){const shift=(referenceY-lines[i])/v;for(const b of groups[i].get(pitch)||[]){if(b.truncatedStart||b.truncatedEnd||b.durationSeconds>.35||b.durationSeconds<=0)continue;const s=b.startSeconds+shift,e=b.endSeconds+shift;if(s<0||e>duration)continue;projected.push({row:i,y:lines[i],b,s,e});}}
+  projected.sort((a,b)=>a.s-b.s||a.e-b.e);
+  const clusters=[];
+  for(const p of projected){let best=null,error=Infinity;for(let k=clusters.length-1;k>=0;k--){const c=clusters[k];if(c.s<p.s-2*tol)break;const d=Math.max(Math.abs(c.s-p.s),Math.abs(c.e-p.e));if(d<=tol&&sameColor(c.points[0].b,p.b)&&d<error){best=c;error=d;}}if(!best){best={s:p.s,e:p.e,points:[]};clusters.push(best);}if(!best.points.some(q=>q.row===p.row)){best.points.push(p);best.s=median(best.points.map(q=>q.s));best.e=median(best.points.map(q=>q.e));}}
+  const valid=[];
+  for(const c of clusters){const points=c.points,regions=new Set(points.map(p=>Math.floor(p.y/(height/16))));if(points.length<12||regions.size<5||Math.max(...points.map(p=>p.y))-Math.min(...points.map(p=>p.y))<height*.25)continue;
+   const start=robustEdge(points,'startSeconds',v,{fps,height,referenceY,minSpan:height*.25}),end=robustEdge(points,'endSeconds',v,{fps,height,referenceY,minSpan:height*.25});if(!start||!end||Math.abs(start.slope-end.slope)/start.slope>.08||end.time<=start.time||end.time-start.time>.35||start.time<0||end.time>duration)continue;
+   const n={...points[0].b,startSeconds:start.time,endSeconds:end.time,durationSeconds:end.time-start.time,evidence:{timingSource:'surface-repeat-recovery',timingEstimator:'outlier-filtered-height-balanced-mean',verified:true,surfaceRecoveryRows:Math.min(start.rows,end.rows),surfaceRecoveryRegions:regions.size,edgeVelocityPixelsPerSecond:2/(start.slope+end.slope),primaryStartSeconds:start.time-(referenceY-lines[0])/v,primaryEndSeconds:end.time-(referenceY-lines[0])/v,offsetSeconds:(referenceY-lines[0])/v}};
+   // Existing primary events are anchors, not a requirement to see this exact
+   // short body at the primary row. No recovery in isolated empty time ranges.
+   if(!existing.some(a=>sameColor(a,n)&&Math.max(a.startSeconds-n.endSeconds,n.startSeconds-a.endSeconds)<=Math.max(3/fps,n.durationSeconds*.75)))continue;
+   valid.push(n);
+  }
+  valid.sort((a,b)=>a.startSeconds-b.startSeconds);
+  // Overlapping alternatives are ambiguous and must not create new notes.
+  const overlaps=(a,n)=>Math.min(n.endSeconds,a.endSeconds)-Math.max(n.startSeconds,a.startSeconds)>tol*.25;
+  const strongest=valid.filter((n,i)=>!valid.some((a,j)=>i!==j&&overlaps(a,n)&&a.evidence.surfaceRecoveryRegions>=n.evidence.surfaceRecoveryRegions+2&&a.evidence.surfaceRecoveryRows>=n.evidence.surfaceRecoveryRows*1.5));
+  const unambiguous=strongest.filter((n,i)=>!strongest.some((a,j)=>i!==j&&overlaps(a,n)));
+  for(const a of existing){const covered=unambiguous.filter(n=>sameColor(a,n)&&Math.min(a.endSeconds,n.endSeconds)-Math.max(a.startSeconds,n.startSeconds)>.5*Math.min(a.durationSeconds,n.durationSeconds));if(covered.length>=2&&Math.abs(covered[0].startSeconds-a.startSeconds)<=2/fps&&Math.abs(covered.at(-1).endSeconds-a.endSeconds)<=2/fps){replacements.set(a,covered);tracks.push(...covered);}}
+  for(const n of unambiguous){if([...replacements.values()].some(ns=>ns.includes(n)))continue;
+   // Any surviving overlapping primary interval owns the identity. Recovery
+   // may fill a missing neighbor, but cannot duplicate or trim that interval.
+   if(existing.some(a=>!replacements.has(a)&&Math.min(a.endSeconds,n.endSeconds)>Math.max(a.startSeconds,n.startSeconds)))continue;
+   additions.push(n);tracks.push(n);
+  }
+ }
+ return{notes:notes.flatMap(n=>replacements.get(n)||[n]).concat(additions).sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),added:additions.length,replaced:replacements.size,tracks};
+}
+
 function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[]}){
  let primary=observations[0];const originalPrimaryCount=primary.length,groups=observations.map(list=>{const m=new Map();for(const n of list){if(!m.has(n.midiPitch))m.set(n.midiPitch,[]);m.get(n.midiPitch).push(n);}for(const ns of m.values())ns.sort((a,b)=>a.startSeconds-b.startSeconds);return m;});
  const votes=[];const tolerance=2/fps;
@@ -302,6 +340,7 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  diagnostics.surfaceAveragedNotes=notes.filter(n=>n.evidence.timingEstimator==='outlier-filtered-height-balanced-mean').length;
  diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=notes.filter(n=>!n.evidence.verified).length;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
 
+ if(supported){const restored=recoverSurfaceRepeats(notes,lines,groups,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration});notes=restored.notes;diagnostics.surfaceRepeatAdded=restored.added;diagnostics.surfaceRepeatReplaced=restored.replaced;diagnostics.surfaceRepeatTracks=restored.tracks;}
  // A short event needs a moving body supported at separated heights.
  const uncertain=[];if(supported){notes=notes.filter(n=>{
   if(n.startSeconds>=duration){uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'outside-video'}});return false;}
