@@ -18,7 +18,7 @@ function render(){const host=$('scanPerformanceBody'),comparison=$('scanPerforma
  para(host,m.engine==='webcodecs-worker'?'待機中に描画・判定も動くため、各時間は重複します。合計や割合にはできません。キュー待機は純粋なデコード時間ではありません。':'画像の描画・読み出しは「再生位置の移動待ち」と別に計測します。処理本体には進捗更新なども含みます。');
  if(m.fallbackReason)para(host,'高速方式から切り替え：'+String(m.fallbackReason).slice(0,500));
  para(host,'実測：描画・変換、画素読み出し、判定など。未確認：実際のCPUコア使用数、動画専用回路の使用、純粋なデコード時間。論理プロセッサ数は使用コア数ではありません。');
- if(m.imageAcquisition)para(host,`画像取得：フレーム共有・${m.sampleLineCount}本 ／ 描画${m.frameDraws}回・読み出し${m.pixelReads}回 ／ 1回${m.pixelsPerRead}画素。判定線を増やしても同じ画素バッファを共有します。`);para(host,current.environment.browser);
+ if(m.imageAcquisition)para(host,`画像取得：フレーム共有・${m.sampleLineCount}本 ／ 描画${m.frameDraws}回・読み出し${m.pixelReads}回 ／ 1回${m.pixelsPerRead}画素。必要な縦範囲だけを取得し、同じ画素バッファを共有します。単線は高さ1画素。線数ではなく上下の範囲で転送量が変わります。`);para(host,current.environment.browser);
  if(other){const c=compare(current,other);para(comparison,'比較：この端末 − 読み込んだ端末（＋はこの端末の方が遅い）');for(const w of c.warnings)para(comparison,'条件の違い：'+w);para(comparison,'名前・サイズ・長さの一致だけでは動画内容の同一性は保証できません。電源設定・温度・他アプリの負荷も揃えて比較してください。');
  table(comparison,['項目','この端末','読込結果','差'],c.rows.map(r=>[r.label,sec(r.current),sec(r.other),(r.difference>0?'+':'')+sec(r.difference)]));
  const stages=c.rows.filter(r=>['seekMs','readMs','drawMs','pixelReadMs','detectMs','trackingMs'].includes(r.key)).sort((a,b)=>Math.abs(b.difference)-Math.abs(a.difference));if(stages[0]&&Math.abs(stages[0].difference)>=1)para(comparison,'計測項目で差が最大：'+stages[0].label+'。差が出ている処理は分かりますが、CPU・GPU・ブラウザのどれが根本原因かは、この結果だけでは断定できません。');para(comparison,'読込結果のブラウザ：'+other.environment.browser);
