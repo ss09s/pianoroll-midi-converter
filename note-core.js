@@ -43,17 +43,31 @@ function createRowDetector(width,lanes){
  hits.push({pitch:l.pitch,laneType:l.type,colorRGB:[Math.round(rr/total),Math.round(gg/total),Math.round(bb/total)]});
  }return hits;};
 }
+// Bounded RGB histogram: omit the first two and last observation of a note.
+function representative(hist,fallback){const bins=[...hist.values()],n=bins.reduce((s,b)=>s+b.n,0);if(!n)return fallback.slice();return [0,1,2].map(i=>{let count=0;for(const b of bins.slice().sort((a,b)=>a.sum[i]/a.n-b.sum[i]/b.n)){count+=b.n;if(count>=n/2)return Math.round(b.sum[i]/b.n);}return fallback[i];});}
+function hue(c){const [r,g,b]=c.map(v=>v/255),max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;if(d<.06||d/Math.max(max,.001)<.18)return null;return ((max===r?(g-b)/d:max===g?(b-r)/d+2:(r-g)/d+4)*60+360)%360;}
+const hueGap=(a,b)=>Math.abs((a-b+540)%360-180);
+function normalizeColors(notes,mode='two'){
+ const input=notes.map(n=>({...n,observedColorRGB:(n.observedColorRGB||n.colorRGB).slice()}));if(mode==='off')return {notes:input.map(n=>({...n,colorRGB:n.observedColorRGB.slice()})),palette:[],unclassified:input.length};
+ const entries=input.map((n,i)=>({i,h:hue(n.observedColorRGB),lane:n.laneType,c:n.observedColorRGB})).filter(e=>e.h!==null&&['white','black'].includes(e.lane));
+ // Learn hue families from notes, not frame counts. Nearby shades vote together.
+ const bins=new Uint32Array(360);for(const e of entries)bins[Math.round(e.h)%360]++;const seeds=[];for(let h=0;h<360;h++){if(!bins[h])continue;let support=0;for(let d=-18;d<=18;d++)support+=bins[(h+d+360)%360];seeds.push({h,support});}seeds.sort((a,b)=>b.support-a.support||a.h-b.h);
+ const families=[];for(const e of seeds)if(e.support>=Math.max(2,Math.ceil(entries.length*.01))&&families.every(h=>hueGap(h,e.h)>32)){families.push(e.h);if(families.length>=(mode==='two'?2:8))break;}families.sort((a,b)=>a-b);
+ const assigned=new Map(),palette=[];for(const e of entries){const choices=families.map((h,id)=>({id,d:hueGap(h,e.h)})).sort((a,b)=>a.d-b.d);if(!choices.length||choices[0].d>26||choices[1]&&choices[1].d-choices[0].d<8)continue;const key=choices[0].id+'-'+e.lane;if(!assigned.has(key))assigned.set(key,[]);assigned.get(key).push(e);}
+ for(const [id,es] of assigned){if(es.length<2)continue;const rgb=[0,1,2].map(k=>{const v=es.map(e=>e.c[k]).sort((a,b)=>a-b);return v[Math.floor(v.length/2)];});palette.push({id,family:Number(id.split('-')[0])+1,laneType:es[0].lane,colorRGB:rgb,notes:es.length});for(const e of es){input[e.i].colorRGB=rgb.slice();input[e.i].colorClass=id;input[e.i].colorConfidence=Math.max(0,1-hueGap(e.h,families[Number(id.split('-')[0])])/26);}}
+ return {notes:input,palette,unclassified:input.filter(n=>!n.colorClass).length};
+}
 class Tracker{
  constructor({fps=30,duration}){if(!(fps>0&&Number.isFinite(duration)&&duration>0))throw Error('Invalid sampling configuration');this.fps=fps;this.duration=duration;this.previous=null;this.active=new Map();this.notes=[];this.discarded=0;}
  push(time,hits){
   if(!Number.isFinite(time)||time<0||time>this.duration||this.previous!==null&&time<=this.previous)throw Error('Sample times must increase');
   const present=new Map(hits.map(h=>[h.pitch,h])),boundary=this.previous===null?0:(this.previous+time)/2;
   for(const [pitch,tr] of this.active){if(!present.has(pitch)){this.close(tr,boundary,false);this.active.delete(pitch);}}
-  for(const [pitch,hit] of present){let tr=this.active.get(pitch);if(!tr){tr={...hit,startSeconds:boundary,frames:0,truncatedStart:this.previous===null};this.active.set(pitch,tr);}tr.frames++;}
+  for(const [pitch,hit] of present){let tr=this.active.get(pitch);if(!tr){tr={...hit,startSeconds:boundary,frames:0,colors:new Map(),truncatedStart:this.previous===null};this.active.set(pitch,tr);}tr.frames++;if(tr.frames>3&&tr.pendingColor){const c=tr.pendingColor,key=c.map(v=>v>>3).join(',');let bin=tr.colors.get(key);if(!bin){bin={n:0,sum:[0,0,0]};tr.colors.set(key,bin);}bin.n++;c.forEach((v,i)=>bin.sum[i]+=v);}tr.pendingColor=hit.colorRGB.slice();}
   this.previous=time;
  }
- close(tr,end,truncatedEnd){if(tr.frames<2){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:tr.colorRGB,laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
+ close(tr,end,truncatedEnd){if(tr.frames<2){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:representative(tr.colors,tr.colorRGB),rawColorRGB:tr.colorRGB.slice(),colorSamples:[...tr.colors.values()].reduce((n,b)=>n+b.n,0),laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
  finish(){for(const tr of this.active.values())this.close(tr,this.duration,true);this.active.clear();return this.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);}
 }
-const api={whitePitch,noteName,detectRow,createRowDetector,Tracker};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
+const api={whitePitch,noteName,detectRow,createRowDetector,Tracker,normalizeColors};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
 })(globalThis);
