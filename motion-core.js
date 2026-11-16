@@ -1,4 +1,4 @@
-/* 0.7.37: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.38: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -7,7 +7,7 @@ const median=a=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.floor
 function applyRareShortPolicy(notes,uncertain,diagnostics){
  const candidates=uncertain.filter(n=>n.evidence?.rejectionReason==='short-without-separated-motion');
  const all=[...notes,...candidates],lengths=all.map(n=>n.endSeconds-n.startSeconds).filter(d=>Number.isFinite(d)&&d>0).sort((a,b)=>a-b);
- const typical=lengths[Math.min(lengths.length-1,Math.floor(lengths.length*.25))]||0,limit=typical/4;
+ const typical=lengths[Math.min(lengths.length-1,Math.floor(lengths.length*.25))]||0,limit=typical/8;
  const restored=[];
  const kept=uncertain.filter(n=>{
   if(n.evidence?.rejectionReason!=='short-without-separated-motion')return true;
