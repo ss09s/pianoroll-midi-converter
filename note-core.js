@@ -59,18 +59,30 @@ function normalizeColors(notes,mode='two'){
 }
 // Final constraints use classified colors; different voices/colors may overlap.
 function resolveOverlaps(notes,fps=30){
- const out=[],groups=new Map(),stats={duplicates:0,trimmed:0,trimFragmentsRemoved:0};
+ const out=[],groups=new Map(),stats={duplicates:0,trimmed:0,trimFragmentsRemoved:0,containmentGroups:0,partitionedSegments:0,mergedEdgeFragments:0};
  for(const n of notes){const c=n.colorClass||n.colorRGB.join(','),key=n.midiPitch+':'+c;if(!groups.has(key))groups.set(key,[]);groups.get(key).push({...n});}
+ function finish(list){
+  let maxEnd=-Infinity,contained=false;
+  for(const n of list){if(n.endSeconds<=maxEnd)contained=true;maxEnd=Math.max(maxEnd,n.endSeconds);}
+  if(!contained){for(let i=1;i<list.length;i++){const a=list[i-1],n=list[i];if(a.endSeconds>n.startSeconds){a.endSeconds=n.startSeconds;a.durationSeconds=a.endSeconds-a.startSeconds;stats.trimmed++;}}out.push(...list);return;}
+  stats.containmentGroups++;
+  // A sweep of original interval boundaries preserves the entire covered time
+  // exactly once. Never infer cuts from already-trimmed intervals.
+  const events=new Map();
+  for(const n of list){for(const [t,type] of [[n.startSeconds,'start'],[n.endSeconds,'end']]){if(!events.has(t))events.set(t,{start:[],end:[]});events.get(t)[type].push(n);}}
+  const times=[...events.keys()].sort((a,b)=>a-b),active=new Set(),pieces=[];
+  for(let i=0;i<times.length-1;i++){const t=times[i],e=events.get(t);for(const n of e.end)active.delete(n);for(const n of e.start)active.add(n);const end=times[i+1];if(active.size&&end>t){const source=active.values().next().value;pieces.push({...source,startSeconds:t,endSeconds:end,durationSeconds:end-t,evidence:{...source.evidence,overlapPartition:true}});}}
+  stats.partitionedSegments+=pieces.length;
+  // Only newly created outer slivers may be joined inward. Interior short
+  // notes and ordinary short candidates never enter this length-based merge.
+  if(pieces.length>1&&pieces[0].durationSeconds<=pieces[1].durationSeconds/8&&!(pieces[1].evidence?.splitParts>1)){const edge=pieces.shift();pieces[0].startSeconds=edge.startSeconds;pieces[0].durationSeconds=pieces[0].endSeconds-edge.startSeconds;stats.mergedEdgeFragments++;}
+  if(pieces.length>1){const end=pieces.length-1,a=pieces[end-1],b=pieces[end];if(b.durationSeconds<=a.durationSeconds/8&&!(b.evidence?.splitParts>1)){a.endSeconds=b.endSeconds;a.durationSeconds=a.endSeconds-a.startSeconds;pieces.pop();stats.mergedEdgeFragments++;}}
+  out.push(...pieces);
+ }
  for(const list of groups.values()){
-  // Inspect original intervals before trimming: partial overlaps must never
-  // become duplicate evidence merely because a previous interval was shortened.
   list.sort((a,b)=>a.startSeconds-b.startSeconds||b.endSeconds-a.endSeconds);
-  const kept=[];let enclosingEnd=-Infinity;
-  for(const n of list){const protectedSplit=n.evidence?.splitParts>1,contained=!protectedSplit&&enclosingEnd>=n.endSeconds;
-   if(contained){stats.duplicates++;continue;}kept.push(n);if(!protectedSplit)enclosingEnd=Math.max(enclosingEnd,n.endSeconds);
-  }
-  for(let i=1;i<kept.length;i++){const a=kept[i-1],n=kept[i];if(a.endSeconds>n.startSeconds&&a.startSeconds<n.startSeconds){a.endSeconds=n.startSeconds;a.durationSeconds=a.endSeconds-a.startSeconds;stats.trimmed++;}}
-  out.push(...kept);
+  let component=[],end=-Infinity;
+  for(const n of list){if(component.length&&n.startSeconds>=end){finish(component);component=[];end=-Infinity;}component.push(n);end=Math.max(end,n.endSeconds);}if(component.length)finish(component);
  }
  return{notes:out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),stats};
 }
