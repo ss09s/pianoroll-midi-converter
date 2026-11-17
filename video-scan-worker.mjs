@@ -1,8 +1,8 @@
-import {videoPackets} from './video-demux.mjs?v=0.7.18';
-import './note-core.js?v=0.7.48';
-import './text-overlay.js?v=0.7.48';
-import './motion-core.js?v=0.7.48';
-import './frame-reader.js?v=0.7.48';
+import {videoPackets,decoderChunkInit} from './video-demux.mjs?v=0.7.49';
+import './note-core.js?v=0.7.49';
+import './text-overlay.js?v=0.7.49';
+import './motion-core.js?v=0.7.49';
+import './frame-reader.js?v=0.7.49';
 import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
 import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
 const core=globalThis.PianoRollNoteCore;
@@ -43,7 +43,7 @@ self.onmessage=async({data})=>{
    const waitStart=performance.now();
    await waitForDecodeCapacity(decoder,8,failure.signal);
    metrics.queueWaitMs+=performance.now()-waitStart;
-   decoder.decode(new EncodedVideoChunk({type:s.is_sync?'key':'delta',timestamp:Math.round((s.cts-track.mediaTime)*1e6/track.timescale),duration:Math.round(s.duration*1e6/track.timescale),data:s.data}));
+   decoder.decode(new EncodedVideoChunk(decoderChunkInit(s,track)));
    metrics.maxDecodeQueue=Math.max(metrics.maxDecodeQueue,decoder.decodeQueueSize);readStart=performance.now();progress();
   }
   metrics.stage='flush';progress(true);const flushStart=performance.now();await decoder.flush();metrics.flushMs=performance.now()-flushStart;if(error)throw error;if(!previous)throw Error('映像フレームがありません');
