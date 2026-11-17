@@ -1,4 +1,4 @@
-/* 0.7.44: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.45: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -81,7 +81,7 @@ function refineIndependent(notes,lines,groups,v,opts){
   if(b-a<1/opts.fps)return n;
   const usedStart=!!start&&a===start.time,usedEnd=!!end&&b===end.time;if(!usedStart&&!usedEnd)return n;
   if(usedStart)startCount++;if(usedEnd)endCount++;
-  return{...n,startSeconds:a,endSeconds:b,durationSeconds:Math.abs(b-a-n.durationSeconds)<1e-9?n.durationSeconds:b-a,evidence:{...n.evidence,timingEstimator:'outlier-filtered-height-balanced-mean',independentStartRows:usedStart?start.rows:0,independentEndRows:usedEnd?end.rows:0,independentStartOutliers:usedStart?start.outliers:0,independentEndOutliers:usedEnd?end.outliers:0,offsetSeconds:a-n.evidence.primaryStartSeconds}};
+  return{...n,startSeconds:a,endSeconds:b,durationSeconds:Math.abs(b-a-n.durationSeconds)<1e-9?n.durationSeconds:b-a,evidence:{...n.evidence,timingEstimator:'outlier-filtered-height-balanced-mean',independentStartRows:usedStart?start.rows:0,independentEndRows:usedEnd?end.rows:0,independentStartRegions:usedStart?start.bins:0,independentEndRegions:usedEnd?end.bins:0,independentStartOutliers:usedStart?start.outliers:0,independentEndOutliers:usedEnd?end.outliers:0,offsetSeconds:a-n.evidence.primaryStartSeconds}};
  });
  // Competing proposals must not create new overlap between originally disjoint notes.
  const cancel=new Set();for(let i=0;i<notes.length;i++)for(let j=i+1;j<notes.length;j++)if(notes[i].midiPitch===notes[j].midiPitch&&notes[i].endSeconds<=notes[j].startSeconds+.25/opts.fps&&proposed[i].endSeconds>proposed[j].startSeconds+.25/opts.fps){if(proposed[i]!==notes[i])cancel.add(i);if(proposed[j]!==notes[j])cancel.add(j);}
@@ -245,6 +245,20 @@ function reconcileSurface(notes,primary,lines,groups,v,{fps,height,referenceY,du
 // Recover short repeated bodies independently of primary-line occupancy.
 // Each accepted interval must travel at the calibrated speed across separated
 // height regions; proximity to an existing same-pitch event limits recovery.
+// A missed thin separator can produce more merged observations than split ones.
+// A pair of independently moving complete bodies is positive boundary evidence;
+// a merged run cannot outvote that evidence merely by occupying more rows.
+function preferSeparatedBodies(valid,fps){
+ const tol=1/fps,removed=new Set();
+ for(const a of valid){
+  const parts=valid.filter(b=>b!==a&&b.midiPitch===a.midiPitch&&sameBodyHue(a,b)&&b.durationSeconds<a.durationSeconds*.8&&b.startSeconds>=a.startSeconds-tol&&b.endSeconds<=a.endSeconds+tol).sort((a,b)=>a.startSeconds-b.startSeconds);
+  for(const first of parts){if(Math.abs(first.startSeconds-a.startSeconds)>tol)continue;const chain=[first];
+   for(const b of parts){if(b===first||b.startSeconds<chain.at(-1).endSeconds+tol*.25)continue;if(b.startSeconds-chain.at(-1).endSeconds>Math.max(2*tol,a.durationSeconds*.25))continue;chain.push(b);}
+   if(chain.length>=2&&Math.abs(chain.at(-1).endSeconds-a.endSeconds)<=tol&&chain.reduce((n,b)=>n+b.durationSeconds,0)>=a.durationSeconds*.65){removed.add(a);break;}
+  }
+ }
+ return valid.filter(n=>!removed.has(n));
+}
 function recoverSurfaceRepeats(notes,lines,groups,v,{fps,height,referenceY,duration}){
  const sameColor=(a,b)=>{const ca=a.colorRGB,cb=b.colorRGB,ma=Math.max(...ca),mb=Math.max(...cb);return ma>0&&mb>0&&(Math.hypot(...ca.map((v,i)=>v/ma-cb[i]/mb))<.22||sameBodyHue(a,b));};
  const byPitch=new Map();for(const n of notes){if(!byPitch.has(n.midiPitch))byPitch.set(n.midiPitch,[]);byPitch.get(n.midiPitch).push(n);}
@@ -267,7 +281,7 @@ function recoverSurfaceRepeats(notes,lines,groups,v,{fps,height,referenceY,durat
   valid.sort((a,b)=>a.startSeconds-b.startSeconds);
   // Overlapping alternatives are ambiguous and must not create new notes.
   const overlaps=(a,n)=>Math.min(n.endSeconds,a.endSeconds)-Math.max(n.startSeconds,a.startSeconds)>tol*.25;
-  const strongest=valid.filter((n,i)=>!valid.some((a,j)=>i!==j&&overlaps(a,n)&&a.evidence.surfaceRecoveryRegions>=n.evidence.surfaceRecoveryRegions+2&&a.evidence.surfaceRecoveryRows>=n.evidence.surfaceRecoveryRows*1.5));
+  const separated=preferSeparatedBodies(valid,fps),strongest=separated.filter((n,i)=>!separated.some((a,j)=>i!==j&&overlaps(a,n)&&a.evidence.surfaceRecoveryRegions>=n.evidence.surfaceRecoveryRegions+2&&a.evidence.surfaceRecoveryRows>=n.evidence.surfaceRecoveryRows*1.5));
   const unambiguous=strongest.filter((n,i)=>!strongest.some((a,j)=>i!==j&&overlaps(a,n)));
   for(const a of existing){const covered=unambiguous.filter(n=>sameColor(a,n)&&Math.min(a.endSeconds,n.endSeconds)-Math.max(a.startSeconds,n.startSeconds)>.5*Math.min(a.durationSeconds,n.durationSeconds));if(covered.length>=2&&Math.abs(covered[0].startSeconds-a.startSeconds)<=2/fps&&Math.abs(covered.at(-1).endSeconds-a.endSeconds)<=2/fps){replacements.set(a,covered);tracks.push(...covered);}}
   for(const n of unambiguous){if([...replacements.values()].some(ns=>ns.includes(n)))continue;
@@ -278,6 +292,36 @@ function recoverSurfaceRepeats(notes,lines,groups,v,{fps,height,referenceY,durat
   }
  }
  return{notes:notes.flatMap(n=>replacements.get(n)||[n]).concat(additions).sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),added:additions.length,replaced:replacements.size,tracks};
+}
+
+function surfaceBodyTracks(lines,observations,v,{fps,height,referenceY,duration}){const tol=1/fps;const pitches=new Set(observations.flatMap(ns=>ns.map(n=>n.midiPitch))),out=[];
+for(const pitch of pitches){const projected=[];for(let row=0;row<lines.length;row++)for(const b of observations[row])if(b.midiPitch===pitch&&!b.truncatedStart&&!b.truncatedEnd){const shift=(referenceY-lines[row])/v;projected.push({row,y:lines[row],b,s:b.startSeconds+shift,e:b.endSeconds+shift});}projected.sort((a,b)=>a.s-b.s||a.e-b.e);const clusters=[];
+for(const p of projected){let best=null,error=Infinity;for(let k=clusters.length-1;k>=0;k--){const c=clusters[k];if(c.s<p.s-2*tol)break;const d=Math.max(Math.abs(c.s-p.s),Math.abs(c.e-p.e));if(d<=tol&&sameBodyHue(c.points[0].b,p.b)&&d<error){best=c;error=d;}}if(!best){best={s:p.s,e:p.e,points:[]};clusters.push(best);}if(!best.points.some(q=>q.row===p.row)){best.points.push(p);best.s=median(best.points.map(q=>q.s));best.e=median(best.points.map(q=>q.e));}}
+for(const c of clusters){const ps=c.points,bins=new Set(ps.map(p=>Math.floor(p.y/(height/16))));if(ps.length<8||bins.size<5)continue;const opts={fps,height,referenceY,minSpan:height*.25};const start=robustEdge(ps,'startSeconds',v,opts),end=robustEdge(ps,'endSeconds',v,opts);if(!start||!end||end.time<=start.time||Math.abs(start.slope-end.slope)/start.slope>.08)continue;out.push({...ps[0].b,colorRGB:[0,1,2].map(k=>median(ps.map(p=>p.b.colorRGB[k]))),rawColorRGB:[0,1,2].map(k=>median(ps.map(p=>p.b.colorRGB[k]))),startSeconds:start.time,endSeconds:end.time,durationSeconds:end.time-start.time,evidence:{timingSource:'surface-body-consensus',timingEstimator:'outlier-filtered-height-balanced-mean',verified:true,rows:Math.min(start.rows,end.rows),bins:bins.size,minY:Math.min(...ps.map(p=>p.y)),maxY:Math.max(...ps.map(p=>p.y))}});}
+}return out.sort((a,b)=>a.startSeconds-b.startSeconds);}
+function auditSurfaceBodies(notes,lines,observations,v,opts,appearance){
+ const {fps,height,referenceY,duration}=opts,tol=1/fps,overlap=(a,b)=>Math.min(a.endSeconds,b.endSeconds)-Math.max(a.startSeconds,b.startSeconds);
+ let tracks=preferSeparatedBodies(surfaceBodyTracks(lines,observations,v,opts),fps);
+ tracks=tracks.filter((n,i)=>!tracks.some((a,j)=>i!==j&&a.midiPitch===n.midiPitch&&sameBodyHue(a,n)&&overlap(a,n)>tol/4&&a.evidence.bins>=n.evidence.bins+2&&a.evidence.rows>=n.evidence.rows*1.5));
+ tracks=tracks.filter((n,i,all)=>!all.some((a,j)=>i!==j&&a.midiPitch===n.midiPitch&&sameBodyHue(a,n)&&overlap(a,n)>tol/4));
+ // Exclude a consistently dim/desaturated edge using same-video body colors.
+ tracks=tracks.filter(n=>!appearance(n));
+ const strong=n=>n.evidence.timingSource==='local-surface-split'&&n.evidence.gapFrames>=2&&n.evidence.matchedLines>=8||n.truncatedStart||n.truncatedEnd&&n.evidence.primaryEndSeconds>=duration||n.evidence.recoveredLeadingEdge||!appearance(n)&&(n.colorSamples>=3&&Math.max(n.evidence.independentStartRegions||0,n.evidence.independentEndRegions||0)>=5||n.evidence.independentStartRows>=8&&n.evidence.independentEndRows>=8&&n.evidence.independentStartRegions>=5&&n.evidence.independentEndRegions>=5||n.evidence.timingSource!=='common-motion'&&(n.evidence.edgeRows>=8||n.evidence.surfaceRows>=8||n.evidence.surfaceRecoveryRows>=12));
+ const out=notes.filter(strong),uncertain=[],used=new Set();let repaired=0;
+ for(const n of notes){if(strong(n))continue;
+  const matches=tracks.filter(t=>t.midiPitch===n.midiPitch&&sameBodyHue(t,n)&&overlap(t,n)>.5*Math.min(t.durationSeconds,n.durationSeconds)&&Math.min(Math.abs(t.startSeconds-n.startSeconds),Math.abs(t.endSeconds-n.endSeconds))<=2/fps);
+  if(matches.length===1){const t=matches[0];
+   if(!used.has(t)&&!out.some(a=>a.midiPitch===t.midiPitch&&sameBodyHue(a,t)&&Math.max(Math.abs(a.startSeconds-t.startSeconds),Math.abs(a.endSeconds-t.endSeconds))<tol)){
+    out.push({...t,evidence:{...n.evidence,...t.evidence,surfaceBodyRows:t.evidence.rows,surfaceBodyRegions:t.evidence.bins,primaryStartSeconds:n.evidence.primaryStartSeconds,primaryEndSeconds:n.evidence.primaryEndSeconds,offsetSeconds:t.startSeconds-n.evidence.primaryStartSeconds,previousStartSeconds:n.startSeconds,previousEndSeconds:n.endSeconds}});used.add(t);repaired++;
+   }
+  }else if(matches.length>1||n.truncatedStart){out.push(n);}
+  else{
+   const available=lines.filter(y=>n.startSeconds-(referenceY-y)/v>=0&&n.endSeconds-(referenceY-y)/v<=duration);
+   if(available.length<8||Math.max(...available)-Math.min(...available)<height*.25){out.push(n);continue;}
+   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:appearance(n)?'short-without-note-body-appearance':'without-separated-body-track'}});
+  }
+ }
+ return{notes:out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),uncertain,repaired,tracks:tracks.length};
 }
 
 function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[]}){
@@ -350,15 +394,19 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  if(supported){const restored=recoverSurfaceRepeats(notes,lines,groups,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration});notes=restored.notes;diagnostics.surfaceRepeatAdded=restored.added;diagnostics.surfaceRepeatReplaced=restored.replaced;diagnostics.surfaceRepeatTracks=restored.tracks;}
  // A moving timing fit is insufficient when every observation is only a dim,
  // desaturated background tint. Learn body appearance from this same scan.
- const bodyAppearance=n=>{
-  const refs=primary.filter(a=>a.durationSeconds>=2/30&&!a.truncatedStart&&!a.truncatedEnd&&a.laneType===n.laneType&&sameBodyHue(a,n));
-  if(refs.length<6)return null;
-  const value=median(refs.map(a=>Math.max(...a.colorRGB))),chroma=median(refs.map(a=>Math.max(...a.colorRGB)-Math.min(...a.colorRGB)));
+ const appearanceCache=new Map();const bodyAppearance=n=>{
+  const cacheKey=n.laneType+':'+Math.round((()=>{const c=n.colorRGB,hi=Math.max(...c),lo=Math.min(...c),d=hi-lo;if(!d)return 0;return ((hi===c[0]?(c[1]-c[2])/d:hi===c[1]?2+(c[2]-c[0])/d:4+(c[0]-c[1])/d)*60+360)%360;})());
+  let reference=appearanceCache.get(cacheKey);if(reference===undefined){const refs=primary.filter(a=>a.durationSeconds>=2/30&&!a.truncatedStart&&!a.truncatedEnd&&a.laneType===n.laneType&&sameBodyHue(a,n));
+  reference=refs.length<6?null:{value:median(refs.map(a=>Math.max(...a.colorRGB))),chroma:median(refs.map(a=>Math.max(...a.colorRGB)-Math.min(...a.colorRGB)))};appearanceCache.set(cacheKey,reference);}
+  if(!reference)return null;const {value,chroma}=reference;
   const c=n.rawColorRGB||n.colorRGB;
+  if(n.colorSamples>=3&&Math.max(...n.colorRGB)>=value*.6&&Math.max(...n.colorRGB)-Math.min(...n.colorRGB)>=chroma*.5)return null;
   return Math.max(...c)<value*.45&&Math.max(...c)-Math.min(...c)<chroma*.35?{value,chroma}:null;
  };
  // A short event needs a moving body supported at separated heights.
- const uncertain=[];if(supported){notes=notes.filter(n=>{
+ const uncertain=[];
+ if(supported){const audited=auditSurfaceBodies(notes,lines,observations,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration},bodyAppearance);notes=audited.notes;uncertain.push(...audited.uncertain);diagnostics.surfaceBodyRejected=audited.uncertain.length;diagnostics.surfaceBodyRepaired=audited.repaired;diagnostics.surfaceBodyTracks=audited.tracks;}
+ if(supported){notes=notes.filter(n=>{
   if(n.startSeconds>=duration){uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'outside-video'}});return false;}
   if(n.durationSeconds>=2/30||n.truncatedStart||n.truncatedEnd)return true;
   const v=diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),starts=[],ends=[];let opportunities=0;
