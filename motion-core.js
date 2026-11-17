@@ -1,15 +1,19 @@
-/* 0.7.46: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.47: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const median=a=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.floor(s.length/2)]:null;};
+function normalizePrimaryPercent(value){const n=value===null||value===undefined||String(value).trim()===''?NaN:Number(value);return Number.isFinite(n)?clamp(n,0,95):20;}
 function linePlan(referenceY,height,mode='motion',primaryPercent=20){
- const y=clamp(Math.round(referenceY),0,height-1),upper=Math.min(Math.max(0,y-8),clamp(Math.round(height*clamp(Number(primaryPercent)||20,3,95)/100),0,height-1));
+ const y=clamp(Math.round(referenceY),0,height-1),upper=Math.min(Math.max(0,y-8),clamp(Math.round(height*clamp(normalizePrimaryPercent(primaryPercent),0,95)/100),0,height-1));
  if(mode==='single')return[y];if(mode==='upper'||y<16)return[upper];
  // Shared spatial observations; primary candidates plus strongly supported short-repeat recovery.
  const top=Math.min(upper,Math.round(height*.03)),bottom=Math.max(upper,Math.round(upper+(y-upper)*.85));
+ // A low primary leaves the clean upstream region sparsely sampled. Retain
+ // enough independent upstream rows to distinguish a local effect from a gap.
+ const sparseCount=normalizePrimaryPercent(primaryPercent)>50?64:32;
  const denseShift=Math.min(0,y-1-upper-24);
- return [...new Set([upper,...Array.from({length:49},(_,i)=>clamp(upper+i-24+denseShift,0,y-1)),...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31))])];
+ return [...new Set([upper,...Array.from({length:49},(_,i)=>clamp(upper+i-24+denseShift,0,y-1)),...Array.from({length:sparseCount},(_,i)=>Math.round(top+(bottom-top)*i/(sparseCount-1)))])];
 }
 const distance=(a,b)=>Math.hypot(...(a.rawColorRGB||a.colorRGB).map((v,i)=>v-(b.rawColorRGB||b.colorRGB)[i]));
 const bodyDistance=(a,b)=>Math.hypot(...a.colorRGB.map((v,i)=>v-b.colorRGB[i]));
@@ -47,7 +51,8 @@ function independentBoundary(note,key,lines,groups,v,{fps,height,referenceY,dura
  const other=key==='startSeconds'?'endSeconds':'startSeconds',tol=1.5/fps,limit=Math.min(.5,Math.max(4/fps,note.durationSeconds)),clusters=[];
  for(let i=1;i<lines.length;i++){
   const shift=(referenceY-lines[i])/v;
-  for(const b of groups[i].get(note.midiPitch)||[]){
+  const list=groups[i].get(note.midiPitch)||[],shiftedStart=note.startSeconds-shift,window=key==='startSeconds'?limit:2/fps;
+  for(let k=lowerBound(list,shiftedStart-window);k<list.length&&list[k].startSeconds<=shiftedStart+window;k++){const b=list[k];
    if((key==='startSeconds'?b.truncatedStart:b.truncatedEnd)||bodyDistance(note,b)>=65||Math.abs(b[other]+shift-note[other])>2/fps)continue;
    const t=b[key]+shift;if(Math.abs(t-note[key])>limit)continue;
    let c=clusters.find(c=>Math.abs(c.t-t)<=tol);if(!c){c={t,points:[]};clusters.push(c);}
@@ -132,12 +137,12 @@ function healTails(primary,lines,groups,v,localGaps,{fps,height,referenceY,allow
 function refineEdges(primary,base,lines,groups,velocity,{fps,height,referenceY,duration}){
  if(!(velocity>0)||primary.truncatedStart||primary.truncatedEnd)return[base];
  const tol=1.5/fps, projected=[];
- for(let i=1;i<lines.length;i++)for(const b of groups[i].get(primary.midiPitch)||[]){
+ for(let i=1;i<lines.length;i++){const list=groups[i].get(primary.midiPitch)||[],rowShift=(lines[i]-lines[0])/velocity;for(let k=lowerBound(list,primary.startSeconds-tol+rowShift);k<list.length&&list[k].startSeconds<=primary.endSeconds+tol+rowShift;k++){const b=list[k];
   if(b.truncatedStart||b.truncatedEnd||distance(primary,b)>=65)continue;
   const shift=(lines[i]-lines[0])/velocity,s=b.startSeconds-shift,e=b.endSeconds-shift;
   if(s<primary.startSeconds-tol||e>primary.endSeconds+tol||e<=s)continue;
   projected.push({row:i,y:lines[i],s,e,b});
- }
+ }}
  const clusters=[];
  for(const p of projected.sort((a,b)=>a.s-b.s||a.e-b.e)){let c=clusters.find(c=>Math.abs(c.s-p.s)<=tol&&Math.abs(c.e-p.e)<=tol);if(!c){c={s:p.s,e:p.e,points:[]};clusters.push(c);}if(!c.points.some(q=>q.row===p.row)){c.points.push(p);c.s=median(c.points.map(q=>q.s));c.e=median(c.points.map(q=>q.e));}}
  const fit=(points,key)=>robustEdge(points,key,velocity,{fps,height,referenceY,minSpan:height*.25});
@@ -295,8 +300,8 @@ function recoverSurfaceRepeats(notes,lines,groups,v,{fps,height,referenceY,durat
  return{notes:notes.flatMap(n=>replacements.get(n)||[n]).concat(additions).sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),added:additions.length,replaced:replacements.size,tracks};
 }
 
-function surfaceBodyTracks(lines,observations,v,{fps,height,referenceY,duration}){const tol=1/fps;const pitches=new Set(observations.flatMap(ns=>ns.map(n=>n.midiPitch))),out=[];
-for(const pitch of pitches){const projected=[];for(let row=0;row<lines.length;row++)for(const b of observations[row])if(b.midiPitch===pitch&&!b.truncatedStart&&!b.truncatedEnd){const shift=(referenceY-lines[row])/v;projected.push({row,y:lines[row],b,s:b.startSeconds+shift,e:b.endSeconds+shift});}projected.sort((a,b)=>a.s-b.s||a.e-b.e);const clusters=[];
+function surfaceBodyTracks(lines,observations,v,{fps,height,referenceY,duration}){const tol=1/fps;const grouped=observations.map(ns=>{const map=new Map();for(const n of ns){if(!map.has(n.midiPitch))map.set(n.midiPitch,[]);map.get(n.midiPitch).push(n);}return map;}),pitches=new Set(grouped.flatMap(g=>[...g.keys()])),out=[];
+for(const pitch of pitches){const projected=[];for(let row=0;row<lines.length;row++)for(const b of grouped[row].get(pitch)||[])if(!b.truncatedStart&&!b.truncatedEnd){const shift=(referenceY-lines[row])/v;projected.push({row,y:lines[row],b,s:b.startSeconds+shift,e:b.endSeconds+shift});}projected.sort((a,b)=>a.s-b.s||a.e-b.e);const clusters=[];
 for(const p of projected){let best=null,error=Infinity;for(let k=clusters.length-1;k>=0;k--){const c=clusters[k];if(c.s<p.s-2*tol)break;const d=Math.max(Math.abs(c.s-p.s),Math.abs(c.e-p.e));if(d<=tol&&sameBodyHue(c.points[0].b,p.b)&&d<error){best=c;error=d;}}if(!best){best={s:p.s,e:p.e,points:[]};clusters.push(best);}if(!best.points.some(q=>q.row===p.row)){best.points.push(p);best.s=median(best.points.map(q=>q.s));best.e=median(best.points.map(q=>q.e));}}
 for(const c of clusters){const ps=c.points,bins=new Set(ps.map(p=>Math.floor(p.y/(height/16))));if(ps.length<8||bins.size<5)continue;const opts={fps,height,referenceY,minSpan:height*.25};const start=robustEdge(ps,'startSeconds',v,opts),end=robustEdge(ps,'endSeconds',v,opts);if(!start||!end||end.time<=start.time||Math.abs(start.slope-end.slope)/start.slope>.08)continue;out.push({...ps[0].b,colorRGB:[0,1,2].map(k=>median(ps.map(p=>p.b.colorRGB[k]))),rawColorRGB:[0,1,2].map(k=>median(ps.map(p=>p.b.colorRGB[k]))),startSeconds:start.time,endSeconds:end.time,durationSeconds:end.time-start.time,evidence:{timingSource:'surface-body-consensus',timingEstimator:'outlier-filtered-height-balanced-mean',verified:true,rows:Math.min(start.rows,end.rows),bins:bins.size,minY:Math.min(...ps.map(p=>p.y)),maxY:Math.max(...ps.map(p=>p.y))}});}
 }return out.sort((a,b)=>a.startSeconds-b.startSeconds);}
@@ -460,5 +465,5 @@ function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',prim
  }};
 }
 
-const api={linePlan,fuse,createScan};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollMotionCore=api;
+const api={linePlan,fuse,createScan,normalizePrimaryPercent};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollMotionCore=api;
 })(globalThis);
