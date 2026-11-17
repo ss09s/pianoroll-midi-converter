@@ -1,14 +1,15 @@
-/* 0.7.45: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.46: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const median=a=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.floor(s.length/2)]:null;};
 function linePlan(referenceY,height,mode='motion',primaryPercent=20){
- const y=clamp(Math.round(referenceY),0,height-1),upper=Math.min(Math.max(0,y-8),clamp(Math.round(height*clamp(Number(primaryPercent)||20,3,65)/100),0,height-1));
+ const y=clamp(Math.round(referenceY),0,height-1),upper=Math.min(Math.max(0,y-8),clamp(Math.round(height*clamp(Number(primaryPercent)||20,3,95)/100),0,height-1));
  if(mode==='single')return[y];if(mode==='upper'||y<16)return[upper];
  // Shared spatial observations; primary candidates plus strongly supported short-repeat recovery.
  const top=Math.min(upper,Math.round(height*.03)),bottom=Math.max(upper,Math.round(upper+(y-upper)*.85));
- return [...new Set([upper,...Array.from({length:49},(_,i)=>clamp(upper+i-24,0,height-1)),...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31))])];
+ const denseShift=Math.min(0,y-1-upper-24);
+ return [...new Set([upper,...Array.from({length:49},(_,i)=>clamp(upper+i-24+denseShift,0,y-1)),...Array.from({length:32},(_,i)=>Math.round(top+(bottom-top)*i/31))])];
 }
 const distance=(a,b)=>Math.hypot(...(a.rawColorRGB||a.colorRGB).map((v,i)=>v-(b.rawColorRGB||b.colorRGB)[i]));
 const bodyDistance=(a,b)=>Math.hypot(...a.colorRGB.map((v,i)=>v-b.colorRGB[i]));
@@ -451,7 +452,7 @@ class OcclusionTracker {
 }
 function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20}){
  const localGaps=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>mode==='motion'?new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
- const denseBand={top:Math.max(Math.min(...lines),lines[0]-24),bottom:Math.min(Math.max(...lines),lines[0]+24)};
+ const bandShift=Math.min(0,Math.round(hitLineY)-1-lines[0]-24),denseBand={top:Math.max(0,lines[0]-24+bandShift),bottom:Math.min(Math.round(hitLineY)-1,lines[0]+24+bandShift)};
  return{lines,detect,push(time,rows,rawRows=null){if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(lines,rows,time,lines[0],rawRows,laneCenters,denseBand));rows.forEach((hits,i)=>trackers[i].push(time,hits,rawRows?.[i]));},finish(){
   const observations=trackers.map(t=>t.finish()),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{method:mode==='upper'?'upper-single':'single-line',lineYs:lines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
