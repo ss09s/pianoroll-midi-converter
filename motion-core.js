@@ -1,4 +1,4 @@
-/* 0.7.43: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.44: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -348,14 +348,24 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  diagnostics.timingReference=notes.every(n=>n.evidence.verified)?'keyboard-line-estimated':notes.some(n=>n.evidence.verified)?'mixed-unconfirmed':'upper-line';diagnostics.correctedCandidates=notes.filter(n=>n.evidence.verified).length;diagnostics.unconfirmed=notes.filter(n=>!n.evidence.verified).length;diagnostics.offsetRangeSeconds=notes.length?notes.reduce((r,n)=>[Math.min(r[0],n.evidence.offsetSeconds),Math.max(r[1],n.evidence.offsetSeconds)],[Infinity,-Infinity]):[0,0];diagnostics.warning=diagnostics.unconfirmed?'時刻未補正の候補を保持しています。同期補正・個別確認が必要です。':'複数の高さで開始・終了の軌跡が一致した候補の時刻を補正しました。原音との同期は別途確認してください。';
 
  if(supported){const restored=recoverSurfaceRepeats(notes,lines,groups,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration});notes=restored.notes;diagnostics.surfaceRepeatAdded=restored.added;diagnostics.surfaceRepeatReplaced=restored.replaced;diagnostics.surfaceRepeatTracks=restored.tracks;}
+ // A moving timing fit is insufficient when every observation is only a dim,
+ // desaturated background tint. Learn body appearance from this same scan.
+ const bodyAppearance=n=>{
+  const refs=primary.filter(a=>a.durationSeconds>=2/30&&!a.truncatedStart&&!a.truncatedEnd&&a.laneType===n.laneType&&sameBodyHue(a,n));
+  if(refs.length<6)return null;
+  const value=median(refs.map(a=>Math.max(...a.colorRGB))),chroma=median(refs.map(a=>Math.max(...a.colorRGB)-Math.min(...a.colorRGB)));
+  const c=n.rawColorRGB||n.colorRGB;
+  return Math.max(...c)<value*.45&&Math.max(...c)-Math.min(...c)<chroma*.35?{value,chroma}:null;
+ };
  // A short event needs a moving body supported at separated heights.
  const uncertain=[];if(supported){notes=notes.filter(n=>{
   if(n.startSeconds>=duration){uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'outside-video'}});return false;}
   if(n.durationSeconds>=2/30||n.truncatedStart||n.truncatedEnd)return true;
   const v=diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),starts=[],ends=[];let opportunities=0;
-  const tol=1/fps,expectedOccupancy=Math.min(1,n.durationSeconds*fps);
+  const tol=1/fps,expectedOccupancy=Math.min(1,n.durationSeconds*fps),appearance=bodyAppearance(n),bodyRows=[];
   for(let i=1;i<lines.length;i++){const shift=(referenceY-lines[i])/v;
    if(n.startSeconds-shift<0||n.endSeconds-shift>duration)continue;opportunities++;
+   if(appearance&&(groups[i].get(n.midiPitch)||[]).some(b=>sameBodyHue(n,b)&&!b.truncatedStart&&!b.truncatedEnd&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol&&Math.max(...b.colorRGB)>=appearance.value*.6&&Math.max(...b.colorRGB)-Math.min(...b.colorRGB)>=appearance.chroma*.5))bodyRows.push(lines[i]);
    const same=(groups[i].get(n.midiPitch)||[]).filter(b=>bodyDistance(n,b)<65&&b.startSeconds+shift<n.endSeconds+tol&&b.endSeconds+shift>n.startSeconds-tol);
    if(same.some(b=>!b.truncatedStart&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol))starts.push(lines[i]);
    if(same.some(b=>!b.truncatedEnd&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol))ends.push(lines[i]);
@@ -364,6 +374,9 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   const supports=ys=>ys.length>=required&&new Set(ys.map(y=>Math.floor(y/(height/16)))).size>=3&&Math.max(...ys)-Math.min(...ys)>=height*.08;
   const ys=[...new Set([...starts,...ends])],bins=new Set(ys.map(y=>Math.floor(y/(height/16))));
   n.evidence={...n.evidence,shortStartRows:starts.length,shortEndRows:ends.length,shortRequiredRows:required,shortObservationOpportunities:opportunities};
+  if(appearance&&(bodyRows.length<3||new Set(bodyRows.map(y=>Math.floor(y/(height/16)))).size<2)){
+   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-note-body-appearance',bodyAppearanceRows:bodyRows.length,referenceBodyValue:appearance.value,referenceBodyChroma:appearance.chroma}});return false;
+  }
   if(supports(starts)&&supports(ends))return true;
   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
  });}
