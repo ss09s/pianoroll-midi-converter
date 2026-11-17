@@ -1,6 +1,7 @@
-/* 0.7.47: shared spatial observations repair primary timing and reject positively stationary artifacts. */
+/* 0.7.48: shared spatial observations repair primary timing and reject positively stationary artifacts. */
 (function(root){'use strict';
 const core=typeof module==='object'&&module.exports?require('./note-core.js'):root.PianoRollNoteCore;
+const textCore=typeof module==='object'&&module.exports?require('./text-overlay.js'):root.PianoRollTextOverlay;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const median=a=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.floor(s.length/2)]:null;};
 function normalizePrimaryPercent(value){const n=value===null||value===undefined||String(value).trim()===''?NaN:Number(value);return Number.isFinite(n)?clamp(n,0,95):20;}
@@ -455,13 +456,14 @@ class OcclusionTracker {
  }
  finish(){for(const f of this.queue)this.inner.push(f.time,f.hits);this.queue=[];const notes=this.inner.finish();this.discarded=this.inner.discarded;return notes;}
 }
-function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20}){
- const localGaps=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));const lines=linePlan(hitLineY,height,mode,primaryPercent),trackers=lines.map(()=>mode==='motion'?new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
+function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20,textOverlay=null}){
+ const localGaps=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));const baseLines=linePlan(hitLineY,height,mode,primaryPercent),lines=textCore?.validationLines(baseLines,textOverlay)||baseLines,trackers=baseLines.map(()=>mode==='motion'?new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
+ const textGuard=textCore?.createGuard(lines,lanes,textOverlay,{fps});
  const bandShift=Math.min(0,Math.round(hitLineY)-1-lines[0]-24),denseBand={top:Math.max(0,lines[0]-24+bandShift),bottom:Math.min(Math.round(hitLineY)-1,lines[0]+24+bandShift)};
- return{lines,detect,push(time,rows,rawRows=null){if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(lines,rows,time,lines[0],rawRows,laneCenters,denseBand));rows.forEach((hits,i)=>trackers[i].push(time,hits,rawRows?.[i]));},finish(){
-  const observations=trackers.map(t=>t.finish()),discarded=trackers[0].discarded;
-  if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{method:mode==='upper'?'upper-single':'single-line',lineYs:lines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
-  const result=fuse(lines,observations,{fps,duration,height,referenceY:hitLineY,localGaps});result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
+ return{lines,detect,push(time,rows,rawRows=null){textGuard?.observe(time,rows,rawRows);if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(baseLines,rows.length===baseLines.length?rows:rows.slice(0,baseLines.length),time,baseLines[0],rawRows?.length===baseLines.length?rawRows:rawRows?.slice(0,baseLines.length),laneCenters,denseBand));trackers.forEach((tracker,i)=>tracker.push(time,rows[i],rawRows?.[i]));},finish(){
+  const observations=trackers.map((t,i)=>{const ns=t.finish();return textGuard?textGuard.filter(ns,i):ns;}),discarded=trackers[0].discarded;
+  if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{...(textGuard?textGuard.diagnostics():{}),method:mode==='upper'?'upper-single':'single-line',lineYs:baseLines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
+  const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps});if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
 }
 

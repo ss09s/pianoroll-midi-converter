@@ -1,5 +1,10 @@
 /* Keyboard boundary refinement, independent of note colour. */
 (function(root){'use strict';
+// Preserve the physical key pattern when translating its integer index origin.
+function normalizePattern(anchor,step,phase){
+ if(!Number.isFinite(anchor)||!Number.isFinite(step)||step<=0||!Number.isFinite(phase))throw Error('鍵盤の位置・幅が不正です');
+ const shift=Math.floor(anchor/step);return{anchor:anchor-shift*step,phase:((phase-shift)%7+7)%7};
+}
 function refineTop(data,width,height,coarse,anchor,step){
  const lum=(x,y)=>{const i=(y*width+Math.round(x))*4;return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2]};
  const edges=[];let count=0;const radius=Math.max(8,Math.round(height*.025));
@@ -25,5 +30,5 @@ function safeHitLine(data,width,height,top,anchor,step){
  // A resampled keyboard edge can bleed into the pixel just above it.
  return Math.max(0,top-(values[mid]>45&&rises[mid]>20?2:1));
 }
-const api={refineTop,safeHitLine};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollGuideCore=api;
+const api={refineTop,safeHitLine,normalizePattern};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollGuideCore=api;
 })(globalThis);

@@ -1,3 +1,4 @@
+/* 0.7.48: C0 default floor, lower MIDI notes and guide-aware pitch range. */
 /* 0.7.23: editable seconds-based piano roll, synchronized with the original video. */
 (()=>{'use strict';
 const $=id=>document.getElementById(id),video=$('v'),core=PianoRollNoteCore,scan=PianoRollVideoNoteScan;
@@ -15,7 +16,7 @@ const panel=document.createElement('details');panel.id='noteReview';panel.classN
 $('noteScanResults').before(panel);
 const panelHome=document.createComment('editor position');panel.before(panelHome);
 const home=document.createComment('original video position');video.before(home);
-let data=null,notes=[],duration=0,pitchMin=24,pitchMax=72,viewStart=0,span=16,width=340,keyW=44,rowH=1,selected=null,hitRects=[];
+let data=null,notes=[],duration=0,pitchMin=12,pitchMax=72,viewStart=0,span=16,width=340,keyW=44,rowH=1,selected=null,hitRects=[];
 let editing=false,undoStack=[],redoStack=[],hovered=false,bodyOverflow=null,firstZoom=true,minZoomDefault=true;
 let ctx=null,master=null,limiter=null,mediaSource=null,originalGain=null,raf=null,buffering=false,starting=false,token=0,nextNote=0,needsActive=true,seen=new Set(),clock=null,oldVideo=null,lastText=0,lastPaused=null;
 const voices=new Map();
@@ -201,9 +202,9 @@ function close(){$('nrModeNotice').hidden=true;hovered=false;expand(false);cance
 function onData(){
  const state=scan.getState();openButton.disabled=!state.hasResult||state.running;
  if(state.running||!state.hasResult){close();if(!state.hasResult){data=null;notes=[];selected=null;}return;}
- const next=scan.getResult();if(!data||data.source.name!==next.source.name||data.notes.length!==next.notes.length||JSON.stringify(data.notes)!==JSON.stringify(next.notes)){
+ const next=scan.getResult();if(!data||data.source.name!==next.source.name||data.notes.length!==next.notes.length||JSON.stringify(data.notes)!==JSON.stringify(next.notes)||JSON.stringify(data.guide?.lanes)!==JSON.stringify(next.guide?.lanes)){
   $('nrSyncOffset').value=String(next.timingAdjustmentSeconds||0);lastDrawKey=null;Object.keys(playbackMetrics).forEach(k=>playbackMetrics[k]=0);firstZoom=true;minZoomDefault=true;wantedSpan=16;undoStack=[];redoStack=[];historyState();video.pause();stopSound();data=next;duration=next.source.durationSeconds;notes=next.notes.map((n,id)=>({...n,id})).sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);selected=null;viewStart=0;$('nrFollow').checked=true;followState();
-  pitchMin=24;pitchMax=notes.length?Math.max(36,Math.min(127,notes.reduce((p,n)=>Math.max(p,n.midiPitch),0)+2)):72;
+  const rangePitches=notes.map(n=>n.midiPitch).concat(Array.isArray(next.guide?.lanes)?next.guide.lanes.map(l=>l.pitch):[]).filter(p=>Number.isInteger(p)&&p>=0&&p<=127);pitchMin=rangePitches.length?Math.max(0,Math.min(12,Math.floor((rangePitches.reduce((a,b)=>Math.min(a,b),127)-2)/12)*12)):12;pitchMax=notes.length?Math.max(36,Math.min(127,notes.reduce((p,n)=>Math.max(p,n.midiPitch),0)+2)):72;
   $('nrSelected').textContent=notes.length?'ノートをタップすると、音高・開始・終了・長さを確認できます。':'抽出結果は0音です。原動画を確認し、鍵盤ガイドや検出条件を見直してください。';
  }
  $('nrWarning').hidden=!state.stale;$('nrWarning').textContent='ガイドを変更しています。前回抽出した結果を表示中です。再抽出して比較してください。';render();

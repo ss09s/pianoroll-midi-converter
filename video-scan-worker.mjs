@@ -1,7 +1,8 @@
 import {videoPackets} from './video-demux.mjs?v=0.7.18';
-import './note-core.js?v=0.7.47';
-import './motion-core.js?v=0.7.47';
-import './frame-reader.js?v=0.7.47';
+import './note-core.js?v=0.7.48';
+import './text-overlay.js?v=0.7.48';
+import './motion-core.js?v=0.7.48';
+import './frame-reader.js?v=0.7.48';
 import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
 import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
 const core=globalThis.PianoRollNoteCore;
@@ -9,7 +10,7 @@ self.onmessage=async({data})=>{
  if(data.type!=='scan')return;
  const {file,width,height,hitLineY,lanes,fps,duration}=data,total=Math.ceil(duration*fps),started=performance.now();
  let display=null,codedSize=null,decoder,previous=null,index=0,error=null,lastProgress=0,decoded=0,lastTimestamp=-Infinity;
- const tracker=globalThis.PianoRollMotionCore.createScan({width,height,hitLineY,lanes,fps,duration,mode:data.detectionMode,primaryPercent:data.primaryPercent}),canvas=new OffscreenCanvas(width,height),reader=globalThis.PianoRollFrameReader.createReader(canvas,width,height,tracker.lines),ctx=reader.ctx,detect=tracker.detect;
+ const tracker=globalThis.PianoRollMotionCore.createScan({width,height,hitLineY,lanes,fps,duration,mode:data.detectionMode,primaryPercent:data.primaryPercent,textOverlay:data.textOverlay}),canvas=new OffscreenCanvas(width,height),reader=globalThis.PianoRollFrameReader.createReader(canvas,width,height,tracker.lines),ctx=reader.ctx,detect=tracker.detect;
  const audit=[],failure=new AbortController();
  const fail=e=>{if(!error){error=e;failure.abort(e);}};
  const metrics={engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
