@@ -1,5 +1,5 @@
 import {videoPackets,decoderChunkInit} from './video-demux.mjs?v=0.7.49';
-import './note-core.js?v=0.7.49';
+import './note-core.js?v=0.7.50';
 import './text-overlay.js?v=0.7.49';
 import './motion-core.js?v=0.7.49';
 import './frame-reader.js?v=0.7.49';

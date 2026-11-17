@@ -1,9 +1,27 @@
-/* 0.7.0: fixed-keyboard hit-line occupancy -> absolute-second note events. */
+/* 0.7.50: fixed-keyboard hit-line occupancy -> absolute-second note events. */
 (function(root){'use strict';
 const mod=(a,n)=>(a%n+n)%n,semis=[0,2,4,5,7,9,11];
 function whitePitch(index,referenceIndex,name,octave){const d=name+index-referenceIndex;return 12*(octave+1)+12*Math.floor(d/7)+semis[mod(d,7)];}
 function noteName(pitch){return ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][mod(pitch,12)]+(Math.floor(pitch/12)-1);}
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+// Follow the whole visible body through its smooth shading, rather than a
+// small RGB-similar patch on one side. A body belongs to its geometric lane.
+function ownsBody(pixels,width,lane,lanes){
+ const x=Math.round(lane.x),i=x*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2],v=Math.max(r,g,b),ch=v-Math.min(r,g,b),cap=Math.ceil(lane.w*2);
+ const connected=k=>{const j=k*4,a=pixels[j],d=pixels[j+1],e=pixels[j+2],m=Math.max(a,d,e);if(m<v*.65)return false;
+  if(ch<18)return m-Math.min(a,d,e)<24;
+  if(m-Math.min(a,d,e)<Math.max(18,ch*.4))return false;
+  const dr=a/m-r/v,dg=d/m-g/v,db=e/m-b/v;return dr*dr+dg*dg+db*db<.105;
+ };
+ let left=x,right=x;
+ while(left>0&&x-left<cap&&connected(left-1))left--;
+ while(right<width-1&&right-x<cap&&connected(right+1))right++;
+ // Unbounded backgrounds and touching bodies do not supply a reliable center.
+ if(x-left>=cap||right-x>=cap)return true;
+ const mid=(left+right)/2,offset=Math.abs(mid-lane.x);
+ if(offset<=Math.max(1.5,lane.w*.23))return true;
+ return !lanes.some(l=>l.pitch>=0&&l.pitch<=127&&l.w>=3&&l.pitch!==lane.pitch&&l.x>=left&&l.x<=right&&Math.abs(l.x-mid)+1.5<offset);
+}
 function detectRow(pixels,width,lanes){
  const rgb=x=>{const i=Math.max(0,Math.min(width-1,Math.round(x)))*4;return [pixels[i],pixels[i+1],pixels[i+2]]};
  const hits=[];
@@ -23,6 +41,7 @@ function detectRow(pixels,width,lanes){
   }
   if(!total||solid/total<.84)continue;
   if(left===0||right===width-1||Math.min(distance(rgb(left-1),center),distance(rgb(right+1),center))<48)continue;
+  if(!ownsBody(pixels,width,lane,lanes))continue;
   hits.push({pitch:lane.pitch,laneType:lane.type,colorRGB:mean.map(v=>Math.round(v/total))});
  }
  return hits;
@@ -40,6 +59,7 @@ function createRowDetector(width,lanes){
  let solid=0,rr=0,gg=0,bb=0;const total=l.b-l.a+1;
  for(let x=l.a;x<=l.b;x++){const k=x*4;if(near(x))solid++;rr+=pixels[k];gg+=pixels[k+1];bb+=pixels[k+2];}
  if(!total||solid/total<.84||left===0||right===width-1||near(left-1)||near(right+1))continue;
+ if(!ownsBody(pixels,width,l,prepared))continue;
  hits.push({pitch:l.pitch,laneType:l.type,colorRGB:[Math.round(rr/total),Math.round(gg/total),Math.round(bb/total)]});
  }return hits;};
 }
