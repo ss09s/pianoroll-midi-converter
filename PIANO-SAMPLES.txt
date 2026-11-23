@@ -1,0 +1,9 @@
+Salamander Grand Piano V3 by Alexander Holm
+Creative Commons Attribution 3.0 Unported
+https://creativecommons.org/licenses/by/3.0/
+Instrument and recording credits: https://sfzinstruments.github.io/pianos/salamander/
+Source encodings: https://tonejs.github.io/audio/salamander/
+
+This app bundles a subset of the source recordings. Each note was converted
+to mono PCM, trimmed and faded. Bass recordings received presence EQ and levels
+were adjusted per sample. The recordings are packed into piano-samples.wav.

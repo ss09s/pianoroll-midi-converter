@@ -12,7 +12,7 @@ const panel=document.createElement('details');panel.id='noteReview';panel.classN
 <div class="nr-bottom"><button type="button" id="nrExpand" aria-label="拡大表示" title="拡大表示" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button><button type="button" id="nrFollowButton" aria-label="再生位置に追従" title="再生位置に追従" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v18M3 12h18m-4-4 4 4-4 4"/></svg></button><label class="nr-follow-mode"><span class="nr-sr">追従方式</span><select id="nrFollowMode" aria-label="追従方式"><option value="fixed" selected>バー固定</option><option value="page">ページ送り</option></select></label><label class="nr-zoom">横<input id="nrZoomX" aria-label="横ズーム" type="range" min="0" max="100" step="0.1" value="0"/></label><label class="nr-zoom">縦<input id="nrZoomY" aria-label="縦ズーム" type="range" min="1" max="48" step="any" value="1"/></label><output class="nr-time" id="nrTime">0.00秒</output></div></div><div id="nrModeNotice" class="nr-mode-notice" role="status" aria-live="polite" hidden><span aria-hidden="true">●</span> ノート削除モード</div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
 <label class="nr-pan" hidden>表示位置<input id="nrPan" type="range" min="0" max="1" step="0.01" value="0"/><span id="nrRange">0–8秒</span></label>
 </div></div><output class="nr-selected" id="nrSelected" aria-live="polite">ノートをタップすると、音高・開始・終了・長さを確認できます。</output>
-<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><p class="nr-help">同期補正：＋で抽出ノートを遅らせます。全ノートの時刻とJSONに反映します。機器の出力遅延と自動移動時間は別項目です。</p><label>同期補正（秒）<input id="nrSyncOffset" type="number" min="-10" max="10" step="0.01" value="0" style="width:90px"></label><button type="button" id="nrSyncApply">同期補正を適用</button><output id="nrTimingDiagnostics" class="nr-help"></output><div class="nr-options"><label><span>横ズームの縮小制限を解除（全曲）</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="80"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">PC：キーエディタ内でショートカットが使えます（拡大表示中は画面全体）。ホイールで縦移動、Shiftで横移動、Ctrlで横ズーム、Ctrl＋Shiftで縦ズーム。Spaceで再生・一時停止、Alt単独で削除モード、Fで追従、Enterで拡大表示、Ctrl＋Zで元に戻す、Ctrl＋Shift＋Z / Ctrl＋Yでやり直し。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズーム、ダブルタップした位置から再生します。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。「ノート削除」オンのときだけタップで削除します。↶ / ↷で取り消し・やり直しができます。</p></div>`;
+<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><p class="nr-help">同期補正：＋で抽出ノートを遅らせます。全ノートの時刻とJSONに反映します。機器の出力遅延と自動移動時間は別項目です。</p><label>同期補正（秒）<input id="nrSyncOffset" type="number" min="-10" max="10" step="0.01" value="0" style="width:90px"></label><button type="button" id="nrSyncApply">同期補正を適用</button><output id="nrTimingDiagnostics" class="nr-help"></output><div class="nr-options"><label><span>横ズームの縮小制限を解除（全曲）</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="80"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">PC：キーエディタ内でショートカットが使えます（拡大表示中は画面全体）。ホイールで縦移動、Shiftで横移動、Ctrlで横ズーム、Ctrl＋Shiftで縦ズーム。Spaceで再生・一時停止、Alt単独で削除モード、Fで追従、Enterで拡大表示、Ctrl＋Zで元に戻す、Ctrl＋Shift＋Z / Ctrl＋Yでやり直し。抽出音には<a href="PIANO-SAMPLES.txt" target="_blank" rel="noopener">グランドピアノの録音音源</a>を使用します。</p><output class="nr-help" id="nrPianoStatus"></output></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズーム、ダブルタップした位置から再生します。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。「ノート削除」オンのときだけタップで削除します。↶ / ↷で取り消し・やり直しができます。</p></div>`;
 $('noteScanResults').before(panel);
 const panelHome=document.createComment('editor position');panel.before(panelHome);
 const home=document.createComment('original video position');video.before(home);
@@ -20,6 +20,56 @@ let data=null,notes=[],duration=0,pitchMin=12,pitchMax=72,viewStart=0,span=16,wi
 let editing=false,undoStack=[],redoStack=[],hovered=false,bodyOverflow=null,firstZoom=true,minZoomDefault=true;
 let ctx=null,master=null,limiter=null,mediaSource=null,originalGain=null,raf=null,buffering=false,starting=false,token=0,nextNote=0,needsActive=true,seen=new Set(),clock=null,oldVideo=null,lastText=0,lastPaused=null;
 const voices=new Map(),toneWaves=new Map();
+const pianoSlotSeconds=6.1,pianoSampleCount=30;
+const pianoSampleUrl=document.currentScript?.src ? new URL('piano-samples.wav?v=0.7.54',document.currentScript.src) : './piano-samples.wav?v=0.7.54';
+let pianoBytes=null,pianoLoad=null,pianoBuffer=null;
+function prefetchPiano(){
+ if(typeof fetch!=='function'||pianoBytes||pianoBuffer||pianoLoad)return;
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
+ pianoBytes=fetch(pianoSampleUrl,{signal:controller.signal}).then(response=>response.ok?response.arrayBuffer():null)
+  .catch(()=>null).finally(()=>clearTimeout(timeout));
+}
+function preparePiano(){
+ if(!ctx?.decodeAudioData)return;
+ prefetchPiano();
+ if(!pianoBytes||pianoLoad)return;
+ $('nrPianoStatus').textContent='ピアノ音源を読み込んでいます。';
+ pianoLoad=pianoBytes.then(async bytes=>{
+  if(!bytes)return;
+  const decoded=await ctx.decodeAudioData(bytes);
+  if(decoded.numberOfChannels===1&&Math.abs(decoded.duration-pianoSampleCount*pianoSlotSeconds)<.01)pianoBuffer=decoded;
+ }).catch(()=>{}).finally(()=>{
+  pianoBytes=null;
+  $('nrPianoStatus').textContent=pianoBuffer?'録音したピアノ音源を使用中':'ピアノ音源を読み込めなかったため、合成音で再生します。';
+ });
+}
+function playPianoSample(note,time,videoRate,when,end){
+ const pitch=note.midiPitch,index=clamp(Math.round((pitch-21)/3),0,pianoSampleCount-1);
+ const pitchRate=Math.pow(2,(pitch-(21+3*index))/12);
+ const age=Math.max(0,(time-note.startSeconds)/videoRate)*pitchRate;
+ if(age>=pianoSlotSeconds-.008)return;
+ const release=pitch<49?.16:.10;
+ const finish=Math.min(end+release,when+(pianoSlotSeconds-age)/pitchRate);
+ const releaseStart=Math.min(end,finish-.004),attack=Math.min(when+.004,releaseStart);
+ const peak=.92;
+ const levelAt=t=>t<=attack?peak*clamp((t-when)/Math.max(.001,attack-when),0,1):
+  peak*clamp((finish-t)/(finish-releaseStart),0,1);
+ const osc=ctx.createBufferSource(),gain=ctx.createGain();
+ osc.buffer=pianoBuffer;
+ osc.playbackRate.value=pitchRate;
+ gain.gain.setValueAtTime(0,when);
+ gain.gain.linearRampToValueAtTime(peak,attack);
+ gain.gain.setValueAtTime(peak,releaseStart);
+ gain.gain.linearRampToValueAtTime(0,finish);
+ connectVoice(note.id,osc,gain,when,levelAt);
+ osc.start(when,index*pianoSlotSeconds+age);
+ osc.stop(finish);
+}
+function connectVoice(id,osc,gain,when,levelAt){
+ osc.connect(gain);gain.connect(master);
+ voices.set(id,{osc,gain,when,levelAt});
+ osc.onended=()=>{if(voices.get(id)?.osc===osc)voices.delete(id);osc.disconnect();gain.disconnect();};
+}
 let audioTimer=null,lastDrawKey=null,lastRenderMs=0,lastScheduleAt=null;
 const playbackMetrics={lateNotes:0,maxLateMs:0,maxSchedulerGapMs:0,maxRenderMs:0};
 function stopSound(){
@@ -39,12 +89,13 @@ function stopSound(){
 async function audioReady(){
 
  if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC({latencyHint:'interactive'});master=ctx.createGain();master.gain.value=Number($('nrVolume').value)/100*mixValue();mediaSource=ctx.createMediaElementSource(video);originalGain=ctx.createGain();mediaSource.connect(originalGain);originalGain.gain.value=panel.open?1-mixValue():1;limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-12;limiter.ratio.value=10;limiter.attack.value=.003;limiter.release.value=.12;master.connect(limiter);originalGain.connect(limiter);limiter.connect(ctx.destination);}
- applyMix();await ctx.resume();$('nrAudioNotice').hidden=ctx.state==='running';
+ applyMix();preparePiano();await ctx.resume();$('nrAudioNotice').hidden=ctx.state==='running';
 }
 function voice(note,time,rate,active=false){
  if(seen.has(note.id)||note.endSeconds<=time||!ctx||ctx.state!=='running')return;
  if(!active&&note.startSeconds<time-.005){playbackMetrics.lateNotes++;playbackMetrics.maxLateMs=Math.max(playbackMetrics.maxLateMs,(time-note.startSeconds)/rate*1000);}
  seen.add(note.id);const when=ctx.currentTime+Math.max(0,(note.startSeconds-time)/rate),end=ctx.currentTime+Math.max(.008,(note.endSeconds-time)/rate);
+ if(pianoBuffer&&note.midiPitch>=21&&note.midiPitch<=108){playPianoSample(note,time,rate,when,end);return;}
  const osc=ctx.createOscillator(),gain=ctx.createGain();
  const pitch=note.midiPitch;
  osc.frequency.value=440*Math.pow(2,(pitch-69)/12);
@@ -67,9 +118,7 @@ function voice(note,time,rate,active=false){
  if(sustainTime<end)gain.gain.linearRampToValueAtTime(peak*.45,sustainTime);
  gain.gain.linearRampToValueAtTime(endLevel,end);
  gain.gain.linearRampToValueAtTime(0,end+release);
- osc.connect(gain);gain.connect(master);
- voices.set(note.id,{osc,gain,when,levelAt});
- osc.onended=()=>{if(voices.get(note.id)?.osc===osc)voices.delete(note.id);osc.disconnect();gain.disconnect();};
+ connectVoice(note.id,osc,gain,when,levelAt);
  osc.start(when);osc.stop(end+release+.005);
 }
 function schedule(){
@@ -249,6 +298,7 @@ function onData(){
 openButton.onclick=()=>{if(!data)return;panel.open=true;panel.scrollIntoView({block:'start',behavior:'smooth'});};
 panel.addEventListener('toggle',()=>{
  if(!panel.open){close();return;}if(!data||scan.running){panel.open=false;return;}
+ prefetchPiano();preparePiano();
  oldVideo={muted:video.muted,rate:video.playbackRate};video.pause();$('nrVideo').append(video);video.playbackRate=Number($('nrRate').value);applyMode();if(firstZoom){rowH=initialRow();firstZoom=false;}render();zoomTo(wantedSpan,rowH);$('nrScroll').scrollTop=Math.max(0,((pitchMax-pitchMin+1)*rowH-$('nrScroll').clientHeight)/2);render();cursor(true);wake();
 });
 $('nrPlay').onclick=async()=>{

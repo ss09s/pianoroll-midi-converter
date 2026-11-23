@@ -328,14 +328,23 @@ function reconcileAdjacentTracks(notes,tracks,uncertain,fps,offset){
    const sameStart=bodies.filter(t=>t!==body&&strong(t)&&sameBodyHue(body,t)&&nearStart(body,t));
    // One apparent black-key tail ends with the neighboring white note;
    // the shorter, separately observed black body ends when the white begins.
-   if(body.durationSeconds<=.22&&sameStart.length){
-    const longer=sameStart.find(t=>t.endSeconds-body.endSeconds>=Math.max(.045,1.5*tol)&&whiteNeighbors.some(n=>
-     n.startSeconds>=body.endSeconds-tol*.55&&Math.abs(n.startSeconds-body.endSeconds)<=tol&&Math.abs(n.endSeconds-t.endSeconds)<=tol));
-    if(longer&&body.durationSeconds>=.05&&body.durationSeconds<=.16){
-     const matched=existing.find(n=>sameBodyHue(body,n)&&nearStart(body,n));
-     if(matched&&matched.endSeconds-body.endSeconds>=.035)changes.set(matched,withTiming(body,matched));
-     else if(!matched&&!existing.some(n=>overlap(n,body)>tol*.3)&&!added.some(n=>n.midiPitch===pitch&&nearStart(n,body)))added.push(withTiming(body));
-    }
+   if(body.durationSeconds>=.05&&body.durationSeconds<=.16){
+    const matched=existing.find(n=>sameBodyHue(body,n)&&nearStart(body,n));
+    const neighbor=long=>whiteNeighbors.some(n=>
+     n.startSeconds>=body.endSeconds-tol*.55&&Math.abs(n.startSeconds-body.endSeconds)<=tol&&
+     Math.abs(n.endSeconds-long.endSeconds)<=tol&&long.endSeconds-body.endSeconds>=Math.max(.045,1.5*tol));
+    // A primary interval can inherit a neighbor's end even if no long
+    // alternative survives the multi-row fit. In that case, require stronger
+    // short-body support and no rival fit of its ending.
+    const longer=sameStart.find(neighbor);
+    const clearShortEnd=body.evidence.rows>=16&&body.evidence.bins>=8&&
+     !sameStart.some(t=>Math.abs(t.endSeconds-body.endSeconds)>tol);
+    if(matched&&matched.endSeconds-body.endSeconds>=.035&&
+     (longer&&Math.abs(longer.endSeconds-matched.endSeconds)<=2*tol||clearShortEnd&&neighbor(matched))){
+     const previous=changes.get(matched);
+     if(!previous||body.endSeconds<previous.endSeconds)changes.set(matched,withTiming(body,matched));
+    }else if(longer&&!matched&&!existing.some(n=>overlap(n,body)>tol*.3)&&
+     !added.some(n=>n.midiPitch===pitch&&nearStart(n,body)))added.push(withTiming(body));
    }
    // The sustained body must be visible across heights and no other same-pitch
    // event may claim the extension. An adjacent short body explains the hole.
@@ -481,17 +490,32 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  // A short event needs a moving body supported at separated heights.
  const uncertain=[];
  if(supported){const audited=auditSurfaceBodies(notes,lines,observations,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration},bodyAppearance);notes=audited.notes;uncertain.push(...audited.uncertain);diagnostics.surfaceBodyRejected=audited.uncertain.length;diagnostics.surfaceBodyRepaired=audited.repaired;diagnostics.surfaceBodyTracks=audited.tracks;diagnostics.adjacentBodyRepairs=audited.adjacentRepaired;}
- if(supported){notes=notes.filter(n=>{
+ if(supported){
+ const notePitches=new Map();
+ for(const note of notes){if(!notePitches.has(note.midiPitch))notePitches.set(note.midiPitch,[]);notePitches.get(note.midiPitch).push(note);}
+ notes=notes.filter(n=>{
   if(n.startSeconds>=duration){uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'outside-video'}});return false;}
   if(n.durationSeconds>=2/30||n.truncatedStart||n.truncatedEnd)return true;
   const v=diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),starts=[],ends=[];let opportunities=0;
-  const tol=1/fps,expectedOccupancy=Math.min(1,n.durationSeconds*fps),appearance=bodyAppearance(n),bodyRows=[];
+  const tol=1/fps,fullBody=[];
+  const nearSemitone=[-1,1].some(step=>{
+   const nearby=notePitches.get(n.midiPitch+step)||[],i=lowerBound(nearby,n.startSeconds-.25-tol);
+   for(let j=i;j<nearby.length&&nearby[j].startSeconds<=n.endSeconds+tol;j++){
+    const a=nearby[j];
+    if(a.evidence.verified&&a.laneType!==n.laneType&&a.durationSeconds>=n.durationSeconds*1.5&&a.durationSeconds<=.25&&
+     a.startSeconds<n.endSeconds+tol*.5&&a.endSeconds>n.startSeconds-tol*.5&&sameBodyHue(n,a))return true;
+   }
+   return false;
+  });
+  const expectedOccupancy=Math.min(1,n.durationSeconds*fps),appearance=bodyAppearance(n),bodyRows=[];
   for(let i=1;i<lines.length;i++){const shift=(referenceY-lines[i])/v;
    if(n.startSeconds-shift<0||n.endSeconds-shift>duration)continue;opportunities++;
    if(appearance&&(groups[i].get(n.midiPitch)||[]).some(b=>sameBodyHue(n,b)&&!b.truncatedStart&&!b.truncatedEnd&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol&&Math.max(...b.colorRGB)>=appearance.value*.6&&Math.max(...b.colorRGB)-Math.min(...b.colorRGB)>=appearance.chroma*.5))bodyRows.push(lines[i]);
    const same=(groups[i].get(n.midiPitch)||[]).filter(b=>bodyDistance(n,b)<65&&b.startSeconds+shift<n.endSeconds+tol&&b.endSeconds+shift>n.startSeconds-tol);
    if(same.some(b=>!b.truncatedStart&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol))starts.push(lines[i]);
    if(same.some(b=>!b.truncatedEnd&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol))ends.push(lines[i]);
+   if(nearSemitone&&same.some(b=>!b.truncatedStart&&!b.truncatedEnd&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol&&
+    Math.abs(b.endSeconds+shift-n.endSeconds)<=tol&&b.durationSeconds<=n.durationSeconds+tol))fullBody.push(lines[i]);
   }
   const required=Math.max(4,Math.ceil(opportunities*expectedOccupancy*.12));
   const supports=ys=>ys.length>=required&&new Set(ys.map(y=>Math.floor(y/(height/16)))).size>=3&&Math.max(...ys)-Math.min(...ys)>=height*.08;
@@ -499,6 +523,10 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   n.evidence={...n.evidence,shortStartRows:starts.length,shortEndRows:ends.length,shortRequiredRows:required,shortObservationOpportunities:opportunities};
   if(appearance&&(bodyRows.length<3||new Set(bodyRows.map(y=>Math.floor(y/(height/16)))).size<2)){
    uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-note-body-appearance',bodyAppearanceRows:bodyRows.length,referenceBodyValue:appearance.value,referenceBodyChroma:appearance.chroma}});return false;
+  }
+  if(nearSemitone&&opportunities>=12&&(!supports(fullBody)||
+   new Set(fullBody.map(y=>Math.floor(y/(height/16)))).size<5||Math.max(...fullBody)-Math.min(...fullBody)<height*.22)){
+   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-independent-adjacent-body',supportRows:fullBody.length}});return false;
   }
   if(supports(starts)&&supports(ends))return true;
   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
@@ -511,13 +539,13 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
 class OcclusionTracker {
  constructor(options,lanes,width){this.inner=new core.Tracker({...options,minimumSamples:1});this.fps=options.fps;this.lanes=lanes;this.width=width;this.queue=[];this.active=new Map();this.bridged=0;}
  push(time,hits,raw){
-  const present=new Map(hits.map(h=>[h.pitch,h])),frame={time,hits:hits.slice(),unknown:new Set()};
+  const present=new Map(hits.map(h=>[h.pitch,h])),foreign=core.foreignBodyPitches(hits),frame={time,hits:hits.slice(),unknown:new Set()};
   for(const [pitch,last] of this.active){
    const hit=present.get(pitch);
    if(hit){if(bodyDistance(last.hit,hit)<40&&time-last.time<=.15){for(const f of this.queue)if(f.unknown.has(pitch)){f.hits.push(last.hit);f.unknown.delete(pitch);this.bridged++;}}this.active.set(pitch,{hit,time});continue;}
    const l=this.lanes.get(pitch),i=l?Math.round(l.x)*4:-1,c=raw&&i>=0?[raw[i],raw[i+1],raw[i+2]]:null,lum=x=>.2126*x[0]+.7152*x[1]+.0722*x[2];
    // A dark, empty lane is negative evidence; a bright changed body is ambiguous.
-   if(c&&time-last.time<=.15&&lum(c)>=Math.max(85,lum(last.hit.colorRGB)*.9)&&Math.hypot(...c.map((v,k)=>v-last.hit.colorRGB[k]))>48){frame.unknown.add(pitch);}else this.active.delete(pitch);
+   if(!foreign?.has(pitch)&&c&&time-last.time<=.15&&lum(c)>=Math.max(85,lum(last.hit.colorRGB)*.9)&&Math.hypot(...c.map((v,k)=>v-last.hit.colorRGB[k]))>48){frame.unknown.add(pitch);}else this.active.delete(pitch);
   }
   for(const hit of hits)this.active.set(hit.pitch,{hit,time});
   this.queue.push(frame);while(this.queue.length&&time-this.queue[0].time>=.15){const f=this.queue.shift();this.inner.push(f.time,f.hits);}

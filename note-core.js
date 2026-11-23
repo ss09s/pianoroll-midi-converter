@@ -21,6 +21,10 @@ function ownsBody(pixels,width,lane,lanes){
  if(offset<=Math.max(1.5,lane.w*.23))return true;
  return !lanes.some(l=>l.pitch>=0&&l.pitch<=127&&l.w>=3&&l.pitch!==lane.pitch&&l.x>=left&&l.x<=right&&Math.abs(l.x-mid)+1.5<offset);
 }
+// Used by the surface tracker to distinguish a bright occlusion from a
+// visible note whose body belongs to a different lane.
+const foreignBodies=new WeakMap();
+function foreignBodyPitches(hits){return foreignBodies.get(hits);}
 function detectRow(pixels,width,lanes){
  return createRowDetector(width,lanes)(pixels);
 }
@@ -61,7 +65,7 @@ function createRowDetector(width,lanes){
   const a=ordered[i-1],b=ordered[i];
   if(a.type!==b.type&&Math.abs(a.pitch-b.pitch)===1&&b.c-a.c>=5&&b.c-a.c<Math.min(a.w,b.w)*.9)pairs.push([a,b]);
  }
- return pixels=>{const hits=[];
+ return pixels=>{const hits=[];let foreign;
  for(const l of prepared){const i=l.c*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2],lum=.2126*r+.7152*g+.0722*b;if(lum<45||Math.max(r,g,b)-Math.min(r,g,b)<18&&lum<85)continue;
  const near=x=>{const k=x*4,dr=pixels[k]-r,dg=pixels[k+1]-g,db=pixels[k+2]-b;return dr*dr+dg*dg+db*db<2304;};
  let left=l.c,right=l.c;
@@ -71,10 +75,14 @@ function createRowDetector(width,lanes){
  let solid=0,rr=0,gg=0,bb=0;const total=l.b-l.a+1;
  for(let x=l.a;x<=l.b;x++){const k=x*4;if(near(x))solid++;rr+=pixels[k];gg+=pixels[k+1];bb+=pixels[k+2];}
  if(!total||solid/total<.84||left===0||right===width-1||near(left-1)||near(right+1))continue;
- if(!ownsBody(pixels,width,l,prepared))continue;
+ if(!ownsBody(pixels,width,l,prepared)){
+  (foreign??=new Set()).add(l.pitch);
+  continue;
+ }
  hits.push({pitch:l.pitch,laneType:l.type,colorRGB:[Math.round(rr/total),Math.round(gg/total),Math.round(bb/total)]});
  }
  if(pairs.length)restoreAdjacentBodies(pixels,width,pairs,hits);
+ if(foreign)foreignBodies.set(hits,foreign);
  return hits;};
 }
 // Bounded RGB histogram: omit the first two and last observation of a note.
@@ -132,5 +140,5 @@ class Tracker{
  close(tr,end,truncatedEnd){if(tr.frames<this.minimumSamples){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({...(this.minimumSamples===1?{observationSamples:tr.frames}:{}),midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:representative(tr.colors,tr.colorRGB),rawColorRGB:tr.colorRGB.slice(),colorSamples:[...tr.colors.values()].reduce((n,b)=>n+b.n,0),laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
  finish(){for(const tr of this.active.values())this.close(tr,this.duration,true);this.active.clear();return this.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);}
 }
-const api={whitePitch,noteName,detectRow,createRowDetector,Tracker,normalizeColors,resolveOverlaps};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
+const api={whitePitch,noteName,detectRow,createRowDetector,foreignBodyPitches,Tracker,normalizeColors,resolveOverlaps};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;
 })(globalThis);
