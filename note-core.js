@@ -3,7 +3,6 @@
 const mod=(a,n)=>(a%n+n)%n,semis=[0,2,4,5,7,9,11];
 function whitePitch(index,referenceIndex,name,octave){const d=name+index-referenceIndex;return 12*(octave+1)+12*Math.floor(d/7)+semis[mod(d,7)];}
 function noteName(pitch){return ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'][mod(pitch,12)]+(Math.floor(pitch/12)-1);}
-const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 // Follow the whole visible body through its smooth shading, rather than a
 // small RGB-similar patch on one side. A body belongs to its geometric lane.
 function ownsBody(pixels,width,lane,lanes){
@@ -23,32 +22,45 @@ function ownsBody(pixels,width,lane,lanes){
  return !lanes.some(l=>l.pitch>=0&&l.pitch<=127&&l.w>=3&&l.pitch!==lane.pitch&&l.x>=left&&l.x<=right&&Math.abs(l.x-mid)+1.5<offset);
 }
 function detectRow(pixels,width,lanes){
- const rgb=x=>{const i=Math.max(0,Math.min(width-1,Math.round(x)))*4;return [pixels[i],pixels[i+1],pixels[i+2]]};
- const hits=[];
- for(const lane of lanes){
-  if(lane.pitch<0||lane.pitch>127||lane.x<1||lane.x>=width-1||lane.w<3)continue;
-  const center=rgb(lane.x),lum=.2126*center[0]+.7152*center[1]+.0722*center[2];if(lum<45)continue;
-  const max=Math.max(...center),min=Math.min(...center);if(max-min<18&&lum<85)continue;
-  // A solid, bounded horizontal run is required: no growth into broad backgrounds.
-  let left=Math.round(lane.x),right=left,cap=Math.ceil(lane.w*1.6);
-  while(left>0&&right-left<=cap&&distance(rgb(left-1),center)<48)left--;
-  while(right<width-1&&right-left<=cap&&distance(rgb(right+1),center)<48)right++;
-  const run=right-left+1;
-  if(run<Math.max(3,lane.w*.45)||run>lane.w*1.5)continue;
-  let solid=0,total=0;const mean=[0,0,0];
-  for(let x=Math.max(0,Math.ceil(lane.x-lane.w*.2));x<=Math.min(width-1,Math.floor(lane.x+lane.w*.2));x++){
-   const c=rgb(x);total++;if(distance(c,center)<48)solid++;for(let k=0;k<3;k++)mean[k]+=c[k];
+ return createRowDetector(width,lanes)(pixels);
+}
+// A narrow intensity valley between two centers can be the separator of two
+// occluding notes. Require independently bounded bodies on both sides.
+function restoreAdjacentBodies(pixels,width,pairs,hits){
+ let has;
+ const light=x=>{const i=x*4;return .2126*pixels[i]+.7152*pixels[i+1]+.0722*pixels[i+2];};
+ for(const [left,right] of pairs){
+  const l=light(left.c),r=light(right.c);
+  if(Math.min(l,r)<72)continue;
+  let cut=left.c;
+  for(let x=left.c+2;x<=right.c-2;x++)if(light(x)<light(cut))cut=x;
+  const valley=light(cut);
+  if(cut===left.c||Math.min(l,r)-valley<Math.max(24,Math.min(l,r)*.24))continue;
+  has??=new Set(hits.map(hit=>hit.pitch));
+  if(has.has(left.pitch)&&has.has(right.pitch))continue;
+  const bodies=[];
+  for(const [lane,direction,level] of [[left,-1,l],[right,1,r]]){
+   const threshold=Math.max(62,level*.66);
+   let outer=lane.c;
+   while(outer+direction>0&&outer+direction<width-1&&Math.abs(outer-lane.c)<=lane.w&&light(outer+direction)>=threshold)outer+=direction;
+   const w=Math.abs(cut-outer);
+   if(w<lane.w*.47||w>lane.w*1.35||outer<=1||outer>=width-2||level-light(outer+direction)<25)break;
+   const colors=[0,1,2].map(k=>pixels[lane.c*4+k]);
+   if(Math.max(...colors)-Math.min(...colors)<24)break;
+   bodies.push({pitch:lane.pitch,laneType:lane.type,colorRGB:colors});
   }
-  if(!total||solid/total<.84)continue;
-  if(left===0||right===width-1||Math.min(distance(rgb(left-1),center),distance(rgb(right+1),center))<48)continue;
-  if(!ownsBody(pixels,width,lane,lanes))continue;
-  hits.push({pitch:lane.pitch,laneType:lane.type,colorRGB:mean.map(v=>Math.round(v/total))});
+  if(bodies.length===2)for(const hit of bodies)if(!has.has(hit.pitch)){has.add(hit.pitch);hits.push(hit);}
  }
- return hits;
 }
 // Prepared lane geometry; same thresholds and integer RGB distances as detectRow.
 function createRowDetector(width,lanes){
  const prepared=lanes.filter(l=>l.pitch>=0&&l.pitch<=127&&l.x>=1&&l.x<width-1&&l.w>=3).map(l=>({...l,c:Math.round(l.x),cap:Math.ceil(l.w*1.6),a:Math.max(0,Math.ceil(l.x-l.w*.2)),b:Math.min(width-1,Math.floor(l.x+l.w*.2))}));
+ const ordered=prepared.slice().sort((a,b)=>a.c-b.c);
+ const pairs=[];
+ for(let i=1;i<ordered.length;i++){
+  const a=ordered[i-1],b=ordered[i];
+  if(a.type!==b.type&&Math.abs(a.pitch-b.pitch)===1&&b.c-a.c>=5&&b.c-a.c<Math.min(a.w,b.w)*.9)pairs.push([a,b]);
+ }
  return pixels=>{const hits=[];
  for(const l of prepared){const i=l.c*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2],lum=.2126*r+.7152*g+.0722*b;if(lum<45||Math.max(r,g,b)-Math.min(r,g,b)<18&&lum<85)continue;
  const near=x=>{const k=x*4,dr=pixels[k]-r,dg=pixels[k+1]-g,db=pixels[k+2]-b;return dr*dr+dg*dg+db*db<2304;};
@@ -61,7 +73,9 @@ function createRowDetector(width,lanes){
  if(!total||solid/total<.84||left===0||right===width-1||near(left-1)||near(right+1))continue;
  if(!ownsBody(pixels,width,l,prepared))continue;
  hits.push({pitch:l.pitch,laneType:l.type,colorRGB:[Math.round(rr/total),Math.round(gg/total),Math.round(bb/total)]});
- }return hits;};
+ }
+ if(pairs.length)restoreAdjacentBodies(pixels,width,pairs,hits);
+ return hits;};
 }
 // Bounded RGB histogram: omit the first two and last observation of a note.
 function representative(hist,fallback){const bins=[...hist.values()],n=bins.reduce((s,b)=>s+b.n,0);if(!n)return fallback.slice();return [0,1,2].map(i=>{let count=0;for(const b of bins.slice().sort((a,b)=>a.sum[i]/a.n-b.sum[i]/b.n)){count+=b.n;if(count>=n/2)return Math.round(b.sum[i]/b.n);}return fallback[i];});}

@@ -87,14 +87,17 @@ function startAudioPump(){if(audioTimer===null&&!video.paused&&!video.ended&&pan
 function canvas(id,w,h){const can=$(id),dpr=Math.min(2,window.devicePixelRatio||1);if(can.width!==Math.round(w*dpr))can.width=Math.round(w*dpr);if(can.height!==Math.round(h*dpr))can.height=Math.round(h*dpr);can.style.width=w+'px';can.style.height=h+'px';const g=can.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);return g;}
 let pixelsPerSecond=40,scrollFrame=null,wantedSpan=16;
 function followState(){const on=$('nrFollow').checked;$('nrFollowButton').setAttribute('aria-label',on?'再生位置に追従：オン':'再生位置に追従：オフ');$('nrFollowButton').setAttribute('aria-pressed',String(on));}
-function minRow(){return .75;}
-function initialRow(){return Math.max(2,viewport.clientHeight/Math.min(60,pitchMax-pitchMin+1));}
+function minRow(){return clamp(viewport.clientHeight/(pitchMax-pitchMin+1),.75,48);}
+function initialRow(){return Math.max(minRow(),2,viewport.clientHeight/Math.min(60,pitchMax-pitchMin+1));}
 function maxSpan(){return Math.max(.25,Math.min(duration,$('nrUnlimitedZoom').checked?duration:16));}
 function leadSeconds(){return $('nrFollowMode').value==='page'?0:span*.25;}
 function render(){
  if(!panel.open||!data)return;
  const renderStart=performance.now();
- rowH=minZoomDefault?initialRow():Math.max(rowH,minRow());$('nrZoomY').min=String(minRow());
+ const minimum=minRow(),slider=$('nrZoomY');
+ const wasFitted=!minZoomDefault&&Math.abs(rowH-Number(slider.min))<1e-8;
+ rowH=minZoomDefault?initialRow():wasFitted?minimum:Math.max(rowH,minimum);
+ slider.min=String(minimum);slider.value=String(rowH);
  const viewport=$('nrScroll');width=Math.max(240,viewport.clientWidth||340);wantedSpan=Math.min(wantedSpan,maxSpan());span=Math.min(duration,wantedSpan);span=Math.max(.001,span);
  const plot=width-keyW-10;pixelsPerSecond=plot/span;const fullHeight=(pitchMax-pitchMin+1)*rowH;
  $('nrSurface').style.width=(width+($('nrFollowMode').value==='page'?duration-span:duration)*pixelsPerSecond)+'px';$('nrSurface').style.height=Math.max(viewport.clientHeight,fullHeight)+'px';
