@@ -9,36 +9,68 @@ const panel=document.createElement('details');panel.id='noteReview';panel.classN
 <div class="nr-controls nr-toolbar"><div class="nr-top">
 <div class="nr-edit-tools"><button type="button" id="nrEdit" aria-label="ノート削除モード" title="ノート削除モード" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m4 16-1 5 5-1L20 8l-4-4ZM14 6l4 4"/></svg></button><button type="button" id="nrUndo" aria-label="元に戻す" title="元に戻す" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5 4 10l5 5M4 10h10a6 6 0 0 1 0 12"/></svg></button><button type="button" id="nrRedo" aria-label="やり直す" title="やり直す" disabled><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m15 5 5 5-5 5M20 10H10a6 6 0 0 0 0 12"/></svg></button></div><div class="nr-transport" role="group" aria-label="再生操作"><button type="button" id="nrStart" aria-label="先頭に戻る" title="先頭に戻る" ><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 4v16M19 5l-11 7 11 7Z"/></svg></button><button type="button" id="nrPlay" aria-label="再生" title="再生" data-playing="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="nr-play-symbol" d="m7 4 14 8-14 8Z"/><path class="nr-pause-symbol" d="M5 4h5v16H5zM14 4h5v16h-5z"/></svg></button><button type="button" id="nrStop" aria-label="停止" title="停止" ><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h14v14H5Z"/></svg></button></div>
 <label class="nr-mix"><span>原音</span><input id="nrMix" aria-label="原音と抽出音の比率" type="range" min="0" max="100" step="1" value="50"/><span>抽出音</span><output id="nrMixInfo" class="nr-sr">50 : 50</output></label><button id="nrDone" type="button" hidden>完了</button></div>
-<div class="nr-bottom"><button type="button" id="nrExpand" aria-label="拡大表示" title="拡大表示" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button><button type="button" id="nrFollowButton" aria-label="再生位置に追従" title="再生位置に追従" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v18M3 12h18m-4-4 4 4-4 4"/></svg></button><label class="nr-follow-mode"><span class="nr-sr">追従方式</span><select id="nrFollowMode" aria-label="追従方式"><option value="fixed" selected>バー固定</option><option value="page">ページ送り</option></select></label><label class="nr-zoom">横<input id="nrZoomX" aria-label="横ズーム" type="range" min="0" max="100" step="0.1" value="0"/></label><label class="nr-zoom">縦<input id="nrZoomY" aria-label="縦ズーム" type="range" min="1" max="48" step="0.1" value="1"/></label><output class="nr-time" id="nrTime">0.00秒</output></div></div><div id="nrModeNotice" class="nr-mode-notice" role="status" aria-live="polite" hidden><span aria-hidden="true">●</span> ノート削除モード</div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
+<div class="nr-bottom"><button type="button" id="nrExpand" aria-label="拡大表示" title="拡大表示" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 3H3v6M15 3h6v6M3 15v6h6M21 15v6h-6"/></svg></button><button type="button" id="nrFollowButton" aria-label="再生位置に追従" title="再生位置に追従" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v18M3 12h18m-4-4 4 4-4 4"/></svg></button><label class="nr-follow-mode"><span class="nr-sr">追従方式</span><select id="nrFollowMode" aria-label="追従方式"><option value="fixed" selected>バー固定</option><option value="page">ページ送り</option></select></label><label class="nr-zoom">横<input id="nrZoomX" aria-label="横ズーム" type="range" min="0" max="100" step="0.1" value="0"/></label><label class="nr-zoom">縦<input id="nrZoomY" aria-label="縦ズーム" type="range" min="1" max="48" step="any" value="1"/></label><output class="nr-time" id="nrTime">0.00秒</output></div></div><div id="nrModeNotice" class="nr-mode-notice" role="status" aria-live="polite" hidden><span aria-hidden="true">●</span> ノート削除モード</div><div class="nr-ruler"><canvas id="nrRuler" aria-hidden="true"></canvas></div><div class="nr-scroll" id="nrScroll"><div class="nr-surface" id="nrSurface"><canvas id="nrRoll" role="img" aria-label="抽出ノートのピアノロール。縦は音高、横は秒。ノートまたは時間位置をタップして選択します。"></canvas><div id="nrCursor" class="nr-cursor" aria-hidden="true"></div></div></div>
 <label class="nr-pan" hidden>表示位置<input id="nrPan" type="range" min="0" max="1" step="0.01" value="0"/><span id="nrRange">0–8秒</span></label>
 </div></div><output class="nr-selected" id="nrSelected" aria-live="polite">ノートをタップすると、音高・開始・終了・長さを確認できます。</output>
-<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><p class="nr-help">同期補正：＋で抽出ノートを遅らせます。全ノートの時刻とJSONに反映します。機器の出力遅延と自動移動時間は別項目です。</p><label>同期補正（秒）<input id="nrSyncOffset" type="number" min="-10" max="10" step="0.01" value="0" style="width:90px"></label><button type="button" id="nrSyncApply">同期補正を適用</button><output id="nrTimingDiagnostics" class="nr-help"></output><div class="nr-options"><label><span>縦・横ズームの縮小制限を解除（全音域・全曲）</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="50"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">PC：キーエディタ内でショートカットが使えます（拡大表示中は画面全体）。ホイールで縦移動、Shiftで横移動、Ctrlで横ズーム、Ctrl＋Shiftで縦ズーム。Spaceで再生・一時停止、Alt単独で削除モード、Fで追従、Enterで拡大表示、Ctrl＋Zで元に戻す、Ctrl＋Shift＋Z / Ctrl＋Yでやり直し。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズーム、ダブルタップした位置から再生します。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。「ノート削除」オンのときだけタップで削除します。↶ / ↷で取り消し・やり直しができます。</p></div>`;
+<div id="nrAudioNotice" class="nr-warning" hidden></div><details class="nr-settings"><summary>再生・表示の設定</summary><p class="nr-help">同期補正：＋で抽出ノートを遅らせます。全ノートの時刻とJSONに反映します。機器の出力遅延と自動移動時間は別項目です。</p><label>同期補正（秒）<input id="nrSyncOffset" type="number" min="-10" max="10" step="0.01" value="0" style="width:90px"></label><button type="button" id="nrSyncApply">同期補正を適用</button><output id="nrTimingDiagnostics" class="nr-help"></output><div class="nr-options"><label><span>横ズームの縮小制限を解除（全曲）</span><input type="checkbox" id="nrUnlimitedZoom"/></label><label>再生速度<select id="nrRate"><option value=".25">0.25倍</option><option value=".5">0.5倍</option><option value="1" selected>通常</option><option value="1.5">1.5倍</option><option value="2">2倍</option></select></label><label>抽出音の音量<input id="nrVolume" type="range" min="0" max="100" value="80"/></label><label><span>再生位置に追従</span><input id="nrFollow" type="checkbox" checked/></label></div><p class="nr-help">PC：キーエディタ内でショートカットが使えます（拡大表示中は画面全体）。ホイールで縦移動、Shiftで横移動、Ctrlで横ズーム、Ctrl＋Shiftで縦ズーム。Spaceで再生・一時停止、Alt単独で削除モード、Fで追従、Enterで拡大表示、Ctrl＋Zで元に戻す、Ctrl＋Shift＋Z / Ctrl＋Yでやり直し。抽出音は確認用の簡易音源です。</p></details><p class="nr-help">縦は音高、横は秒。一指でスクロール、二指で縦・横にズーム、ダブルタップした位置から再生します。縦スクロールでは追従を維持します。オレンジの線が再生位置。ノートをタップすると一時停止して開始位置へ移動します。「ノート削除」オンのときだけタップで削除します。↶ / ↷で取り消し・やり直しができます。</p></div>`;
 $('noteScanResults').before(panel);
 const panelHome=document.createComment('editor position');panel.before(panelHome);
 const home=document.createComment('original video position');video.before(home);
 let data=null,notes=[],duration=0,pitchMin=12,pitchMax=72,viewStart=0,span=16,width=340,keyW=44,rowH=1,selected=null,hitRects=[];
 let editing=false,undoStack=[],redoStack=[],hovered=false,bodyOverflow=null,firstZoom=true,minZoomDefault=true;
 let ctx=null,master=null,limiter=null,mediaSource=null,originalGain=null,raf=null,buffering=false,starting=false,token=0,nextNote=0,needsActive=true,seen=new Set(),clock=null,oldVideo=null,lastText=0,lastPaused=null;
-const voices=new Map();
+const voices=new Map(),toneWaves=new Map();
 let audioTimer=null,lastDrawKey=null,lastRenderMs=0,lastScheduleAt=null;
 const playbackMetrics={lateNotes:0,maxLateMs:0,maxSchedulerGapMs:0,maxRenderMs:0};
 function stopSound(){
  if(audioTimer!==null){clearTimeout(audioTimer);audioTimer=null;}lastScheduleAt=null;
- for(const {osc,gain} of voices.values()){try{osc.stop();osc.disconnect();gain.disconnect();}catch(_){}}
+ for(const {osc,gain,when,levelAt} of voices.values()){
+  const now=ctx.currentTime;
+  try{
+   if(now<when){osc.stop(now);continue;}
+   gain.gain.cancelScheduledValues(now);
+   gain.gain.setValueAtTime(levelAt(now),now);
+   gain.gain.linearRampToValueAtTime(0,now+.012);
+   osc.stop(now+.014);
+  }catch(_){}
+ }
  voices.clear();seen.clear();nextNote=0;needsActive=true;clock=null;
 }
 async function audioReady(){
 
- if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC({latencyHint:'interactive'});master=ctx.createGain();master.gain.value=Number($('nrVolume').value)/100*mixValue();mediaSource=ctx.createMediaElementSource(video);originalGain=ctx.createGain();mediaSource.connect(originalGain);originalGain.gain.value=panel.open?1-mixValue():1;limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-18;limiter.ratio.value=6;master.connect(limiter);originalGain.connect(limiter);limiter.connect(ctx.destination);}
+ if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC({latencyHint:'interactive'});master=ctx.createGain();master.gain.value=Number($('nrVolume').value)/100*mixValue();mediaSource=ctx.createMediaElementSource(video);originalGain=ctx.createGain();mediaSource.connect(originalGain);originalGain.gain.value=panel.open?1-mixValue():1;limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-12;limiter.ratio.value=10;limiter.attack.value=.003;limiter.release.value=.12;master.connect(limiter);originalGain.connect(limiter);limiter.connect(ctx.destination);}
  applyMix();await ctx.resume();$('nrAudioNotice').hidden=ctx.state==='running';
 }
 function voice(note,time,rate,active=false){
  if(seen.has(note.id)||note.endSeconds<=time||!ctx||ctx.state!=='running')return;
  if(!active&&note.startSeconds<time-.005){playbackMetrics.lateNotes++;playbackMetrics.maxLateMs=Math.max(playbackMetrics.maxLateMs,(time-note.startSeconds)/rate*1000);}
  seen.add(note.id);const when=ctx.currentTime+Math.max(0,(note.startSeconds-time)/rate),end=ctx.currentTime+Math.max(.008,(note.endSeconds-time)/rate);
- const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='triangle';osc.frequency.value=440*Math.pow(2,(note.midiPitch-69)/12);
- gain.gain.setValueAtTime(0,when);gain.gain.linearRampToValueAtTime(.13,when+.004);gain.gain.setValueAtTime(.09,Math.min(end,when+.08));gain.gain.linearRampToValueAtTime(0,end+.008);
- osc.connect(gain);gain.connect(master);voices.set(note.id,{osc,gain});osc.onended=()=>{if(voices.get(note.id)?.osc===osc)voices.delete(note.id);try{osc.disconnect();gain.disconnect();}catch(_){}};osc.start(when);osc.stop(end+.012);
+ const osc=ctx.createOscillator(),gain=ctx.createGain();
+ const pitch=note.midiPitch;
+ osc.frequency.value=440*Math.pow(2,(pitch-69)/12);
+ // Brighter lower registers translate to phone speakers without changing pitch.
+ const band=pitch<48?'bass':pitch<72?'middle':'treble';
+ const partials={bass:[1,.78,.48,.27,.15,.08],middle:[1,.50,.23,.12,.05],treble:[1,.29,.09,.035]};
+ if(!toneWaves.has(band)){
+  const harmonics=Float32Array.from([0,...partials[band]]);
+  toneWaves.set(band,ctx.createPeriodicWave(new Float32Array(harmonics.length),harmonics));
+ }
+ osc.setPeriodicWave(toneWaves.get(band));
+ const peak=band==='bass'?.28:band==='middle'?.22:.17;
+ const attack=when+Math.min(.012,(end-when)*.55);
+ const sustainTime=attack+.32;
+ const bodyAt=t=>t<=attack?peak*Math.max(0,(t-when)/(attack-when)):peak*(1-.55*Math.min(1,(t-attack)/.32));
+ const release=.065,endLevel=bodyAt(end);
+ const levelAt=t=>t<=end?bodyAt(t):endLevel*Math.max(0,1-(t-end)/release);
+ gain.gain.setValueAtTime(0,when);
+ gain.gain.linearRampToValueAtTime(peak,attack);
+ if(sustainTime<end)gain.gain.linearRampToValueAtTime(peak*.45,sustainTime);
+ gain.gain.linearRampToValueAtTime(endLevel,end);
+ gain.gain.linearRampToValueAtTime(0,end+release);
+ osc.connect(gain);gain.connect(master);
+ voices.set(note.id,{osc,gain,when,levelAt});
+ osc.onended=()=>{if(voices.get(note.id)?.osc===osc)voices.delete(note.id);osc.disconnect();gain.disconnect();};
+ osc.start(when);osc.stop(end+release+.005);
 }
 function schedule(){
  if(!panel.open||video.paused||video.seeking||buffering||document.hidden||mixValue()===0||!ctx||ctx.state!=='running')return;
@@ -55,31 +87,32 @@ function startAudioPump(){if(audioTimer===null&&!video.paused&&!video.ended&&pan
 function canvas(id,w,h){const can=$(id),dpr=Math.min(2,window.devicePixelRatio||1);if(can.width!==Math.round(w*dpr))can.width=Math.round(w*dpr);if(can.height!==Math.round(h*dpr))can.height=Math.round(h*dpr);can.style.width=w+'px';can.style.height=h+'px';const g=can.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);return g;}
 let pixelsPerSecond=40,scrollFrame=null,wantedSpan=16;
 function followState(){const on=$('nrFollow').checked;$('nrFollowButton').setAttribute('aria-label',on?'再生位置に追従：オン':'再生位置に追従：オフ');$('nrFollowButton').setAttribute('aria-pressed',String(on));}
-function minRow(){return $('nrUnlimitedZoom').checked?Math.max(.5,Math.min(10,viewport.clientHeight/(pitchMax-pitchMin+1))):Math.max(2,viewport.clientHeight/Math.min(60,pitchMax-pitchMin+1));}
+function minRow(){return .75;}
+function initialRow(){return Math.max(2,viewport.clientHeight/Math.min(60,pitchMax-pitchMin+1));}
 function maxSpan(){return Math.max(.25,Math.min(duration,$('nrUnlimitedZoom').checked?duration:16));}
 function leadSeconds(){return $('nrFollowMode').value==='page'?0:span*.25;}
 function render(){
  if(!panel.open||!data)return;
  const renderStart=performance.now();
- rowH=minZoomDefault?minRow():Math.max(rowH,minRow());$('nrZoomY').min=String(minRow());
+ rowH=minZoomDefault?initialRow():Math.max(rowH,minRow());$('nrZoomY').min=String(minRow());
  const viewport=$('nrScroll');width=Math.max(240,viewport.clientWidth||340);wantedSpan=Math.min(wantedSpan,maxSpan());span=Math.min(duration,wantedSpan);span=Math.max(.001,span);
  const plot=width-keyW-10;pixelsPerSecond=plot/span;const fullHeight=(pitchMax-pitchMin+1)*rowH;
  $('nrSurface').style.width=(width+($('nrFollowMode').value==='page'?duration-span:duration)*pixelsPerSecond)+'px';$('nrSurface').style.height=Math.max(viewport.clientHeight,fullHeight)+'px';
  viewport.scrollTop=clamp(viewport.scrollTop,0,Math.max(0,fullHeight-viewport.clientHeight));
  viewStart=viewport.scrollLeft/pixelsPerSecond-leadSeconds();const offsetY=viewport.scrollTop,h=viewport.clientHeight;lastDrawKey=[viewport.scrollLeft,viewport.scrollTop,width,h].join(':');const g=canvas('nrRoll',width,h),r=canvas('nrRuler',width,27);
  $('nrRoll').style.left=viewport.scrollLeft+'px';$('nrRoll').style.top=offsetY+'px';
- g.fillStyle='#fff';g.fillRect(0,0,width,h);g.font=Math.min(11,rowH-2)+'px system-ui';
- for(let pitch=pitchMax;pitch>=pitchMin;pitch--){const y=(pitchMax-pitch)*rowH-offsetY,black=[1,3,6,8,10].includes(pitch%12);g.fillStyle=black?'#edf1f6':'#fafcff';g.fillRect(keyW,y,width-keyW,rowH);g.strokeStyle='#dfe6ee';g.beginPath();g.moveTo(0,y+rowH);g.lineTo(width,y+rowH);g.stroke();}
+ g.fillStyle='#fff';g.fillRect(0,0,width,h);g.font=clamp(rowH-2,1,11)+'px system-ui';
+ for(let pitch=pitchMax;pitch>=pitchMin;pitch--){const y=(pitchMax-pitch)*rowH-offsetY,black=[1,3,6,8,10].includes(pitch%12);g.fillStyle=black?'#edf1f6':'#fafcff';g.fillRect(keyW,y,width-keyW,rowH);g.strokeStyle='#dfe6ee';g.lineWidth=Math.min(1,rowH*.28);g.beginPath();g.moveTo(0,y+rowH);g.lineTo(width,y+rowH);g.stroke();}
  // White-key bodies extend beneath the raised black keys.
  g.fillStyle='#e9ecf1';g.fillRect(0,0,keyW,h);
- for(let pitch=pitchMax+1;pitch>=pitchMin;pitch--){if([1,3,6,8,10].includes((pitch+120)%12))continue;const y=(pitchMax-pitch)*rowH-offsetY,above=[1,3,6,8,10].includes((pitch+1+120)%12),below=[1,3,6,8,10].includes((pitch-1+120)%12),top=y-(above?rowH*.5:0),bottom=y+rowH+(below?rowH*.5:0);g.fillStyle='#f7f8fa';g.fillRect(0,top,keyW,bottom-top);g.strokeStyle='#8f98a5';g.lineWidth=.7;g.strokeRect(0,top,keyW,bottom-top);if((pitch+120)%12===0&&rowH*12>=12){const fontSize=clamp(rowH*.8,6,24);g.font=fontSize+'px system-ui';g.fillStyle='#606c7b';g.fillText(core.noteName(pitch),keyW-fontSize*1.5-3,y+rowH*.5+fontSize*.35);}}
- for(let pitch=pitchMax;pitch>=pitchMin;pitch--){if(![1,3,6,8,10].includes(pitch%12))continue;const y=(pitchMax-pitch)*rowH-offsetY;g.fillStyle='#202632';g.fillRect(0,y+.3,keyW*.62,Math.max(.5,rowH-.6));g.strokeStyle='#10151e';g.strokeRect(0,y+.3,keyW*.62,Math.max(.5,rowH-.6));}
+ for(let pitch=pitchMax+1;pitch>=pitchMin;pitch--){if([1,3,6,8,10].includes((pitch+120)%12))continue;const y=(pitchMax-pitch)*rowH-offsetY,above=[1,3,6,8,10].includes((pitch+1+120)%12),below=[1,3,6,8,10].includes((pitch-1+120)%12),top=y-(above?rowH*.5:0),bottom=y+rowH+(below?rowH*.5:0);g.fillStyle='#f7f8fa';g.fillRect(0,top,keyW,bottom-top);g.strokeStyle='#8f98a5';g.lineWidth=Math.min(.7,rowH*.28);g.strokeRect(0,top,keyW,bottom-top);if((pitch+120)%12===0&&rowH*12>=12){const fontSize=clamp(rowH*.8,6,24);g.font=fontSize+'px system-ui';g.fillStyle='#606c7b';g.fillText(core.noteName(pitch),keyW-fontSize*1.5-3,y+rowH*.5+fontSize*.35);}}
+ for(let pitch=pitchMax;pitch>=pitchMin;pitch--){if(![1,3,6,8,10].includes(pitch%12))continue;const y=(pitchMax-pitch)*rowH-offsetY;g.fillStyle='#202632';const inset=Math.min(.3,rowH*.15);g.fillRect(0,y+inset,keyW*.62,rowH-2*inset);g.strokeStyle='#10151e';g.strokeRect(0,y+inset,keyW*.62,rowH-2*inset);}
 
  r.fillStyle='#f0f4fa';r.fillRect(0,0,width,27);r.font='11px system-ui';r.fillStyle='#61758e';r.fillText('音高',5,18);
  const step=span<=4?.5:span<=8?1:span<=16?2:Math.ceil(span/7);
  for(let t=Math.max(0,Math.ceil(viewStart/step)*step);t<=viewStart+span+.0001;t+=step){const x=keyW+(t-viewStart)/span*plot;g.strokeStyle='#d7e1ee';g.beginPath();g.moveTo(x,0);g.lineTo(x,h);g.stroke();r.fillStyle='#61758e';r.fillText(t.toFixed(step<1?1:0)+'s',Math.min(width-28,x+3),18);}
  hitRects=[];g.save();g.beginPath();g.rect(keyW,0,plot+1,h);g.clip();
- for(const note of notes){if(note.midiPitch<pitchMin||note.midiPitch>pitchMax)continue;if(note.startSeconds>viewStart+span)break;if(note.endSeconds<viewStart)continue;const x=keyW+(note.startSeconds-viewStart)/span*plot,y=(pitchMax-note.midiPitch)*rowH+Math.min(2,rowH*.15)-offsetY,w=Math.max(2,(note.endSeconds-note.startSeconds)/span*plot);const color=note.colorRGB||[67,139,218];g.fillStyle=`rgb(${color[0]},${color[1]},${color[2]})`;g.fillRect(x,y,w,Math.max(.6,rowH-Math.min(4,rowH*.3)));g.strokeStyle=note.id===selected?'#c56a0b':'#3d648c';g.lineWidth=note.id===selected?2:1;g.strokeRect(x+.5,y+.5,w-1,Math.max(.5,rowH-Math.min(5,rowH*.4)));if(w>33&&rowH>=14){g.fillStyle='#172b45';g.font='10px system-ui';g.fillText(note.noteName||core.noteName(note.midiPitch),x+3,y+10);}hitRects.push({id:note.id,x,y,w,h:Math.max(.6,rowH-Math.min(4,rowH*.3))});}
+ for(const note of notes){if(note.midiPitch<pitchMin||note.midiPitch>pitchMax)continue;if(note.startSeconds>viewStart+span)break;if(note.endSeconds<viewStart)continue;const x=keyW+(note.startSeconds-viewStart)/span*plot,y=(pitchMax-note.midiPitch)*rowH+Math.min(2,rowH*.15)-offsetY,w=Math.max(2,(note.endSeconds-note.startSeconds)/span*plot);const color=note.colorRGB||[67,139,218];g.fillStyle=`rgb(${color[0]},${color[1]},${color[2]})`;g.fillRect(x,y,w,Math.max(.6,rowH-Math.min(4,rowH*.3)));g.strokeStyle=note.id===selected?'#c56a0b':'#3d648c';g.lineWidth=note.id===selected?Math.min(2,rowH*.5):Math.min(1,rowH*.35);g.strokeRect(x+.5,y+.5,w-1,Math.max(.5,rowH-Math.min(5,rowH*.4)));if(w>33&&rowH>=14){g.fillStyle='#172b45';g.font='10px system-ui';g.fillText(note.noteName||core.noteName(note.midiPitch),x+3,y+10);}hitRects.push({id:note.id,x,y,w,h:Math.max(.6,rowH-Math.min(4,rowH*.3))});}
  g.restore();if(editing){g.fillStyle='rgba(220,45,65,.07)';g.fillRect(keyW,0,width-keyW,h);}$('nrRange').textContent=`${viewStart.toFixed(1)}–${(viewStart+span).toFixed(1)}秒`;$('nrPan').max=String(Math.max(0,duration-span));$('nrPan').value=String(viewStart);$('nrPan').disabled=duration<=span;followState();paintCursor();lastRenderMs=performance.now()-renderStart;playbackMetrics.maxRenderMs=Math.max(playbackMetrics.maxRenderMs,lastRenderMs);
 }
 function paintCursor(){
@@ -196,7 +229,8 @@ $('nrZoomX').oninput=()=>zoomTo(maxSpan()*Math.pow(.25/maxSpan(),Number($('nrZoo
 $('nrZoomY').oninput=()=>zoomTo(span,Number($('nrZoomY').value));
 viewport.addEventListener('dblclick',e=>e.preventDefault());
 function mixValue(){return clamp(Number($('nrMix').value)/100,0,1);}
-function applyMix(){const mix=mixValue();$('nrMixInfo').textContent=`${Math.round((1-mix)*100)} : ${Math.round(mix*100)}`;if(panel.open)video.muted=mix===1;if(originalGain)originalGain.gain.setValueAtTime(panel.open?1-mix:1,ctx.currentTime);if(master)master.gain.setValueAtTime(Number($('nrVolume').value)/100*mix,ctx.currentTime);}
+function smoothLevel(node,value){node.gain.setTargetAtTime(value,ctx.currentTime,.012);}
+function applyMix(){const mix=mixValue();$('nrMixInfo').textContent=`${Math.round((1-mix)*100)} : ${Math.round(mix*100)}`;if(panel.open)video.muted=originalGain?false:mix===1;if(originalGain)smoothLevel(originalGain,panel.open?1-mix:1);if(master)smoothLevel(master,Number($('nrVolume').value)/100*mix);}
 function applyMode(){applyMix();stopSound();wake();}
 function close(){$('nrModeNotice').hidden=true;hovered=false;expand(false);cancelTap();panel.classList.remove('nr-expanded');$('nrExpand').setAttribute('aria-pressed','false');stopInertia();contacts.clear();gesture=null;suppressTap=false;token++;starting=false;if(raf!==null){cancelAnimationFrame(raf);raf=null;}video.pause();stopSound();if(video.parentElement===$('nrVideo'))home.after(video);if(oldVideo){if(originalGain)originalGain.gain.setValueAtTime(1,ctx.currentTime);video.muted=oldVideo.muted;video.playbackRate=oldVideo.rate;oldVideo=null;}if(panel.open)panel.open=false;}
 function onData(){
@@ -212,7 +246,7 @@ function onData(){
 openButton.onclick=()=>{if(!data)return;panel.open=true;panel.scrollIntoView({block:'start',behavior:'smooth'});};
 panel.addEventListener('toggle',()=>{
  if(!panel.open){close();return;}if(!data||scan.running){panel.open=false;return;}
- oldVideo={muted:video.muted,rate:video.playbackRate};video.pause();$('nrVideo').append(video);video.playbackRate=Number($('nrRate').value);applyMode();if(firstZoom){rowH=minRow();firstZoom=false;}render();zoomTo(wantedSpan,rowH);$('nrScroll').scrollTop=Math.max(0,((pitchMax-pitchMin+1)*rowH-$('nrScroll').clientHeight)/2);render();cursor(true);wake();
+ oldVideo={muted:video.muted,rate:video.playbackRate};video.pause();$('nrVideo').append(video);video.playbackRate=Number($('nrRate').value);applyMode();if(firstZoom){rowH=initialRow();firstZoom=false;}render();zoomTo(wantedSpan,rowH);$('nrScroll').scrollTop=Math.max(0,((pitchMax-pitchMin+1)*rowH-$('nrScroll').clientHeight)/2);render();cursor(true);wake();
 });
 $('nrPlay').onclick=async()=>{
  if(!panel.open||!data||starting)return;if(!video.paused){token++;video.pause();stopSound();return;}

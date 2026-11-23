@@ -11,7 +11,40 @@ function measureKeyboard(data,width,height,{top,anchor,step,phase,shifts}){
  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)),median=a=>a.slice().sort((a,b)=>a-b)[Math.floor(a.length/2)],sharp=[0,1,3,4,5];
  const lum=(x,y)=>{x=clamp(Math.round(x),0,width-1);y=clamp(Math.round(y),0,height-1);const i=(y*width+x)*4;return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2];};
  const whites=[];for(let j=Math.floor(-anchor/step);j<=Math.ceil((width-anchor)/step);j++){const x=anchor+(j+.5)*step;if(x>step&&x<width-step)whites.push(x);}if(whites.length<9)return null;
- let bottom=-1,gap=0;for(let y=Math.round(top+8);y<height;y++){const values=whites.map(x=>lum(x,y));if(values.filter(v=>v>115).length>=values.length*.65&&median(values)>140){bottom=y+1;gap=0;}else if(bottom>top+20&&++gap>=3)break;}if(bottom<top+20)return null;
+ // Text and shading near the key fronts can interrupt bright center pixels.
+ // Bridge that interruption only while the repeating white-key seams persist.
+ let bottom=-1, gap=0, seamRows=0, lastBright=-1;
+ const maxGap=Math.max(4,Math.ceil(step*.9));
+ for(let y=Math.round(top+8);y<height;y++){
+  const values=whites.map(x=>lum(x,y));
+  const bright=values.filter(v=>v>115).length>=values.length*.65&&median(values)>140;
+  if(bright&&gap<3){
+   bottom=y+1;lastBright=y;gap=0;seamRows=0;continue;
+  }
+  if(bottom<top+20)continue;
+  let seams=0;
+  for(const center of whites){
+   const x=center-step*.5;
+   const body=Math.min(lum(x-step*.25,y),lum(x+step*.25,y));
+   let divider=255;
+   const radius=Math.max(1,Math.round(step*.09));
+   for(let dx=-radius;dx<=radius;dx++)divider=Math.min(divider,lum(x+dx,y));
+   if(body>=95&&body-divider>=25)seams++;
+  }
+  if(seams>=whites.length*.55){
+   if(bright)lastBright=y;
+   if(++seamRows>=3){
+    bottom=y+1;
+    gap=0;
+    continue;
+   }
+  }else seamRows=0;
+  if(++gap>=maxGap)break;
+ }
+ if(bottom<top+20)return null;
+ // A sustained seam alone can be background decoration. Keep the measured
+ // body close to its last bright row, even if that decoration continues.
+ bottom=Math.min(bottom,lastBright+1+maxGap);
  const blackEnds=[];for(let j=Math.floor(-anchor/step);j<=Math.ceil((width-anchor)/step);j++){const key=((phase+j)%7+7)%7,k=sharp.indexOf(key);if(k<0)continue;const x=anchor+(j+1+(shifts[k]||0))*step;if(x<step||x>width-step)continue;let last=-1,hits=0;
   for(let y=Math.round(top+4);y<top+(bottom-top)*.87;y++){const contrast=(lum(x-step*.48,y)+lum(x+step*.48,y))*.5-lum(x,y);if(contrast>60){last=y+1;hits++;}}
   if(last>top+(bottom-top)*.22&&hits>=(last-top-4)*.7)blackEnds.push(last);
