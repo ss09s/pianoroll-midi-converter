@@ -4,16 +4,16 @@ import './text-overlay.js?v=0.7.49';
 import './motion-core.js?v=0.7.49';
 import './frame-reader.js?v=0.7.49';
 import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
-import {waitForDecodeCapacity} from './video-decode-utils.mjs?v=0.7.18';
+import {waitForDecodeCapacity,configureVideoDecoder,verifyDecoderFrameColor} from './video-decode-utils.mjs?v=0.7.51';
 const core=globalThis.PianoRollNoteCore;
 self.onmessage=async({data})=>{
  if(data.type!=='scan')return;
  const {file,width,height,hitLineY,lanes,fps,duration}=data,total=Math.ceil(duration*fps),started=performance.now();
- let display=null,codedSize=null,decoder,previous=null,index=0,error=null,lastProgress=0,decoded=0,lastTimestamp=-Infinity;
+ let display=null,codedSize=null,selectedConfig=null,expectedColor=null,decoder,previous=null,index=0,error=null,lastProgress=0,decoded=0,lastTimestamp=-Infinity;
  const tracker=globalThis.PianoRollMotionCore.createScan({width,height,hitLineY,lanes,fps,duration,mode:data.detectionMode,primaryPercent:data.primaryPercent,textOverlay:data.textOverlay}),canvas=new OffscreenCanvas(width,height),reader=globalThis.PianoRollFrameReader.createReader(canvas,width,height,tracker.lines),ctx=reader.ctx,detect=tracker.detect;
  const audit=[],failure=new AbortController();
  const fail=e=>{if(!error){error=e;failure.abort(e);}};
- const metrics={engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
+ const metrics={workerVersion:'0.7.51',engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
  const progress=(force=false)=>{const now=performance.now();if(force||now-lastProgress>=100){lastProgress=now;postMessage({type:'progress',processed:index,total,elapsedMs:now-started,stage:metrics.stage});}};
  // Match the HTML media timeline at integer microsecond precision (floor sampling targets).
  const consume=(frame,until)=>{
@@ -31,12 +31,12 @@ self.onmessage=async({data})=>{
   if(!ctx)throw Error('Worker内の画像処理に非対応です');
   metrics.nativeColorSpace=data.colorSpace??null;metrics.canvasColorSpace=ctx.getContextAttributes?.().colorSpace||'srgb';
   decoder=new VideoDecoder({output:frame=>{
-   try{if(error)return;if(frame.timestamp<lastTimestamp)throw Error('映像の表示時刻が前後しています');lastTimestamp=frame.timestamp;
+   try{if(error)return;if(selectedConfig?.automaticColor)verifyDecoderFrameColor(frame,expectedColor);if(frame.timestamp<lastTimestamp)throw Error('映像の表示時刻が前後しています');lastTimestamp=frame.timestamp;
     if(previous){consume(previous,frame.timestamp);previous.close();previous=null;}
     previous=frame;frame=null;decoded++;progress();
    }catch(e){fail(e);}finally{frame?.close();}
   },error:e=>{fail(e);}});
-  const configure=async track=>{metrics.stage='decoder-check';progress(true);display=track.display;codedSize=track.video;metrics.display=display;const colorSpace=decoderColorSpace(data.colorSpace);metrics.colorSpaceOverride=colorSpace??null;const support=await VideoDecoder.isConfigSupported({...track.config,...(colorSpace?{colorSpace}:{})});if(!support.supported)throw Error('この映像設定はWebCodecsでデコードできません（'+track.codec+'）');decoder.configure(support.config);metrics.stage='decoding';metrics.codec=track.codec;metrics.codedWidth=track.video.width;metrics.codedHeight=track.video.height;metrics.mediaTime=track.mediaTime;metrics.colorSpace=data.colorSpace;};
+  const configure=async track=>{metrics.stage='decoder-check';progress(true);display=track.display;codedSize=track.video;metrics.display=display;const colorSpace=decoderColorSpace(data.colorSpace);metrics.colorSpaceOverride=colorSpace??null;expectedColor=colorSpace;metrics.decoderConfigAttempts=[];selectedConfig=await configureVideoDecoder(VideoDecoder,decoder,{...track.config,...(colorSpace?{colorSpace}:{})},{signal:failure.signal,onAttempt:attempt=>{metrics.decoderConfigAttempts.push(attempt);progress(true);}});metrics.selectedDecoderConfig={hardwareAcceleration:selectedConfig.config.hardwareAcceleration||'no-preference',dimensions:selectedConfig.config.codedWidth?'container':'bitstream',color:selectedConfig.automaticColor?'bitstream':'explicit'};metrics.stage='decoding';metrics.codec=track.codec;metrics.codedWidth=track.video.width;metrics.codedHeight=track.video.height;metrics.mediaTime=track.mediaTime;metrics.colorSpace=data.colorSpace;};
   let readStart=performance.now();
   for await(const {sample:s,track} of videoPackets(file,configure,info=>{metrics.input=info;progress(true);})){
    metrics.readMs+=performance.now()-readStart;if(error)throw error;
