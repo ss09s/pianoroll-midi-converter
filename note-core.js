@@ -97,6 +97,20 @@ function restoreColorSeparatedBodies(pixels,width,pairs,hits){
   }
  }
 }
+// Confirm a compact colored body using its chroma profile. Compression may
+// change brightness across the band without removing the band's outline.
+function centeredChromaBody(pixels,width,lane,channel,other,strength){
+ const chroma=x=>pixels[x*4+channel]-pixels[x*4+other];
+ const threshold=Math.max(25,strength*.55);
+ let left=lane.c,right=lane.c;
+ while(left>1&&right-left<lane.cap&&chroma(left-1)>=threshold)left--;
+ while(right<width-2&&right-left<lane.cap&&chroma(right+1)>=threshold)right++;
+ const span=right-left+1;
+ if(span<Math.max(3,lane.w*.5)||span>lane.w*1.55||
+  Math.abs((right+left)/2-lane.x)>Math.max(1.5,lane.w*.22)||
+  chroma(left-1)>strength*.55||chroma(right+1)>strength*.55)return false;
+ return true;
+}
 // Prepared lane geometry; same thresholds and integer RGB distances as detectRow.
 function createRowDetector(width,lanes){
  const prepared=lanes.filter(l=>l.pitch>=0&&l.pitch<=127&&l.x>=1&&l.x<width-1&&l.w>=3).map(l=>({...l,c:Math.round(l.x),shoulder:Math.max(1,Math.round(l.w*.23)),cap:Math.ceil(l.w*1.6),a:Math.max(0,Math.ceil(l.x-l.w*.2)),b:Math.min(width-1,Math.floor(l.x+l.w*.2))}));
@@ -112,13 +126,16 @@ function createRowDetector(width,lanes){
  let left=l.c,right=l.c;
  while(left>0&&right-left<=l.cap&&near(left-1))left--;
  while(right<width-1&&right-left<=l.cap&&near(right+1))right++;
- const run=right-left+1;if(run<Math.max(3,l.w*.45)||run>l.w*1.5)continue;
+ const run=right-left+1;
  let solid=0,rr=0,gg=0,bb=0;const total=l.b-l.a+1;
  for(let x=l.a;x<=l.b;x++){const k=x*4;if(near(x))solid++;rr+=pixels[k];gg+=pixels[k+1];bb+=pixels[k+2];}
- if(!total||solid/total<.84||left===0||right===width-1||near(left-1)||near(right+1))continue;
- if(!ownsBody(pixels,width,l,prepared)){
-  (foreign??=new Set()).add(l.pitch);
-  continue;
+ const validRun=run>=Math.max(3,l.w*.45)&&run<=l.w*1.5&&total&&solid/total>=.84&&left!==0&&right!==width-1&&!near(left-1)&&!near(right+1);
+ if(!validRun||!ownsBody(pixels,width,l,prepared)){
+  const rgb=[r,g,b],hi=Math.max(r,g,b),lo=Math.min(r,g,b),chroma=hi-lo;
+  if(chroma<42||!centeredChromaBody(pixels,width,l,rgb.indexOf(hi),rgb.indexOf(lo),chroma)){
+   if(validRun)(foreign??=new Set()).add(l.pitch);
+   continue;
+  }
  }
  hits.push({pitch:l.pitch,laneType:l.type,colorRGB:[Math.round(rr/total),Math.round(gg/total),Math.round(bb/total)]});
  }
@@ -170,15 +187,46 @@ function resolveOverlaps(notes,fps=30){
  return{notes:out.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),stats};
 }
 class Tracker{
- constructor({fps=30,duration,minimumSamples=2}){if(!(fps>0&&Number.isFinite(duration)&&duration>0))throw Error('Invalid sampling configuration');this.minimumSamples=minimumSamples;this.fps=fps;this.duration=duration;this.previous=null;this.active=new Map();this.notes=[];this.discarded=0;}
+ constructor({fps=30,duration,minimumSamples=2,observeColorOverlays=false}){if(!(fps>0&&Number.isFinite(duration)&&duration>0))throw Error('Invalid sampling configuration');this.minimumSamples=minimumSamples;this.fps=fps;this.duration=duration;this.previous=null;this.observeColorOverlays=observeColorOverlays;this.overlays=[];this.active=new Map();this.notes=[];this.discarded=0;}
  push(time,hits){
   if(!Number.isFinite(time)||time<0||time>this.duration||this.previous!==null&&time<=this.previous)throw Error('Sample times must increase');
   const present=new Map(hits.map(h=>[h.pitch,h])),boundary=this.previous===null?0:(this.previous+time)/2;
   for(const [pitch,tr] of this.active){if(!present.has(pitch)){this.close(tr,boundary,false);this.active.delete(pitch);}}
-  for(const [pitch,hit] of present){let tr=this.active.get(pitch);if(!tr){tr={...hit,startSeconds:boundary,frames:0,colors:new Map(),truncatedStart:this.previous===null};this.active.set(pitch,tr);}tr.frames++;if(tr.frames>3&&tr.pendingColor){const c=tr.pendingColor,key=c.map(v=>v>>3).join(',');let bin=tr.colors.get(key);if(!bin){bin={n:0,sum:[0,0,0]};tr.colors.set(key,bin);}bin.n++;c.forEach((v,i)=>bin.sum[i]+=v);}tr.pendingColor=hit.colorRGB.slice();}
+  for(const [pitch,hit] of present){let tr=this.active.get(pitch);if(!tr){tr={...hit,startSeconds:boundary,frames:0,colors:new Map(),truncatedStart:this.previous===null};this.active.set(pitch,tr);}tr.frames++;
+   if(this.observeColorOverlays){
+    const color=hit.colorRGB,strength=Math.max(...color)-Math.min(...color);
+    if(strength>(tr.strongestChroma??0)){tr.strongestChroma=strength;tr.strongestColor=color.slice();}
+    this.trackColor(tr,boundary,color,strength);
+   }
+   if(tr.frames>3&&tr.pendingColor){const c=tr.pendingColor,key=c.map(v=>v>>3).join(',');let bin=tr.colors.get(key);if(!bin){bin={n:0,sum:[0,0,0]};tr.colors.set(key,bin);}bin.n++;c.forEach((v,i)=>bin.sum[i]+=v);}tr.pendingColor=hit.colorRGB.slice();}
   this.previous=time;
  }
- close(tr,end,truncatedEnd){if(tr.frames<this.minimumSamples){this.discarded++;return;}const start=tr.startSeconds;this.notes.push({...(this.minimumSamples===1?{observationSamples:tr.frames}:{}),midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:representative(tr.colors,tr.colorRGB),rawColorRGB:tr.colorRGB.slice(),colorSamples:[...tr.colors.values()].reduce((n,b)=>n+b.n,0),laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
+ trackColor(tr,boundary,color,strength){
+  if(strength<32)return;
+  const h=hue(color);
+  if(h===null)return;
+  const runs=tr.hueRuns??=([]),last=runs.at(-1);
+  if(last&&hueGap(last.h,h)<=32){last.samples++;last.last=boundary;return;}
+  runs.push({h,color:color.slice(),start:boundary,last:boundary,samples:1});
+ }
+ close(tr,end,truncatedEnd){if(tr.frames<this.minimumSamples){this.discarded++;return;}const start=tr.startSeconds;
+  const runs=tr.hueRuns||[];
+  for(let i=1;i<runs.length-1;i++){
+   const mid=runs[i];
+   if(mid.samples<Math.max(2,Math.ceil(this.fps*.045)))continue;
+   // Ignore brief color blends on either side of the visible overlay.
+   let a=i-1,b=i+1;
+   while(a>0&&runs[a].samples<3)a--;
+   while(b<runs.length-1&&runs[b].samples<3)b++;
+   const before=runs[a],after=runs[b],endSeconds=mid.last+1/this.fps;
+   if(before.samples<3||after.samples<3||hueGap(before.h,after.h)>28||
+    Math.min(hueGap(mid.h,before.h),hueGap(mid.h,after.h))<65||
+    mid.start-before.last>3/this.fps||after.start-mid.last>3/this.fps)continue;
+   this.overlays.push({midiPitch:tr.pitch,laneType:tr.laneType,noteName:noteName(tr.pitch),
+    colorRGB:mid.color,rawColorRGB:mid.color,startSeconds:mid.start,endSeconds,
+    durationSeconds:endSeconds-mid.start,colorSamples:mid.samples});
+  }
+  this.notes.push({...(this.minimumSamples===1?{observationSamples:tr.frames}:{}),midiPitch:tr.pitch,noteName:noteName(tr.pitch),startSeconds:start,endSeconds:end,durationSeconds:end-start,colorRGB:representative(tr.colors,this.observeColorOverlays?tr.strongestColor||tr.colorRGB:tr.colorRGB),rawColorRGB:tr.colorRGB.slice(),colorSamples:[...tr.colors.values()].reduce((n,b)=>n+b.n,0),laneType:tr.laneType,truncatedStart:tr.truncatedStart,truncatedEnd});}
  finish(){for(const tr of this.active.values())this.close(tr,this.duration,true);this.active.clear();return this.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);}
 }
 const api={whitePitch,noteName,detectRow,createRowDetector,foreignBodyPitches,Tracker,normalizeColors,resolveOverlaps};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollNoteCore=api;

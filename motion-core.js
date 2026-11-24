@@ -449,10 +449,42 @@ function auditSurfaceBodies(notes,lines,observations,v,opts,appearance,groups,lo
   }
  }
  const adjacent=reconcileAdjacentTracks(joined,adjacentTracks,uncertain,fps,(referenceY-lines[0])/v);
- return{notes:adjacent.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),uncertain,repaired,sustainedRecovered,tracks:tracks.length,adjacentRepaired:adjacent.changed};
+ const confirmed=removeSurfaceFragments(adjacent.notes,tracks,fps);
+ return{notes:confirmed.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),uncertain,repaired,sustainedRecovered,tracks:tracks.length,adjacentRepaired:adjacent.changed};
 }
 
-function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[]}){
+// A full moving body can account for two candidates created by the primary
+// line. Use its independent edges to keep one event through later overlap resolution.
+function removeSurfaceFragments(notes,tracks,fps){
+ const tolerance=1/fps,byPitch=new Map(),discarded=new Set(),repairs=new Map();
+ for(const n of notes){if(!byPitch.has(n.midiPitch))byPitch.set(n.midiPitch,[]);byPitch.get(n.midiPitch).push(n);}
+ for(const list of byPitch.values())list.sort((a,b)=>a.startSeconds-b.startSeconds||b.endSeconds-a.endSeconds);
+ for(const track of tracks){
+  if(track.evidence.rows<24||track.evidence.bins<8)continue;
+  const list=byPitch.get(track.midiPitch)||[];
+  for(let i=lowerBound(list,track.startSeconds-tolerance);i+1<list.length&&list[i].startSeconds<=track.startSeconds+tolerance;i++){
+   const first=list[i],second=list[i+1];
+   if(discarded.has(first)||discarded.has(second)||repairs.has(first)||repairs.has(second)||
+    !sameBodyHue(first,track)||!sameBodyHue(second,track))continue;
+   const duplicate=first.evidence.timingSource==='surface-repaired'&&second.evidence.timingSource==='surface-repaired'&&
+    second.startSeconds-first.startSeconds<=tolerance*.25&&second.endSeconds<=first.endSeconds&&
+    Math.abs(second.endSeconds-first.endSeconds)<=tolerance;
+   if(duplicate){discarded.add(second);continue;}
+   if(first.evidence.timingSource!=='local-surface-split'||second.evidence.timingSource!=='local-surface-split'||
+    first.evidence.primaryStartSeconds!==second.evidence.primaryStartSeconds||first.durationSeconds>tolerance*.5||
+    second.startSeconds-first.endSeconds>1.5*tolerance||Math.abs(second.endSeconds-track.endSeconds)>tolerance||
+    track.endSeconds-second.startSeconds<second.durationSeconds*.6||track.startSeconds>=second.startSeconds||
+    (i>0&&list[i-1].endSeconds>track.startSeconds))continue;
+   discarded.add(first);
+   const startSeconds=Math.max(first.startSeconds,track.startSeconds);
+   repairs.set(second,{...second,startSeconds,durationSeconds:second.endSeconds-startSeconds,
+    evidence:{...second.evidence,...track.evidence,timingSource:'surface-fragment-repair'}});
+  }
+ }
+ return notes.filter(n=>!discarded.has(n)).map(n=>repairs.get(n)||n);
+}
+
+function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[],colorOverlays=[]}){
  let primary=observations[0];const originalPrimaryCount=primary.length,groups=observations.map(list=>{const m=new Map();for(const n of list){if(!m.has(n.midiPitch))m.set(n.midiPitch,[]);m.get(n.midiPitch).push(n);}for(const ns of m.values())ns.sort((a,b)=>a.startSeconds-b.startSeconds);return m;});
  const votes=[];const tolerance=2/fps;
  // Each primary may contribute only one vote. Ambiguous repeated patterns abstain.
@@ -552,10 +584,12 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
    return false;
   });
   const expectedOccupancy=Math.min(1,n.durationSeconds*fps),appearance=bodyAppearance(n),bodyRows=[];
+  const strongFit=Math.max(n.evidence.surfaceRows||0,n.evidence.surfaceBodyRows||0,n.evidence.surfaceRecoveryRows||0,n.evidence.timingSource==='surface-split'?n.evidence.edgeRows||0:0)>=24;
   for(let i=1;i<lines.length;i++){const shift=(referenceY-lines[i])/v;
    if(n.startSeconds-shift<0||n.endSeconds-shift>duration)continue;opportunities++;
    if(appearance&&(groups[i].get(n.midiPitch)||[]).some(b=>sameBodyHue(n,b)&&!b.truncatedStart&&!b.truncatedEnd&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol&&Math.max(...b.colorRGB)>=appearance.value*.6&&Math.max(...b.colorRGB)-Math.min(...b.colorRGB)>=appearance.chroma*.5))bodyRows.push(lines[i]);
-   const same=(groups[i].get(n.midiPitch)||[]).filter(b=>bodyDistance(n,b)<65&&b.startSeconds+shift<n.endSeconds+tol&&b.endSeconds+shift>n.startSeconds-tol);
+   const same=(groups[i].get(n.midiPitch)||[]).filter(b=>(bodyDistance(n,b)<65||
+    strongFit&&(sameBodyHue(b,n)||sameBodyHue(b,{colorRGB:n.rawColorRGB||n.colorRGB})))&&b.startSeconds+shift<n.endSeconds+tol&&b.endSeconds+shift>n.startSeconds-tol);
    if(same.some(b=>!b.truncatedStart&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol))starts.push(lines[i]);
    if(same.some(b=>!b.truncatedEnd&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol))ends.push(lines[i]);
    if(nearSemitone&&same.some(b=>!b.truncatedStart&&!b.truncatedEnd&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol&&
@@ -575,13 +609,31 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   if(supports(starts)&&supports(ends))return true;
   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
  });}
+ // Restore a distinct color observed moving inside a stable held note.
+ let recoveredColorOverlays=0;
+ if(supported&&colorOverlays.some(row=>row.length)){
+  const v=diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v));
+  const tracks=surfaceBodyTracks(lines,colorOverlays,v,{fps,height,referenceY,duration});
+  for(const track of tracks){
+   if(track.startSeconds<0||track.endSeconds>duration||
+    !notes.some(n=>n.midiPitch===track.midiPitch&&n.startSeconds<track.startSeconds-1/fps&&
+     n.endSeconds>track.endSeconds+1/fps&&!sameBodyHue(n,track))||
+    notes.some(n=>n.midiPitch===track.midiPitch&&n.startSeconds<track.endSeconds&&
+     n.endSeconds>track.startSeconds&&sameBodyHue(n,track)))continue;
+   notes.push({...track,evidence:{...track.evidence,timingSource:'same-key-color-overlay',
+    primaryStartSeconds:track.startSeconds-delay,primaryEndSeconds:track.endSeconds-delay,offsetSeconds:delay}});
+   recoveredColorOverlays++;
+  }
+  notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
+ }
+ diagnostics.recoveredColorOverlays=recoveredColorOverlays;
  diagnostics.shortUnconfirmed=uncertain.length;
  return{notes,unconfirmedNotes:uncertain,diagnostics};
 }
 // Missing bright/distorted pixels are unknown, never positive note evidence.
 // Keep at most 150 ms and bridge only after the same body is seen again.
 class OcclusionTracker {
- constructor(options,lanes,width){this.inner=new core.Tracker({...options,minimumSamples:1});this.fps=options.fps;this.lanes=lanes;this.width=width;this.queue=[];this.active=new Map();this.bridged=0;}
+ constructor(options,lanes,width){this.inner=new core.Tracker({...options,minimumSamples:1,observeColorOverlays:true});this.fps=options.fps;this.lanes=lanes;this.width=width;this.queue=[];this.active=new Map();this.bridged=0;}
  push(time,hits,raw){
   const present=new Map(hits.map(h=>[h.pitch,h])),foreign=core.foreignBodyPitches(hits),frame={time,hits:hits.slice(),unknown:new Set()};
   for(const [pitch,last] of this.active){
@@ -603,7 +655,7 @@ function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',prim
  return{lines,detect,push(time,rows,rawRows=null){textGuard?.observe(time,rows,rawRows);if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(baseLines,rows.length===baseLines.length?rows:rows.slice(0,baseLines.length),time,baseLines[0],rawRows?.length===baseLines.length?rawRows:rawRows?.slice(0,baseLines.length),laneCenters,denseBand));trackers.forEach((tracker,i)=>tracker.push(time,rows[i],rawRows?.[i]));},finish(){
   const observations=trackers.map((t,i)=>{const ns=t.finish();return textGuard?textGuard.filter(ns,i):ns;}),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{...(textGuard?textGuard.diagnostics():{}),method:mode==='upper'?'upper-single':'single-line',lineYs:baseLines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
-  const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps});if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
+  const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps,colorOverlays:trackers.map(t=>t.inner.overlays)});if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
 }
 
