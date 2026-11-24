@@ -1,7 +1,7 @@
 import {videoPackets,decoderChunkInit} from './video-demux.mjs?v=0.7.49';
-import './note-core.js?v=0.7.54';
+import './note-core.js?v=0.7.55';
 import './text-overlay.js?v=0.7.49';
-import './motion-core.js?v=0.7.54';
+import './motion-core.js?v=0.7.55';
 import './frame-reader.js?v=0.7.49';
 import {decoderColorSpace} from './video-color.mjs?v=0.7.18';
 import {waitForDecodeCapacity,configureVideoDecoder,verifyDecoderFrameColor} from './video-decode-utils.mjs?v=0.7.51';
@@ -13,7 +13,7 @@ self.onmessage=async({data})=>{
  const tracker=globalThis.PianoRollMotionCore.createScan({width,height,hitLineY,lanes,fps,duration,mode:data.detectionMode,primaryPercent:data.primaryPercent,textOverlay:data.textOverlay}),canvas=new OffscreenCanvas(width,height),reader=globalThis.PianoRollFrameReader.createReader(canvas,width,height,tracker.lines),ctx=reader.ctx,detect=tracker.detect;
  const audit=[],failure=new AbortController();
  const fail=e=>{if(!error){error=e;failure.abort(e);}};
- const metrics={workerVersion:'0.7.54',engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
+ const metrics={workerVersion:'0.7.55',engine:'webcodecs-worker',frames:total,decodedFrames:0,imageMs:0,drawMs:0,pixelReadMs:0,trackingMs:0,detectMs:0,readMs:0,queueWaitMs:0,hardwareAcceleration:'browser-choice',phaseTimesOverlap:true,maxDecodeQueue:0,stage:'container'};
  const progress=(force=false)=>{const now=performance.now();if(force||now-lastProgress>=100){lastProgress=now;postMessage({type:'progress',processed:index,total,elapsedMs:now-started,stage:metrics.stage});}};
  // Match the HTML media timeline at integer microsecond precision (floor sampling targets).
  const consume=(frame,until)=>{

@@ -111,7 +111,14 @@ function healTails(primary,lines,groups,v,localGaps,{fps,height,referenceY,allow
   for(let k=1;k<list.length;k++){
    const b=list[k],gap=b.startSeconds-a.endSeconds,total=b.endSeconds-a.startSeconds;
    let rows=[],upstreamRecovery=false;
-   if(!a.truncatedStart&&!b.truncatedEnd&&gap>=(allowOverlap?-2/fps:0)&&gap<=Math.max(2/fps,.15)&&b.durationSeconds<=Math.min(.25,total*.25)&&a.durationSeconds>=4/fps&&(bodyDistance(a,b)<40||sameBodyHue(a,b))){
+   const cut=(a.endSeconds+b.startSeconds)/2;
+   // The edge of a different-color neighboring note can hide part of a
+   // held note. Only accept the join from continuous rows across the cut.
+   const neighborEdge=allowOverlap&&Math.abs(gap)<=2/fps&&Math.min(a.durationSeconds,b.durationSeconds)>=.18&&
+    [-1,1].some(step=>(byPitch.get(a.midiPitch+step)||[]).some(n=>n.laneType!==a.laneType&&
+     bodyDistance(a,n)>=75&&n.durationSeconds>=.2&&
+     Math.min(Math.abs(n.startSeconds-cut),Math.abs(n.endSeconds-cut))<=2/fps));
+   if(!a.truncatedStart&&!b.truncatedEnd&&gap>=(allowOverlap?-2/fps:0)&&gap<=Math.max(2/fps,.15)&&(b.durationSeconds<=Math.min(.25,total*.25)||neighborEdge)&&a.durationSeconds>=4/fps&&(bodyDistance(a,b)<40||sameBodyHue(a,b))){
     const interior=Math.min(2/fps,a.durationSeconds/4,b.durationSeconds/4);
     const cutTime=(a.endSeconds+b.startSeconds)/2+(referenceY-lines[0])/v,gaps=localGaps.filter(g=>g.pitch===a.midiPitch&&Math.abs(g.time+(referenceY-g.y)/v-cutTime)<=2/fps);
     const hasMovingGap=movingGap(gaps,v,fps);
@@ -381,7 +388,7 @@ function reconcileAdjacentTracks(notes,tracks,uncertain,fps,offset){
  return {notes:notes.filter(n=>!duplicates.has(n)).map(n=>changes.get(n)||n).concat(added),changed:changes.size+added.length+duplicates.size};
 }
 
-function auditSurfaceBodies(notes,lines,observations,v,opts,appearance){
+function auditSurfaceBodies(notes,lines,observations,v,opts,appearance,groups,localGaps){
  const {fps,height,referenceY,duration}=opts,tol=1/fps,overlap=(a,b)=>Math.min(a.endSeconds,b.endSeconds)-Math.max(a.startSeconds,b.startSeconds);
  let tracks=preferSeparatedBodies(surfaceBodyTracks(lines,observations,v,opts),fps);
  const adjacentTracks=tracks.filter(n=>!appearance(n));
@@ -404,8 +411,45 @@ function auditSurfaceBodies(notes,lines,observations,v,opts,appearance){
    uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:appearance(n)?'short-without-note-body-appearance':'without-separated-body-track'}});
   }
  }
- const adjacent=reconcileAdjacentTracks(out,adjacentTracks,uncertain,fps,(referenceY-lines[0])/v);
- return{notes:adjacent.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),uncertain,repaired,tracks:tracks.length,adjacentRepaired:adjacent.changed};
+ // Close to the strike line, a long body can appear as several overexposed
+ // primary fragments. Prefer the full upstream track when its independent
+ // edges agree across the roll and the primary fragments support its onset.
+ let sustainedRecovered=0;
+ if(referenceY-lines[0]<=height*.05){
+  for(const track of tracks){
+   if(track.durationSeconds<1||track.evidence.rows<20||track.evidence.bins<8||
+    track.startSeconds<0||track.endSeconds>duration||
+    out.some(n=>n.midiPitch===track.midiPitch&&overlap(n,track)>tol))continue;
+   const fragments=uncertain.filter(n=>n.midiPitch===track.midiPitch&&
+    n.startSeconds>=track.startSeconds-2*tol&&n.endSeconds<=track.endSeconds+2*tol&&overlap(n,track)>tol);
+   if(fragments.length<2||!fragments.some(n=>Math.abs(n.startSeconds-track.startSeconds)<=2*tol)||
+    fragments.reduce((sum,n)=>sum+overlap(n,track),0)<track.durationSeconds*.25)continue;
+   out.push({...track,evidence:{...track.evidence,timingSource:'upstream-sustained-body',
+    primaryStartSeconds:fragments[0].evidence.primaryStartSeconds,
+    primaryEndSeconds:fragments.at(-1).evidence.primaryEndSeconds,
+    offsetSeconds:track.startSeconds-fragments[0].evidence.primaryStartSeconds}});
+   for(const n of fragments)uncertain.splice(uncertain.indexOf(n),1);
+   sustainedRecovered++;
+  }
+ }
+ // A strict upstream fit may find the exposed tail of an occluded white
+ // note after its primary fragment was rejected. Try it only as an extension
+ // of an existing body, and only commit it if continuous rows confirm the join.
+ let joined=out;
+ if(referenceY-lines[0]<=height*.05){
+  const exposedTails=tracks.filter(t=>t.laneType==='white'&&t.durationSeconds>=.25&&t.evidence.rows>=16&&t.evidence.bins>=7&&
+   out.some(n=>n.midiPitch===t.midiPitch&&sameBodyHue(n,t)&&Math.abs(t.startSeconds-n.endSeconds)<=2*tol)&&
+   !out.some(n=>n.midiPitch===t.midiPitch&&overlap(n,t)>tol));
+  if(exposedTails.length){
+   const outputLines=[referenceY,...lines.slice(1)];
+   const repaired=healTails([...out,...exposedTails],outputLines,groups,v,localGaps,{fps,height,referenceY,allowOverlap:true});
+   joined=out.map(n=>repaired.primary.find(a=>a.midiPitch===n.midiPitch&&a.startSeconds===n.startSeconds&&
+    a.endSeconds>n.endSeconds&&exposedTails.some(t=>t.midiPitch===n.midiPitch&&t.endSeconds===a.endSeconds)&&
+    !out.some(b=>b!==n&&b.midiPitch===n.midiPitch&&b.startSeconds>=n.endSeconds&&b.startSeconds<a.endSeconds))||n);
+  }
+ }
+ const adjacent=reconcileAdjacentTracks(joined,adjacentTracks,uncertain,fps,(referenceY-lines[0])/v);
+ return{notes:adjacent.notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),uncertain,repaired,sustainedRecovered,tracks:tracks.length,adjacentRepaired:adjacent.changed};
 }
 
 function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[]}){
@@ -489,7 +533,7 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  };
  // A short event needs a moving body supported at separated heights.
  const uncertain=[];
- if(supported){const audited=auditSurfaceBodies(notes,lines,observations,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration},bodyAppearance);notes=audited.notes;uncertain.push(...audited.uncertain);diagnostics.surfaceBodyRejected=audited.uncertain.length;diagnostics.surfaceBodyRepaired=audited.repaired;diagnostics.surfaceBodyTracks=audited.tracks;diagnostics.adjacentBodyRepairs=audited.adjacentRepaired;}
+ if(supported){const audited=auditSurfaceBodies(notes,lines,observations,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration},bodyAppearance,groups,localGaps);notes=audited.notes;uncertain.push(...audited.uncertain);diagnostics.surfaceBodyRejected=audited.uncertain.length;diagnostics.surfaceBodyRepaired=audited.repaired;diagnostics.upstreamSustainedRecovered=audited.sustainedRecovered;diagnostics.surfaceBodyTracks=audited.tracks;diagnostics.adjacentBodyRepairs=audited.adjacentRepaired;}
  if(supported){
  const notePitches=new Map();
  for(const note of notes){if(!notePitches.has(note.midiPitch))notePitches.set(note.midiPitch,[]);notePitches.get(note.midiPitch).push(note);}

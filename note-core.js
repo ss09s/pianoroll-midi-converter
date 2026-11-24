@@ -56,9 +56,50 @@ function restoreAdjacentBodies(pixels,width,pairs,hits){
   if(bodies.length===2)for(const hit of bodies)if(!has.has(hit.pitch)){has.add(hit.pitch);hits.push(hit);}
  }
 }
+// A black-key body can cover the center of a neighboring white-key note.
+// Inspect the exposed outer halves when the two bodies have distinct hues.
+function restoreColorSeparatedBodies(pixels,width,pairs,hits){
+ if(!hits.length)return;
+ const has=new Set(hits.map(h=>h.pitch));
+ const rgb=x=>[pixels[x*4],pixels[x*4+1],pixels[x*4+2]];
+ const colored=x=>{
+  const i=x*4,r=pixels[i],g=pixels[i+1],b=pixels[i+2],value=Math.max(r,g,b);
+  return value>=85&&value-Math.min(r,g,b)>=27;
+ };
+ for(const [left,right] of pairs){
+  if(has.has(left.pitch)&&has.has(right.pitch))continue;
+  const xs=[left.c-left.shoulder,right.c+right.shoulder];
+  if(xs[0]<2||xs[1]>=width-2||!colored(xs[0])||!colored(xs[1]))continue;
+  const colors=xs.map(rgb),hues=colors.map(hue);
+  if(hues.some(h=>h===null)||hueGap(...hues)<70)continue;
+  const samples=[];
+  for(const [index,lane] of [left,right].entries()){
+   const dir=index===0?-1:1,x=xs[index],color=colors[index],h=hues[index],value=Math.max(...color);
+   let a=x,b=x;
+   const radius=Math.ceil(lane.w*1.35);
+   const similar=k=>{
+    const c=rgb(k),ch=hue(c);
+    return ch!==null&&hueGap(h,ch)<=21&&Math.max(...c)>=value*.63;
+   };
+   while(a>1&&x-a<radius&&similar(a-1))a--;
+   while(b<width-2&&b-x<radius&&similar(b+1))b++;
+   const outer=dir<0?a:b,facing=dir<0?b:a;
+   const adjacent=rgb(outer+dir);
+   if(Math.max(...adjacent)>value*.72||b-a+1<lane.w*.34||b-a+1>lane.w*1.25||
+    Math.abs(outer-lane.c)>lane.w*.86||Math.abs(facing-lane.c)>lane.w*.76)break;
+   samples.push({lane,color,facing});
+  }
+  if(samples.length!==2||
+   samples[1].facing-samples[0].facing<1||
+   samples[1].facing-samples[0].facing>Math.max(3,Math.round((right.c-left.c)*.52)))continue;
+  for(const {lane,color} of samples)if(!has.has(lane.pitch)){
+   hits.push({pitch:lane.pitch,laneType:lane.type,colorRGB:color});has.add(lane.pitch);
+  }
+ }
+}
 // Prepared lane geometry; same thresholds and integer RGB distances as detectRow.
 function createRowDetector(width,lanes){
- const prepared=lanes.filter(l=>l.pitch>=0&&l.pitch<=127&&l.x>=1&&l.x<width-1&&l.w>=3).map(l=>({...l,c:Math.round(l.x),cap:Math.ceil(l.w*1.6),a:Math.max(0,Math.ceil(l.x-l.w*.2)),b:Math.min(width-1,Math.floor(l.x+l.w*.2))}));
+ const prepared=lanes.filter(l=>l.pitch>=0&&l.pitch<=127&&l.x>=1&&l.x<width-1&&l.w>=3).map(l=>({...l,c:Math.round(l.x),shoulder:Math.max(1,Math.round(l.w*.23)),cap:Math.ceil(l.w*1.6),a:Math.max(0,Math.ceil(l.x-l.w*.2)),b:Math.min(width-1,Math.floor(l.x+l.w*.2))}));
  const ordered=prepared.slice().sort((a,b)=>a.c-b.c);
  const pairs=[];
  for(let i=1;i<ordered.length;i++){
@@ -81,7 +122,7 @@ function createRowDetector(width,lanes){
  }
  hits.push({pitch:l.pitch,laneType:l.type,colorRGB:[Math.round(rr/total),Math.round(gg/total),Math.round(bb/total)]});
  }
- if(pairs.length)restoreAdjacentBodies(pixels,width,pairs,hits);
+ if(pairs.length){restoreAdjacentBodies(pixels,width,pairs,hits);restoreColorSeparatedBodies(pixels,width,pairs,hits);}
  if(foreign)foreignBodies.set(hits,foreign);
  return hits;};
 }
