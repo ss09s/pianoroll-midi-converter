@@ -180,6 +180,82 @@ function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null,dens
   }
  }return out;
 }
+// Rounded note ends narrow across the lane even when the center pixels
+// touch. Look for a moving trough in the colored width of a note.
+function chromaSeams(rows,hits,lanes,time,top){
+ const found=[],pitches=new Set();
+ for(const row of hits)for(const hit of row)pitches.add(hit.pitch);
+ for(const pitch of pitches){
+  const lane=lanes.get(pitch);
+  if(!lane)continue;
+  const {left,right}=lane,values=[];
+  for(const row of rows){
+   let sum=0;
+   for(let x=left;x<=right;x++){
+    const i=x*4,a=row[i],b=row[i+1],c=row[i+2];
+    sum+=Math.max(a,b,c)-Math.min(a,b,c);
+   }
+   values.push(sum/(right-left+1));
+  }
+  for(let i=4;i<values.length-4;i++){
+   const val=values[i];
+   if(val>values[i-1]||val>=values[i+1])continue;
+   const before=Math.max(values[i-4],values[i-3],values[i-2]);
+   const after=Math.max(values[i+2],values[i+3],values[i+4]);
+   const shoulder=Math.min(before,after);
+   if(shoulder<95||shoulder-val<Math.max(12,shoulder*.10)||val<shoulder*.34)continue;
+   found.push({pitch,time,y:top+i,strength:(shoulder-val)/shoulder});
+   i++;
+  }
+ }
+ return found;
+}
+
+function indexChromaSeams(seams,v,referenceY){
+ const byPitch=new Map();
+ for(const seam of seams){
+  if(!byPitch.has(seam.pitch))byPitch.set(seam.pitch,[]);
+  byPitch.get(seam.pitch).push({...seam,startSeconds:seam.time+(referenceY-seam.y)/v});
+ }
+ for(const list of byPitch.values())list.sort((a,b)=>a.startSeconds-b.startSeconds);
+ return byPitch;
+}
+
+function splitChromaSeams(notes,byPitch,v,{fps}){
+ const minimum=Math.max(.042,1.4/fps),radius=Math.max(.023,.7/fps);
+ return notes.flatMap(note=>{
+  if(!note.evidence.verified||note.durationSeconds<3*minimum||note.truncatedStart||note.truncatedEnd)return[note];
+  const list=byPitch.get(note.midiPitch)||[],clusters=[];
+  for(let i=lowerBound(list,note.startSeconds+minimum);i<list.length&&list[i].startSeconds<note.endSeconds-minimum;i++){
+   const seam=list[i];
+   const group=clusters.at(-1);
+   if(group&&Math.abs(seam.startSeconds-median(group.map(s=>s.startSeconds)))<=radius)group.push(seam);
+   else clusters.push([seam]);
+  }
+  const candidates=[];
+  for(const group of clusters){
+   const center=median(group.map(s=>s.startSeconds));
+   const inliers=group.filter(s=>Math.abs(s.startSeconds-center)*v<=1.75);
+   if(new Set(inliers.map(s=>s.time)).size<7||
+    Math.max(...inliers.map(s=>s.y))-Math.min(...inliers.map(s=>s.y))<16||
+    median(inliers.map(s=>s.strength))<.135)continue;
+   candidates.push(median(inliers.map(s=>s.startSeconds)));
+  }
+  const cuts=candidates;
+  // Two or more consecutive moving seams confirm a repeated-note chain.
+  if(cuts.length<2)return[note];
+  const intervals=cuts.slice(1).map((t,i)=>t-cuts[i]),spacing=median(intervals);
+  if(spacing<minimum||spacing>.21||intervals.some(d=>d<spacing*.74||d>spacing*1.32)||
+   cuts[0]-note.startSeconds>spacing*1.9||note.endSeconds-cuts.at(-1)>spacing*1.95)return[note];
+  const points=[note.startSeconds,...cuts,note.endSeconds];
+  return points.slice(0,-1).map((startSeconds,i)=>{
+   const endSeconds=points[i+1];
+   return {...note,startSeconds,endSeconds,durationSeconds:endSeconds-startSeconds,
+    evidence:{...note.evidence,timingSource:'moving-chroma-seam',splitParts:points.length-1}};
+  });
+ });
+}
+
 function splitSpatial(primary,base,gaps,v,{fps,referenceY}){
  if(!(v>0)||primary.truncatedStart||primary.truncatedEnd||base.evidence.timingSource==='surface-split')return[base];
  const projected=(gaps.get(primary.midiPitch)||[]).map(g=>({...g,t:g.time+(referenceY-g.y)/v})).filter(g=>g.t>base.startSeconds+1/120&&g.t<base.endSeconds-1/120).sort((a,b)=>a.t-b.t),clusters=[];
@@ -388,7 +464,7 @@ function reconcileAdjacentTracks(notes,tracks,uncertain,fps,offset){
  return {notes:notes.filter(n=>!duplicates.has(n)).map(n=>changes.get(n)||n).concat(added),changed:changes.size+added.length+duplicates.size};
 }
 
-function auditSurfaceBodies(notes,lines,observations,v,opts,appearance,groups,localGaps){
+function auditSurfaceBodies(notes,lines,observations,v,opts,appearance,groups,localGaps,seamIndex){
  const {fps,height,referenceY,duration}=opts,tol=1/fps,overlap=(a,b)=>Math.min(a.endSeconds,b.endSeconds)-Math.max(a.startSeconds,b.startSeconds);
  let tracks=preferSeparatedBodies(surfaceBodyTracks(lines,observations,v,opts),fps);
  const adjacentTracks=tracks.filter(n=>!appearance(n));
@@ -450,7 +526,42 @@ function auditSurfaceBodies(notes,lines,observations,v,opts,appearance,groups,lo
  }
  const adjacent=reconcileAdjacentTracks(joined,adjacentTracks,uncertain,fps,(referenceY-lines[0])/v);
  const confirmed=removeSurfaceFragments(adjacent.notes,tracks,fps);
- return{notes:confirmed.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),uncertain,repaired,sustainedRecovered,tracks:tracks.length,adjacentRepaired:adjacent.changed};
+ const recoveredRepeats=restoreSeamedBodies(confirmed,notes,tracks,seamIndex,v,opts);
+
+ return{notes:recoveredRepeats.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),uncertain,repaired,sustainedRecovered,tracks:tracks.length,adjacentRepaired:adjacent.changed};
+}
+
+// A noisy primary row can merge a repeat chain with its neighbors. Retain
+// an independently tracked chain when its moving seams confirm the body.
+function restoreSeamedBodies(confirmed,primary,tracks,seamIndex,v,{fps}){
+ if(!seamIndex.size)return confirmed;
+ const byPitch=new Map();
+ for(const n of primary){
+  if(n.durationSeconds<.25)continue;
+  if(!byPitch.has(n.midiPitch))byPitch.set(n.midiPitch,[]);
+  byPitch.get(n.midiPitch).push(n);
+ }
+ const result=confirmed.slice(),tolerance=2/fps;
+ for(const track of tracks){
+  if(track.durationSeconds<.25||track.evidence.rows<30||track.evidence.bins<8||!seamIndex.has(track.midiPitch))continue;
+  const covers=(parent)=>parent.startSeconds<=track.startSeconds+.02&&track.startSeconds-parent.startSeconds<.14&&
+   parent.endSeconds>=track.endSeconds-tolerance&&sameBodyHue(parent,track);
+  if(!(byPitch.get(track.midiPitch)||[]).some(covers))continue;
+  const indices=[];
+  for(let i=0;i<result.length;i++){
+   const n=result[i];
+   if(n.midiPitch===track.midiPitch&&n.startSeconds<track.endSeconds&&n.endSeconds>track.startSeconds)indices.push(i);
+  }
+  const existing=result[indices[0]];
+  const repair=indices.length===1&&covers(existing)&&!existing.evidence.independentStartRows&&
+   track.startSeconds-existing.startSeconds>1/fps&&Math.abs(track.endSeconds-existing.endSeconds)<=tolerance;
+  if(indices.length&&!repair)continue;
+  if(splitChromaSeams([track],seamIndex,v,{fps}).length<3)continue;
+  const replacement={...track,evidence:{...track.evidence,timingSource:'upstream-repeat-body'}};
+  if(repair)result[indices[0]]=replacement;
+  else result.push(replacement);
+ }
+ return result;
 }
 
 // A full moving body can account for two candidates created by the primary
@@ -484,7 +595,7 @@ function removeSurfaceFragments(notes,tracks,fps){
  return notes.filter(n=>!discarded.has(n)).map(n=>repairs.get(n)||n);
 }
 
-function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[],colorOverlays=[]}){
+function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),localGaps=[],colorOverlays=[],seams=[],fallbackRow=null}){
  let primary=observations[0];const originalPrimaryCount=primary.length,groups=observations.map(list=>{const m=new Map();for(const n of list){if(!m.has(n.midiPitch))m.set(n.midiPitch,[]);m.get(n.midiPitch).push(n);}for(const ns of m.values())ns.sort((a,b)=>a.startSeconds-b.startSeconds);return m;});
  const votes=[];const tolerance=2/fps;
  // Each primary may contribute only one vote. Ambiguous repeated patterns abstain.
@@ -524,6 +635,16 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  }
  const speed=median(votes.map(v=>v.v)),inliers=speed?votes.filter(v=>Math.abs(v.v-speed)/speed<=.08):[];
  const supported=inliers.length>=3&&inliers.length>=votes.length*.85;
+ if(!supported&&fallbackRow!==null&&fallbackRow>0){
+  const order=[fallbackRow,...lines.map((_,index)=>index).filter(index=>index!==fallbackRow)];
+  const alternate=fuse(order.map(i=>lines[i]),order.map(i=>observations[i]),
+   {fps,duration,height,referenceY,localGaps,colorOverlays:order.map(i=>colorOverlays[i]||[]),seams});
+  if(alternate.diagnostics.calibrated){
+   alternate.diagnostics.requestedPrimaryY=lines[0];
+   alternate.diagnostics.primaryFallback='upper-motion-calibration';
+   return alternate;
+  }
+ }
  // A common shift preserves every primary pitch, color, duration and ordering.
  // Only well-supported dense tracks may override the common delay; never add/delete notes.
  const delay=supported?(referenceY-lines[0])/median(inliers.map(v=>v.v)):0,byPrimary=new Map((supported?inliers:votes).map(v=>[v.primary,v]));
@@ -565,7 +686,9 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
  };
  // A short event needs a moving body supported at separated heights.
  const uncertain=[];
- if(supported){const audited=auditSurfaceBodies(notes,lines,observations,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration},bodyAppearance,groups,localGaps);notes=audited.notes;uncertain.push(...audited.uncertain);diagnostics.surfaceBodyRejected=audited.uncertain.length;diagnostics.surfaceBodyRepaired=audited.repaired;diagnostics.upstreamSustainedRecovered=audited.sustainedRecovered;diagnostics.surfaceBodyTracks=audited.tracks;diagnostics.adjacentBodyRepairs=audited.adjacentRepaired;}
+ const seamVelocity=diagnostics.boundaryVelocityPixelsPerSecond;
+ const seamIndex=supported&&seams.length?indexChromaSeams(seams,seamVelocity,referenceY):new Map();
+ if(supported){const audited=auditSurfaceBodies(notes,lines,observations,diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),{fps,height,referenceY,duration},bodyAppearance,groups,localGaps,seamIndex);notes=audited.notes;uncertain.push(...audited.uncertain);diagnostics.surfaceBodyRejected=audited.uncertain.length;diagnostics.surfaceBodyRepaired=audited.repaired;diagnostics.upstreamSustainedRecovered=audited.sustainedRecovered;diagnostics.surfaceBodyTracks=audited.tracks;diagnostics.adjacentBodyRepairs=audited.adjacentRepaired;}
  if(supported){
  const notePitches=new Map();
  for(const note of notes){if(!notePitches.has(note.midiPitch))notePitches.set(note.midiPitch,[]);notePitches.get(note.midiPitch).push(note);}
@@ -626,6 +749,12 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   }
   notes.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
  }
+ if(seamIndex.size){
+  const count=notes.length;
+  notes=splitChromaSeams(notes,seamIndex,seamVelocity,{fps})
+   .sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
+  diagnostics.chromaSeamSplits=notes.length-count;
+ }
  diagnostics.recoveredColorOverlays=recoveredColorOverlays;
  diagnostics.shortUnconfirmed=uncertain.length;
  return{notes,unconfirmedNotes:uncertain,diagnostics};
@@ -649,13 +778,32 @@ class OcclusionTracker {
  finish(){for(const f of this.queue)this.inner.push(f.time,f.hits);this.queue=[];const notes=this.inner.finish();this.discarded=this.inner.discarded;return notes;}
 }
 function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20,textOverlay=null}){
- const localGaps=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));const baseLines=linePlan(hitLineY,height,mode,primaryPercent),lines=textCore?.validationLines(baseLines,textOverlay)||baseLines,trackers=baseLines.map(()=>mode==='motion'?new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration})),detect=core.createRowDetector(width,lanes);
- const textGuard=textCore?.createGuard(lines,lanes,textOverlay,{fps});
- const bandShift=Math.min(0,Math.round(hitLineY)-1-lines[0]-24),denseBand={top:Math.max(0,lines[0]-24+bandShift),bottom:Math.min(Math.round(hitLineY)-1,lines[0]+24+bandShift)};
- return{lines,detect,push(time,rows,rawRows=null){textGuard?.observe(time,rows,rawRows);if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(baseLines,rows.length===baseLines.length?rows:rows.slice(0,baseLines.length),time,baseLines[0],rawRows?.length===baseLines.length?rawRows:rawRows?.slice(0,baseLines.length),laneCenters,denseBand));trackers.forEach((tracker,i)=>tracker.push(time,rows[i],rawRows?.[i]));},finish(){
+ const localGaps=[],seams=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));
+ const baseLines=linePlan(hitLineY,height,mode,primaryPercent);
+ const primary=baseLines[0],bottom=Math.min(Math.round(hitLineY)-1,primary+24);
+ const denseBand={top:Math.max(0,Math.min(primary-24,bottom-48)),bottom};
+ const fallbackRow=mode==='motion'&&hitLineY-primary<height*.17?
+  baseLines.reduce((best,y,i)=>Math.abs(y-height*.2)<Math.abs(baseLines[best]-height*.2)?i:best,0):null;
+ // When the scan is close to the strike effects, inspect seams in a clean
+ // upstream strip as well. The normal tracking rows and read bounds stay fixed.
+ const useUpstream=mode==='motion'&&primary>height*.32;
+ const seamTop=useUpstream?Math.max(Math.min(...baseLines),Math.round(height*.2)-24):denseBand.top;
+ const seamBottom=useUpstream?Math.min(Math.max(...baseLines),seamTop+48):denseBand.bottom;
+ const seamLines=mode==='motion'&&seamBottom>=seamTop?
+  Array.from({length:seamBottom-seamTop+1},(_,i)=>seamTop+i):[];
+ const guardLines=textCore?.validationLines(baseLines,textOverlay)||baseLines;
+ const lines=[...new Set([...guardLines,...seamLines])],trackers=baseLines.map(()=>mode==='motion'?
+  new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration}));
+ const detect=core.createRowDetector(width,lanes),textGuard=textCore?.createGuard(guardLines,lanes,textOverlay,{fps});
+ const laneRanges=new Map(lanes.map(l=>[l.pitch,{left:Math.max(0,Math.round(l.x-l.w*.45)),right:Math.min(width-1,Math.round(l.x+l.w*.45))}]));
+ const seamRows=seamLines.map(y=>lines.indexOf(y));
+ return{lines,detect,push(time,rows,rawRows=null){
+  if(rawRows&&seamRows.length&&seams.length<400000)
+   seams.push(...chromaSeams(seamRows.map(i=>rawRows[i]),seamRows.map(i=>rows[i]),laneRanges,time,seamTop));
+  textGuard?.observe(time,rows,rawRows);if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(baseLines,rows.length===baseLines.length?rows:rows.slice(0,baseLines.length),time,baseLines[0],rawRows?.length===baseLines.length?rawRows:rawRows?.slice(0,baseLines.length),laneCenters,denseBand));trackers.forEach((tracker,i)=>tracker.push(time,rows[i],rawRows?.[i]));},finish(){
   const observations=trackers.map((t,i)=>{const ns=t.finish();return textGuard?textGuard.filter(ns,i):ns;}),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{...(textGuard?textGuard.diagnostics():{}),method:mode==='upper'?'upper-single':'single-line',lineYs:baseLines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
-  const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps,colorOverlays:trackers.map(t=>t.inner.overlays)});if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
+  const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps,colorOverlays:trackers.map(t=>t.inner.overlays),seams,fallbackRow});if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
 }
 
