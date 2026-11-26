@@ -221,32 +221,46 @@ function indexChromaSeams(seams,v,referenceY){
  return byPitch;
 }
 
-function splitChromaSeams(notes,byPitch,v,{fps}){
+function findChromaCuts(note,seams,v,fps){
  const minimum=Math.max(.042,1.4/fps),radius=Math.max(.023,.7/fps);
+ const clusters=[];
+ for(const seam of seams){
+  if(seam.startSeconds<note.startSeconds+minimum||seam.startSeconds>=note.endSeconds-minimum)continue;
+  const group=clusters.at(-1);
+  if(group&&Math.abs(seam.startSeconds-median(group.map(s=>s.startSeconds)))<=radius)group.push(seam);
+  else clusters.push([seam]);
+ }
+ const cuts=[];
+ for(const group of clusters){
+  const center=median(group.map(s=>s.startSeconds));
+  const inliers=group.filter(s=>Math.abs(s.startSeconds-center)*v<=1.75);
+  if(new Set(inliers.map(s=>s.time)).size<7||
+   Math.max(...inliers.map(s=>s.y))-Math.min(...inliers.map(s=>s.y))<16||
+   median(inliers.map(s=>s.strength))<.135)continue;
+  cuts.push(median(inliers.map(s=>s.startSeconds)));
+ }
+ // Two or more consecutive moving seams confirm a repeated-note chain.
+ if(cuts.length<2)return [];
+ const intervals=cuts.slice(1).map((t,i)=>t-cuts[i]),spacing=median(intervals);
+ if(spacing<minimum||spacing>.21||intervals.some(d=>d<spacing*.74||d>spacing*1.32)||
+  cuts[0]-note.startSeconds>spacing*1.9||note.endSeconds-cuts.at(-1)>spacing*1.95)return [];
+ return cuts;
+}
+
+function splitChromaSeams(notes,byPitch,v,{fps}){
+ const minimum=Math.max(.042,1.4/fps);
  return notes.flatMap(note=>{
   if(!note.evidence.verified||note.durationSeconds<3*minimum||note.truncatedStart||note.truncatedEnd)return[note];
-  const list=byPitch.get(note.midiPitch)||[],clusters=[];
-  for(let i=lowerBound(list,note.startSeconds+minimum);i<list.length&&list[i].startSeconds<note.endSeconds-minimum;i++){
-   const seam=list[i];
-   const group=clusters.at(-1);
-   if(group&&Math.abs(seam.startSeconds-median(group.map(s=>s.startSeconds)))<=radius)group.push(seam);
-   else clusters.push([seam]);
+  const list=byPitch.get(note.midiPitch)||[];
+  const seams=list.slice(lowerBound(list,note.startSeconds+minimum),lowerBound(list,note.endSeconds-minimum));
+  let cuts=findChromaCuts(note,seams,v,fps);
+  // If a 30 fps frame is sampled twice at 60 Hz, the duplicate
+  // observations arrive 1/60 s apart and can obscure a narrow seam.
+  if(!cuts.length&&fps===60){
+   const standardSamples=seams.filter(s=>Math.round(s.time*fps)%2===0);
+   cuts=findChromaCuts(note,standardSamples,v,30);
   }
-  const candidates=[];
-  for(const group of clusters){
-   const center=median(group.map(s=>s.startSeconds));
-   const inliers=group.filter(s=>Math.abs(s.startSeconds-center)*v<=1.75);
-   if(new Set(inliers.map(s=>s.time)).size<7||
-    Math.max(...inliers.map(s=>s.y))-Math.min(...inliers.map(s=>s.y))<16||
-    median(inliers.map(s=>s.strength))<.135)continue;
-   candidates.push(median(inliers.map(s=>s.startSeconds)));
-  }
-  const cuts=candidates;
-  // Two or more consecutive moving seams confirm a repeated-note chain.
-  if(cuts.length<2)return[note];
-  const intervals=cuts.slice(1).map((t,i)=>t-cuts[i]),spacing=median(intervals);
-  if(spacing<minimum||spacing>.21||intervals.some(d=>d<spacing*.74||d>spacing*1.32)||
-   cuts[0]-note.startSeconds>spacing*1.9||note.endSeconds-cuts.at(-1)>spacing*1.95)return[note];
+  if(!cuts.length)return[note];
   const points=[note.startSeconds,...cuts,note.endSeconds];
   return points.slice(0,-1).map((startSeconds,i)=>{
    const endSeconds=points[i+1];
@@ -546,20 +560,36 @@ function restoreSeamedBodies(confirmed,primary,tracks,seamIndex,v,{fps}){
   if(track.durationSeconds<.25||track.evidence.rows<30||track.evidence.bins<8||!seamIndex.has(track.midiPitch))continue;
   const covers=(parent)=>parent.startSeconds<=track.startSeconds+.02&&track.startSeconds-parent.startSeconds<.14&&
    parent.endSeconds>=track.endSeconds-tolerance&&sameBodyHue(parent,track);
-  if(!(byPitch.get(track.midiPitch)||[]).some(covers))continue;
+  const hasPrimary=(byPitch.get(track.midiPitch)||[]).some(covers);
   const indices=[];
   for(let i=0;i<result.length;i++){
    const n=result[i];
    if(n.midiPitch===track.midiPitch&&n.startSeconds<track.endSeconds&&n.endSeconds>track.startSeconds)indices.push(i);
   }
   const existing=result[indices[0]];
-  const repair=indices.length===1&&covers(existing)&&!existing.evidence.independentStartRows&&
+  const repair=hasPrimary&&indices.length===1&&covers(existing)&&!existing.evidence.independentStartRows&&
    track.startSeconds-existing.startSeconds>1/fps&&Math.abs(track.endSeconds-existing.endSeconds)<=tolerance;
-  if(indices.length&&!repair)continue;
-  if(splitChromaSeams([track],seamIndex,v,{fps}).length<3)continue;
   const replacement={...track,evidence:{...track.evidence,timingSource:'upstream-repeat-body'}};
-  if(repair)result[indices[0]]=replacement;
+  if(!indices.length&&!hasPrimary)continue;
+  let tail;
+  if(indices.length&&!repair){
+   // A flare can fill the gap after a repeat chain. Replace the merged
+   // interval only when a second full body explains its remaining tail.
+   if(indices.length!==1||!sameBodyHue(existing,track)||existing.endSeconds<track.endSeconds||
+    Math.abs(existing.startSeconds-track.startSeconds)>Math.max(tolerance,.05))continue;
+   const tailTolerance=Math.max(tolerance,.1);
+   const tails=tracks.filter(n=>n.midiPitch===track.midiPitch&&sameBodyHue(n,track)&&
+    n.evidence.rows>=24&&n.evidence.bins>=8&&
+    n.startSeconds-track.endSeconds>=.5/fps&&n.startSeconds-track.endSeconds<=tailTolerance&&
+    n.endSeconds<=existing.endSeconds+tolerance&&Math.abs(n.endSeconds-existing.endSeconds)<=tailTolerance);
+   if(tails.length!==1||result.some(n=>n!==existing&&n.midiPitch===track.midiPitch&&
+    n.startSeconds<tails[0].endSeconds&&n.endSeconds>track.startSeconds))continue;
+   tail=tails[0];
+  }
+  if(splitChromaSeams([track],seamIndex,v,{fps}).length<3)continue;
+  if(indices.length)result[indices[0]]=replacement;
   else result.push(replacement);
+  if(tail)result.push(tail);
  }
  return result;
 }
