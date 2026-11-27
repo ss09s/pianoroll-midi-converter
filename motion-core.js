@@ -871,7 +871,7 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
    }
   }
  },repair(notes,v){
-  if(last<1||!v||v<10)return {notes,added:0};
+  if(last<1||!v||v<10)return {notes,added:0,split:0};
   const hz=120,ticks=Math.ceil(duration*hz),chroma=new Uint8Array(ticks),colors=new Uint16Array(ticks);
   const offsets=rows.map(row=>(referenceY-row.y)*fps/v);
   const lut=new Uint8Array(65536);
@@ -885,7 +885,7 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
    byPitch.get(note.midiPitch).push(note);
   }
   const samples=new Uint16Array(rows.length);
-  const additions=[];
+  const additions=[],splits=new Map();
   // On the side facing away from an overlapping neighbor, a true body
   // should still be visible across several heights and interior times.
   const hasOuterBody=(laneIndex,flag,start,end)=>{
@@ -908,7 +908,7 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
    const lane=lanes[k],existing=byPitch.get(lane.pitch);
    if(!existing?.length)continue;
    chroma.fill(0);
-   const nearby=new Uint8Array(ticks);
+   const nearby=new Uint8Array(ticks),observed=new Uint8Array(ticks);
    for(const note of existing){
     nearby.fill(1,Math.max(0,Math.floor((note.startSeconds-.6)*hz)),Math.min(ticks,Math.ceil((note.endSeconds+.6)*hz)));
    }
@@ -927,14 +927,41 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
     if(count<Math.max(8,rows.length*.6))continue;
     const sorted=samples.subarray(0,count);sorted.sort();
     const mid=sorted[count>>1],j=mid&31,f=Math.round(t-offsets[j]);
-    chroma[i]=mid>>5;colors[i]=frames[f*stride+j*lanes.length+k];
+    observed[i]=1;chroma[i]=mid>>5;colors[i]=frames[f*stride+j*lanes.length+k];
    }
-   let start=0;
+   let start=0,previousBody=null;
    while(start<ticks){
     if(chroma[start]<76){start++;continue;}
     let end=start+1,peak=start;
     while(end<ticks&&chroma[end]>=76){if(chroma[end]>chroma[peak])peak=end;end++;}
     const s=start/hz,e=end/hz,color=rgb(colors[peak]);
+    if(end-start>=7&&chroma[peak]>=120){
+     const body={start:s,end:e,endTick:end,peak:chroma[peak],colorRGB:color};
+     const gapLength=previousBody?start-previousBody.endTick:0;
+     if(gapLength>=3&&gapLength<=12){
+      let trough=255,visible=true;
+      for(let i=previousBody.endTick;i<start;i++){
+       visible=visible&&Boolean(observed[i]);
+       trough=Math.min(trough,chroma[i]);
+      }
+      // A short, deep gap across the upstream rows can disappear near impact.
+      // Require both complete bodies to explain an existing merged interval.
+      if(visible&&trough<=.36*Math.min(previousBody.peak,body.peak)&&sameBodyHue(previousBody,body)){
+       const parent=existing.find(n=>!n.truncatedStart&&!n.truncatedEnd&&!splits.has(n)&&!(n.evidence.splitParts>1)&&
+        n.durationSeconds>=.5&&Math.abs(n.startSeconds-previousBody.start)<=.055&&Math.abs(n.endSeconds-body.end)<=.055&&
+        n.endSeconds-body.start>=.05&&sameBodyHue(n,body));
+       if(parent&&!existing.some(n=>n!==parent&&sameBodyHue(n,body)&&
+        Math.min(n.endSeconds,body.end)-Math.max(n.startSeconds,previousBody.start)>.025)){
+        splits.set(parent,[previousBody,body].map((part,i)=>{
+         const startSeconds=part.start,endSeconds=i?parent.endSeconds:part.end;
+         return {...parent,startSeconds,endSeconds,durationSeconds:endSeconds-startSeconds,
+          evidence:{...parent.evidence,timingSource:'upstream-color-split',splitParts:2,verified:true}};
+        }));
+       }
+      }
+     }
+     previousBody=body;
+    }
     if(end-start>=7&&end-start<=31&&chroma[peak]>=120){
      const overlapping=existing.some(n=>n.startSeconds<e-.017&&n.endSeconds>s+.017);
      const anchor=existing.find(n=>Math.min(Math.abs(n.startSeconds-s),Math.abs(n.endSeconds-e))<=.6&&sameBodyHue(n,{colorRGB:color}));
@@ -954,8 +981,8 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
     start=end;
    }
   }
-  return {notes:notes.concat(additions)
-   .sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),added:additions.length};
+  return {notes:notes.flatMap(note=>splits.get(note)||[note]).concat(additions)
+   .sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),added:additions.length,split:splits.size};
  }};
 }
 
@@ -999,6 +1026,7 @@ function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',prim
    const recovered=projection.repair(result.notes,result.diagnostics.boundaryVelocityPixelsPerSecond);
    result.notes=recovered.notes;
    result.diagnostics.profileRecovered=recovered.added;
+   result.diagnostics.profileSplit=recovered.split;
   }
   if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
