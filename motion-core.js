@@ -846,6 +846,10 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
  const rows=new Array(Math.min(rowLimit,safe.length));
  for(let i=0;i<rows.length;i++)rows[i]=safe[Math.round(i*(safe.length-1)/(rows.length-1))];
  const stride=lanes.length*rows.length,frames=new Uint16Array(frameCount*stride),present=new Uint8Array(frameCount);
+ // Two bits per cell record whether the colored body reaches each shoulder.
+ const shoulders=new Uint8Array(Math.ceil(frames.length/4));
+ const shoulderOffsets=lanes.map(l=>Math.max(2,Math.round(l.w*.36))*4);
+ const chromaAt=(row,x)=>Math.max(row[x],row[x+1],row[x+2])-Math.min(row[x],row[x+1],row[x+2]);
  const centers=lanes.map(l=>clamp(Math.round(l.x),1,width-2)*4);
  let last=-1;
  return {push(time,rawRows){
@@ -858,7 +862,12 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
    for(let k=0;k<centers.length;k++){
     const x=centers[k];
     const r=(raw[x-4]+raw[x]+raw[x+4])/3,g=(raw[x-3]+raw[x+1]+raw[x+5])/3,b=(raw[x-2]+raw[x+2]+raw[x+6])/3;
-    frames[base+k]=((r&248)<<8)|((g&252)<<3)|(b>>3);
+    const index=base+k,offset=shoulderOffsets[k],margin=Math.max(45,(Math.max(r,g,b)-Math.min(r,g,b))*.56);
+    frames[index]=((r&248)<<8)|((g&252)<<3)|(b>>3);
+    const flags=(x>=offset&&chromaAt(raw,x-offset)>=margin?1:0)|
+     (x+offset<raw.length&&chromaAt(raw,x+offset)>=margin?2:0);
+    const shift=(index&3)*2;
+    shoulders[index>>2]=(shoulders[index>>2]&~(3<<shift))|(flags<<shift);
    }
   }
  },repair(notes,v){
@@ -877,6 +886,24 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
   }
   const samples=new Uint16Array(rows.length);
   const additions=[];
+  // On the side facing away from an overlapping neighbor, a true body
+  // should still be visible across several heights and interior times.
+  const hasOuterBody=(laneIndex,flag,start,end)=>{
+   let supported=0;
+   for(const fraction of [.35,.5,.65]){
+    const time=(start+(end-start)*fraction)*fps;
+    let count=0,total=0;
+    for(let j=0;j<offsets.length;j++){
+     const f=Math.round(time-offsets[j]);
+     if(f<0||f>last||!present[f])continue;
+     const index=f*stride+j*lanes.length+laneIndex;
+     if((shoulders[index>>2]>>((index&3)*2))&flag)count++;
+     total++;
+    }
+    if(total>=8&&count>=Math.ceil(total*.6))supported++;
+   }
+   return supported>=2;
+  };
   for(let k=0;k<lanes.length;k++){
    const lane=lanes[k],existing=byPitch.get(lane.pitch);
    if(!existing?.length)continue;
@@ -912,6 +939,13 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
      const overlapping=existing.some(n=>n.startSeconds<e-.017&&n.endSeconds>s+.017);
      const anchor=existing.find(n=>Math.min(Math.abs(n.startSeconds-s),Math.abs(n.endSeconds-e))<=.6&&sameBodyHue(n,{colorRGB:color}));
      if(!overlapping&&anchor&&!existing.some(n=>Math.abs(n.startSeconds-s)<.055)){
+      const leaking=[-1,1].some(side=>{
+       const neighbor=byPitch.get(lane.pitch+side)||[];
+       return neighbor.some(n=>n.evidence.verified&&n.laneType!==lane.type&&
+        Math.min(n.endSeconds,e)-Math.max(n.startSeconds,s)>=(e-s)*.75&&
+        sameBodyHue(n,{colorRGB:color}))&&!hasOuterBody(k,side>0?1:2,s,e);
+      });
+      if(leaking){start=end;continue;}
       additions.push({...anchor,startSeconds:s,endSeconds:e,durationSeconds:e-s,colorRGB:color,rawColorRGB:color,
        observationSamples:0,colorSamples:1,truncatedStart:false,truncatedEnd:false,
        evidence:{timingSource:'upstream-color-profile',verified:true}});
