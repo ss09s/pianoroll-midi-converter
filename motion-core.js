@@ -182,7 +182,7 @@ function spatialGaps(lines,hits,time,primaryY,rawRows=null,laneCenters=null,dens
 }
 // Rounded note ends narrow across the lane even when the center pixels
 // touch. Look for a moving trough in the colored width of a note.
-function chromaSeams(rows,hits,lanes,time,top){
+function chromaSeams(rows,hits,lanes,time,top,pairOnly=false){
  const found=[],pitches=new Set();
  for(const row of hits)for(const hit of row)pitches.add(hit.pitch);
  for(const pitch of pitches){
@@ -197,14 +197,15 @@ function chromaSeams(rows,hits,lanes,time,top){
    }
    values.push(sum/(right-left+1));
   }
-  for(let i=4;i<values.length-4;i++){
+  const span=pairOnly?6:4;
+  for(let i=span;i<values.length-span;i++){
    const val=values[i];
    if(val>values[i-1]||val>=values[i+1])continue;
-   const before=Math.max(values[i-4],values[i-3],values[i-2]);
-   const after=Math.max(values[i+2],values[i+3],values[i+4]);
+   const before=pairOnly?Math.max(...values.slice(i-6,i-2)):Math.max(values[i-4],values[i-3],values[i-2]);
+   const after=pairOnly?Math.max(...values.slice(i+3,i+7)):Math.max(values[i+2],values[i+3],values[i+4]);
    const shoulder=Math.min(before,after);
    if(shoulder<95||shoulder-val<Math.max(12,shoulder*.10)||val<shoulder*.34)continue;
-   found.push({pitch,time,y:top+i,strength:(shoulder-val)/shoulder});
+   found.push({pitch,time,y:top+i,pairOnly,strength:(shoulder-val)/shoulder});
    i++;
   }
  }
@@ -221,10 +222,11 @@ function indexChromaSeams(seams,v,referenceY){
  return byPitch;
 }
 
-function findChromaCuts(note,seams,v,fps){
+function findChromaCuts(note,seams,v,fps,pairOnly){
  const minimum=Math.max(.042,1.4/fps),radius=Math.max(.023,.7/fps);
  const clusters=[];
  for(const seam of seams){
+  if(Boolean(seam.pairOnly)!==pairOnly)continue;
   if(seam.startSeconds<note.startSeconds+minimum||seam.startSeconds>=note.endSeconds-minimum)continue;
   const group=clusters.at(-1);
   if(group&&Math.abs(seam.startSeconds-median(group.map(s=>s.startSeconds)))<=radius)group.push(seam);
@@ -233,11 +235,17 @@ function findChromaCuts(note,seams,v,fps){
  const cuts=[];
  for(const group of clusters){
   const center=median(group.map(s=>s.startSeconds));
-  const inliers=group.filter(s=>Math.abs(s.startSeconds-center)*v<=1.75);
+  const inliers=group.filter(s=>Math.abs(s.startSeconds-center)*v<=(pairOnly ? 2.15 : 1.75));
   if(new Set(inliers.map(s=>s.time)).size<7||
    Math.max(...inliers.map(s=>s.y))-Math.min(...inliers.map(s=>s.y))<16||
-   median(inliers.map(s=>s.strength))<.135)continue;
+   median(inliers.map(s=>s.strength))<(pairOnly ? .115 : .135))continue;
   cuts.push(median(inliers.map(s=>s.startSeconds)));
+ }
+ if(pairOnly){
+  if(cuts.length!==1)return [];
+  const before=cuts[0]-note.startSeconds,after=note.endSeconds-cuts[0];
+  return Math.min(before,after)>=.062&&Math.max(before,after)<=.205&&
+   Math.max(before,after)<=2.3*Math.min(before,after)?cuts:[];
  }
  // Two or more consecutive moving seams confirm a repeated-note chain.
  if(cuts.length<2)return [];
@@ -247,18 +255,19 @@ function findChromaCuts(note,seams,v,fps){
  return cuts;
 }
 
-function splitChromaSeams(notes,byPitch,v,{fps}){
+function splitChromaSeams(notes,byPitch,v,{fps},pairOnly=false){
  const minimum=Math.max(.042,1.4/fps);
  return notes.flatMap(note=>{
+  if(pairOnly&&note.evidence.timingSource==='moving-chroma-seam')return[note];
   if(!note.evidence.verified||note.durationSeconds<3*minimum||note.truncatedStart||note.truncatedEnd)return[note];
   const list=byPitch.get(note.midiPitch)||[];
   const seams=list.slice(lowerBound(list,note.startSeconds+minimum),lowerBound(list,note.endSeconds-minimum));
-  let cuts=findChromaCuts(note,seams,v,fps);
+  let cuts=findChromaCuts(note,seams,v,fps,pairOnly);
   // If a 30 fps frame is sampled twice at 60 Hz, the duplicate
   // observations arrive 1/60 s apart and can obscure a narrow seam.
   if(!cuts.length&&fps===60){
    const standardSamples=seams.filter(s=>Math.round(s.time*fps)%2===0);
-   cuts=findChromaCuts(note,standardSamples,v,30);
+   cuts=findChromaCuts(note,standardSamples,v,30,pairOnly);
   }
   if(!cuts.length)return[note];
   const points=[note.startSeconds,...cuts,note.endSeconds];
@@ -712,7 +721,23 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   if(!reference)return null;const {value,chroma}=reference;
   const c=n.rawColorRGB||n.colorRGB;
   if(n.colorSamples>=3&&Math.max(...n.colorRGB)>=value*.6&&Math.max(...n.colorRGB)-Math.min(...n.colorRGB)>=chroma*.5)return null;
-  return Math.max(...c)<value*.45&&Math.max(...c)-Math.min(...c)<chroma*.35?{value,chroma}:null;
+  if(Math.max(...c)>=value*.45||Math.max(...c)-Math.min(...c)>=chroma*.35)return null;
+  if(n.evidence.independentStartRegions>=6&&n.evidence.independentEndRegions>=6&&supported){
+   const v=diagnostics.boundaryVelocityPixelsPerSecond,regions=new Set();
+   for(let i=1;i<lines.length;i++){
+    const shift=(referenceY-lines[i])/v,list=groups[i].get(n.midiPitch)||[];
+    const tolerance=1.25/fps,first=lowerBound(list,n.startSeconds-shift-tolerance);
+    for(let j=first;j<list.length&&list[j].startSeconds<=n.startSeconds-shift+tolerance;j++){
+     const b=list[j],color=b.colorRGB,high=Math.max(...color);
+     if(!b.truncatedStart&&!b.truncatedEnd&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tolerance&&
+      sameBodyHue(b,n)&&high>=value*.6&&high-Math.min(...color)>=chroma*.5){
+      regions.add(Math.floor(lines[i]/(height/16)));
+     }
+    }
+    if(regions.size>=4)return null;
+   }
+  }
+  return {value,chroma};
  };
  // A short event needs a moving body supported at separated heights.
  const uncertain=[];
@@ -783,6 +808,8 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   const count=notes.length;
   notes=splitChromaSeams(notes,seamIndex,seamVelocity,{fps})
    .sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
+  notes=splitChromaSeams(notes,seamIndex,seamVelocity,{fps},true)
+   .sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch);
   diagnostics.chromaSeamSplits=notes.length-count;
  }
  diagnostics.recoveredColorOverlays=recoveredColorOverlays;
@@ -807,6 +834,97 @@ class OcclusionTracker {
  }
  finish(){for(const f of this.queue)this.inner.push(f.time,f.hits);this.queue=[];const notes=this.inner.finish();this.discarded=this.inner.discarded;return notes;}
 }
+// Read a few upstream rows already in the image band. Align their raw
+// lane-center colors with the measured scroll speed so a transient flare in
+// one row cannot mask a body, or create an onset, across the whole band.
+function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
+ const frameCount=Math.ceil(duration*fps)+2;
+ const rowLimit=Math.min(18,Math.floor(12_000_000/(frameCount*lanes.length)));
+ if(rowLimit<8)return null;
+ const safe=lines.map((y,i)=>({y,i})).filter(r=>r.y>=referenceY*.06&&r.y<=referenceY*.61).sort((a,b)=>a.y-b.y);
+ if(safe.length<8||safe.at(-1).y-safe[0].y<36)return null;
+ const rows=new Array(Math.min(rowLimit,safe.length));
+ for(let i=0;i<rows.length;i++)rows[i]=safe[Math.round(i*(safe.length-1)/(rows.length-1))];
+ const stride=lanes.length*rows.length,frames=new Uint16Array(frameCount*stride),present=new Uint8Array(frameCount);
+ const centers=lanes.map(l=>clamp(Math.round(l.x),1,width-2)*4);
+ let last=-1;
+ return {push(time,rawRows){
+  const f=Math.round(time*fps);
+  if(f<0||f>=frameCount)return;
+  present[f]=1;
+  last=Math.max(last,f);
+  for(let j=0;j<rows.length;j++){
+   const raw=rawRows[rows[j].i],base=f*stride+j*centers.length;
+   for(let k=0;k<centers.length;k++){
+    const x=centers[k];
+    const r=(raw[x-4]+raw[x]+raw[x+4])/3,g=(raw[x-3]+raw[x+1]+raw[x+5])/3,b=(raw[x-2]+raw[x+2]+raw[x+6])/3;
+    frames[base+k]=((r&248)<<8)|((g&252)<<3)|(b>>3);
+   }
+  }
+ },repair(notes,v){
+  if(last<1||!v||v<10)return {notes,added:0};
+  const hz=120,ticks=Math.ceil(duration*hz),chroma=new Uint8Array(ticks),colors=new Uint16Array(ticks);
+  const offsets=rows.map(row=>(referenceY-row.y)*fps/v);
+  const lut=new Uint8Array(65536);
+  const rgb=p=>[(p>>11)*255/31,((p>>5)&63)*255/63,(p&31)*255/31].map(Math.round);
+  for(let i=0;i<lut.length;i++){
+   const c=rgb(i);lut[i]=Math.max(...c)-Math.min(...c);
+  }
+  const byPitch=new Map();
+  for(const note of notes){
+   if(!byPitch.has(note.midiPitch))byPitch.set(note.midiPitch,[]);
+   byPitch.get(note.midiPitch).push(note);
+  }
+  const samples=new Uint16Array(rows.length);
+  const additions=[];
+  for(let k=0;k<lanes.length;k++){
+   const lane=lanes[k],existing=byPitch.get(lane.pitch);
+   if(!existing?.length)continue;
+   chroma.fill(0);
+   const nearby=new Uint8Array(ticks);
+   for(const note of existing){
+    nearby.fill(1,Math.max(0,Math.floor((note.startSeconds-.6)*hz)),Math.min(ticks,Math.ceil((note.endSeconds+.6)*hz)));
+   }
+   for(let i=0;i<ticks;i++){
+    if(!nearby[i])continue;
+    let count=0;
+    const t=i*fps/hz;
+    for(let j=0;j<offsets.length;j++){
+     const exact=t-offsets[j],f=Math.floor(exact);
+     if(f<0||f>=last||!present[f]||!present[f+1])continue;
+     const at=f*stride+j*lanes.length+k,first=frames[at],second=frames[at+stride];
+     const score=Math.round(lut[first]+(lut[second]-lut[first])*(exact-f));
+     // Sort by chroma and carry the source row index for its color.
+     samples[count++]=(score<<5)|j;
+    }
+    if(count<Math.max(8,rows.length*.6))continue;
+    const sorted=samples.subarray(0,count);sorted.sort();
+    const mid=sorted[count>>1],j=mid&31,f=Math.round(t-offsets[j]);
+    chroma[i]=mid>>5;colors[i]=frames[f*stride+j*lanes.length+k];
+   }
+   let start=0;
+   while(start<ticks){
+    if(chroma[start]<76){start++;continue;}
+    let end=start+1,peak=start;
+    while(end<ticks&&chroma[end]>=76){if(chroma[end]>chroma[peak])peak=end;end++;}
+    const s=start/hz,e=end/hz,color=rgb(colors[peak]);
+    if(end-start>=7&&end-start<=31&&chroma[peak]>=120){
+     const overlapping=existing.some(n=>n.startSeconds<e-.017&&n.endSeconds>s+.017);
+     const anchor=existing.find(n=>Math.min(Math.abs(n.startSeconds-s),Math.abs(n.endSeconds-e))<=.6&&sameBodyHue(n,{colorRGB:color}));
+     if(!overlapping&&anchor&&!existing.some(n=>Math.abs(n.startSeconds-s)<.055)){
+      additions.push({...anchor,startSeconds:s,endSeconds:e,durationSeconds:e-s,colorRGB:color,rawColorRGB:color,
+       observationSamples:0,colorSamples:1,truncatedStart:false,truncatedEnd:false,
+       evidence:{timingSource:'upstream-color-profile',verified:true}});
+     }
+    }
+    start=end;
+   }
+  }
+  return {notes:notes.concat(additions)
+   .sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),added:additions.length};
+ }};
+}
+
 function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20,textOverlay=null}){
  const localGaps=[],seams=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));
  const baseLines=linePlan(hitLineY,height,mode,primaryPercent);
@@ -826,14 +944,29 @@ function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',prim
   new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration}));
  const detect=core.createRowDetector(width,lanes),textGuard=textCore?.createGuard(guardLines,lanes,textOverlay,{fps});
  const laneRanges=new Map(lanes.map(l=>[l.pitch,{left:Math.max(0,Math.round(l.x-l.w*.45)),right:Math.min(width-1,Math.round(l.x+l.w*.45))}]));
+ const pairRanges=new Map(lanes.map(l=>[l.pitch,{left:Math.max(0,Math.round(l.x-l.w*.55)),right:Math.min(width-1,Math.round(l.x+l.w*.55))}]));
  const seamRows=seamLines.map(y=>lines.indexOf(y));
- return{lines,detect,push(time,rows,rawRows=null){
-  if(rawRows&&seamRows.length&&seams.length<400000)
-   seams.push(...chromaSeams(seamRows.map(i=>rawRows[i]),seamRows.map(i=>rows[i]),laneRanges,time,seamTop));
+ const projection=mode==='motion'?createBodyProjection(lines,lanes,hitLineY,width,fps,duration):null;
+ let lastPairTime=-Infinity;
+ return{lines,detect,push(time,rows,rawRows=null,imageTime=time){
+  if(rawRows)projection?.push(time,rawRows);
+  if(rawRows&&seamRows.length&&seams.length<400000){
+   const raw=seamRows.map(i=>rawRows[i]),hits=seamRows.map(i=>rows[i]);
+   seams.push(...chromaSeams(raw,hits,laneRanges,time,seamTop));
+   if(imageTime>lastPairTime){
+    seams.push(...chromaSeams(raw,hits,pairRanges,imageTime,seamTop,true));
+    lastPairTime=imageTime;
+   }
+  }
   textGuard?.observe(time,rows,rawRows);if(mode==='motion'&&localGaps.length<1000000)localGaps.push(...spatialGaps(baseLines,rows.length===baseLines.length?rows:rows.slice(0,baseLines.length),time,baseLines[0],rawRows?.length===baseLines.length?rawRows:rawRows?.slice(0,baseLines.length),laneCenters,denseBand));trackers.forEach((tracker,i)=>tracker.push(time,rows[i],rawRows?.[i]));},finish(){
   const observations=trackers.map((t,i)=>{const ns=t.finish();return textGuard?textGuard.filter(ns,i):ns;}),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{...(textGuard?textGuard.diagnostics():{}),method:mode==='upper'?'upper-single':'single-line',lineYs:baseLines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
-  const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps,colorOverlays:trackers.map(t=>t.inner.overlays),seams,fallbackRow});if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
+  const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps,colorOverlays:trackers.map(t=>t.inner.overlays),seams,fallbackRow});if(projection&&result.diagnostics.calibrated){
+   const recovered=projection.repair(result.notes,result.diagnostics.boundaryVelocityPixelsPerSecond);
+   result.notes=recovered.notes;
+   result.diagnostics.profileRecovered=recovered.added;
+  }
+  if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
 }
 
