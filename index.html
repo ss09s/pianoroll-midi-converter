@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 
-<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/><title>PianoRoll MIDI Converter v0.7.62</title>
+<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/><title>PianoRoll MIDI Converter v0.7.63</title>
 <script src="rhythm-core.js?v=0.7.57"></script>
-<script src="guide-core.js?v=0.7.57"></script>
+<script src="guide-core.js?v=0.7.63"></script>
 <script src="note-core.js?v=0.7.57"></script>
 <script src="text-overlay.js?v=0.7.57"></script>
 <script src="motion-core.js?v=0.7.62"></script>
@@ -20,7 +20,7 @@
 .range-shell{grid-row:2;grid-column:1/-1;position:relative;min-width:0;width:100%}.range-shell input[type=range]{width:100%;display:block;grid-column:auto;grid-row:auto}.tempoOptions{margin-top:10px}.tempoOptions label{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tempoOptions select{padding:8px;max-width:170px}.tempoSegments{display:grid;gap:8px;margin:12px 0}.tempoSegment{display:grid;grid-template-columns:minmax(100px,1fr) 95px 95px 52px;gap:7px;align-items:center;padding:9px;background:#f4f7fd;border-radius:9px}.tempoSegment input{width:100%;font-size:16px}.tempoSegment button{margin:0}.tempoSegment small{font-size:.8rem;color:#596579}@media(max-width:520px){.tempoSegment{grid-template-columns:minmax(65px,1fr) 72px 78px 43px;gap:4px;padding:6px}.tempoSegment input{padding:5px}.tempoSegment button{padding:5px}}#tempoChart{max-height:none;aspect-ratio:1100/350;object-fit:contain;touch-action:pan-y;cursor:crosshair}.tempoToolbar{background:#f2f6fc;padding:12px;border-radius:10px;margin:12px 0}.tempoPan{display:grid;gap:7px;margin-top:10px}.tempoPan input{width:100%}.tempoToolbar select{padding:8px;max-width:100%}.slow-hit{position:absolute;inset:0;display:none;touch-action:none;cursor:ew-resize}.range-shell.slow-enabled .slow-hit{display:block}
 .beat-table{margin-top:10px;max-height:360px;overflow:auto;border:1px solid #dce4ef;border-radius:10px;background:#fff}.beat-entry{display:grid;grid-template-columns:46px minmax(75px,1fr) 92px;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid #e6ecf4;font-size:.9rem}.beat-entry:nth-child(odd){background:#f7faff}.beat-entry input[type=number]{width:100%;min-width:0;font-size:16px}.beat-entry label{font-size:.85rem;display:flex;gap:4px;align-items:center}.beat-entry input[type=checkbox]{width:20px;height:20px;accent-color:#245bd6}.auto-panel select{font-size:16px}#aiRuntimeStatus{font-size:.92rem}a{color:#174eaa}@media(max-width:390px){.beat-entry{grid-template-columns:35px minmax(70px,1fr) 84px;gap:4px;padding:5px}}
 
-/* v0.7.62: Listening A/B workspace */
+/* v0.7.63: Listening A/B workspace */
 .listen-panel{background:#f5f8fe;border:1px solid #d5e1f3;border-radius:12px;padding:14px}
 .listen-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .listen-grid label{display:flex;flex-direction:column;gap:5px;font-size:.9rem;font-weight:650}
@@ -43,7 +43,7 @@
 @media(max-width:560px){.listen-grid,.listen-volumes{grid-template-columns:1fr}.listen-actions button{flex:1 1 auto}.listen-panel{padding:10px}}
 summary{list-style:none!important;display:flex;align-items:center;gap:10px}summary::-webkit-details-marker{display:none}summary::before{content:'▸';font-size:1.2em;flex:none}details[open]>summary::before{content:'▾'}#meterMapRows>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}#meterMapRows input{width:90px}
 </style><script defer="" src="simple-ui.js?v=0.7.57"></script><link href="simple-ui.css?v=0.7.57" rel="stylesheet"/><script defer src="scan-performance.js?v=0.7.57"></script><script defer="" src="video-notes.js?v=0.7.62"></script><link rel="stylesheet" href="note-review.css?v=0.7.57"><script src="editor-gesture.js?v=0.7.57"></script>
-<script defer src="note-review.js?v=0.7.57"></script></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.7.62</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+<script defer src="note-review.js?v=0.7.57"></script></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.7.63</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input accept="video/*,.mov,video/quicktime" id="file" type="file"/><div aria-live="polite" class="status" id="status">動画ファイルを選択してください。</div><video controls="" id="v" playsinline="" preload="metadata"></video><p class="muted" id="videoHelp">MOVは内部の映像コーデックによって再生可否が異なります。ファイルを選択したあと、読み込み状況とエラーをここに表示します。</p><button class="secondary" hidden="" id="retryVideo" type="button">同じファイルを再試行</button><div class="row"><button disabled="" id="prev">−1フレーム</button><button disabled="" id="next">＋1フレーム</button><label>時刻(秒) <input id="t" min="0" step=".01" type="number" value="0"/></label><button disabled="" id="seek">移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。動画の読み込み時に自動で位置合わせします。ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
 <div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button disabled="" id="autofit">鍵盤に自動で合わせる</button><div aria-live="polite" class="auto-result" id="autoResult">動画の読み込み後に利用できます。</div></div>
@@ -90,7 +90,7 @@ summary{list-style:none!important;display:flex;align-items:center;gap:10px}summa
 <canvas aria-label="時間ごとのBPMを表示する操作可能なグラフ" height="350" id="tempoChart" role="img" width="1100"></canvas>
 <p class="muted">青：編集済みの区間テンポ。灰：独立した音声解析の局所推定。緑の破線：AI拍から生成した候補（未採用でも表示）。青線は変更時刻まで前のBPMを保持します。変更点ごとの編集はグラフのタップか下の一覧で行えます。</p>
 <h3>テンポ区間（手動修正可能）</h3><div class="row"><button class="secondary" id="addTempoPoint" type="button">中央に変更点追加</button><button class="secondary" id="clearTempoEdits" type="button">自動推定に戻す</button><button class="secondary" id="tempoSuppressSpikes" type="button">短いBPM異常を除外</button><button class="secondary" disabled="" id="tempoUndoCleanup" type="button">除外を元に戻す</button><button class="secondary" id="exportTempo" type="button">テンポマップをJSON出力</button></div><div aria-live="polite" class="muted" id="tempoCleanupInfo">短時間だけ突出したBPMは手動で除外できます。実際にテンポが急変する曲もあるため、元に戻せます。</div><details class="group"><summary>テンポ区間を編集</summary><div class="tempoSegments" id="tempoSegments"></div></details><p class="muted">AIから生成したBPMは拍との同期を保つため内部精度を保持します。手動編集時は選択した刻み幅で丸めます。AI拍グリッドを下のセクションで解析・編集できます。MIDI出力はまだ未実装です。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
-</section><section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.7.62）</h2>
+</section><section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.7.63）</h2>
 <p class="muted">実際の学習済み <b>Beat This!</b> モデルを端末上で実行し、楽曲全体の拍・小節頭を推定します。AIモデルはサイトに同梱しています。処理用ライブラリはネットから取得しますが、<b>動画・音声ファイルは送信しません。</b> AIの結果は拍の欠落や倍・半テンポの誤判定を含む場合があります。テンポマップは必ず確認してから採用してください。</p>
 <div class="auto-panel">
 <div class="row"><label>AIモデル <select id="aiModelKind" style="width:auto;max-width:100%;padding:8px"><option value="light">軽量</option><option selected="" value="full">高精度</option></select></label><label>処理方式 <select id="aiBackend" style="width:auto;padding:8px"><option selected="" value="wasm">CPU / WASM（iPhone対応）</option><option value="webgpu">WebGPU（対応PC向け）</option></select></label></div>
@@ -112,7 +112,7 @@ summary{list-style:none!important;display:flex;align-items:center;gap:10px}summa
 <details class="group"><summary>拍の時刻を編集</summary><div class="beat-table" id="aiBeatTable"></div></details>
 <p class="muted">表の時刻を変更するとグラフの拍位置も更新されます。「小節頭」にチェックすると、その拍を小節の先頭として記録します。拍子はAIの小節頭の数だけでは一意に確定できません。</p>
 </div></details>
-</section><section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.7.62）</h2>
+</section><section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.7.63）</h2>
 <p class="muted">元の音源を再生しながら、<strong>AIで検出した拍</strong>または<strong>編集済みBPMマップから計算した拍</strong>をクリック音で重ねます。イヤホンで聴いて、ズレや半テンポ判定を確認してください。動画・音声は端末内で処理します。</p>
 <div class="listen-panel">
 <div class="listen-grid">
@@ -310,7 +310,7 @@ document.querySelectorAll('[data-step]').forEach(button=>{button.onclick=()=>{co
 function initialGuide(){keyboardY=73;keyboardHeight=27;anchorX=0;whiteStep=clamp(src.width/40,6,90);blackWidthPct=58;blackHeightPct=65;keyboardPhase=0;blackShift=[-.02,-.045,.045,.015,.035];referenceIndex=Math.round(src.width/whiteStep*.5);referenceName=0;referenceOct=4;$('refName').value='0';$('refOct').value='4';refresh()}
 // Use native metadata decoding, never read the entire MOV into JS memory just to preview it.
 // Some iOS Photos/iCloud selections are large and may fail at the OS/WebKit level.
-let loadSerial=0,videoLoadTimer=null;
+let loadSerial=0,videoLoadTimer=null,guideFitSerial=null,pendingGuideFit=null;
 function videoFailure(message, serial){
  if(serial!==loadSerial)return;
  ready=false;
@@ -323,6 +323,7 @@ function loadSelectedVideo(f){
  clearTimeout(videoLoadTimer);
  activeVideoFile=f;
  ready=false;boxes=[];
+ $('autoResult').textContent='動画を読み込み中…';
  $('retryVideo').hidden=true;
  $('videoHelp').textContent=`選択：${f.name} ／ ${(f.size/1024/1024).toFixed(1)} MB ／ 形式：${f.type||'未指定'}。映像メタデータを取得します。`;
  status(`動画を読み込み中…\n${f.name}\n※MOVはコンテナ形式です。動画の圧縮方式によってはブラウザで再生できません。`);
@@ -349,7 +350,11 @@ function loadSelectedVideo(f){
  };
  v.onloadeddata=()=>{
   if(serial!==loadSerial)return;
-  if(ready){try{frame();if(!autoFitDone){autoFitDone=true;requestAnimationFrame(async()=>{if(serial!==loadSerial||!ready||busy)return;try{sx.drawImage(v,0,0,src.width,src.height);if(sx.getImageData(0,Math.floor(src.height*.75),src.width,1).data.every((n,i)=>i%4!==3||n===0)){await seekTo(Math.min(.05,v.duration/2));if(serial!==loadSerial)return;await seekTo(0);}if(serial===loadSerial&&ready&&!busy)$('autofit').click();}catch(e){if(serial===loadSerial)$('autoResult').textContent='最初の映像を取得できません。自動位置合わせを再実行してください。';}});}status(`読み込み完了：${f.name}\n${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)}catch(e){videoFailure(`フレーム描画に失敗：${e.message}`,serial)}}
+  if(ready){try{frame();if(!autoFitDone){autoFitDone=true;requestAnimationFrame(()=>{
+   if(serial!==loadSerial||!ready)return;
+   if(guideFitSerial!==null)pendingGuideFit=serial;
+   else if(!busy)$('autofit').click();
+  });}status(`読み込み完了：${f.name}\n${v.videoWidth}×${v.videoHeight} / ${v.duration.toFixed(2)}秒`)}catch(e){videoFailure(`フレーム描画に失敗：${e.message}`,serial)}}
  };
  v.onerror=()=>{
   if(serial!==loadSerial)return;
@@ -370,10 +375,9 @@ v.onseeked=frame;v.ontimeupdate=()=>{if(v.paused)frame()};$('prev').onclick=()=>
 $('refName').onchange=()=>{referenceName=+$('refName').value;refresh()};$('refOct').onchange=()=>{referenceOct=+$('refOct').value;refresh()};$('reset').onclick=()=>{initialGuide();$('autoResult').textContent='手動で初期位置に戻しました。'};$('toggle').onclick=()=>{showExtended=!showExtended;frame()};
 // Auto alignment: detect dark rectangular black-key segments against bright white keys.
 // Search several horizontal rows in lower portion; fit the 2+3 key pattern geometrically.
-function findDarkRuns(data,W,H,y){const lum=x=>{let p=(y*W+x)*4;return .2126*data[p]+.7152*data[p+1]+.0722*data[p+2]};let runs=[],start=-1;for(let x=0;x<=W;x++){let dark=x<W&&lum(x)<93;if(dark&&start<0)start=x;if(!dark&&start>=0){let len=x-start;if(len>=3&&len<=W*.065){let outer=(lum(Math.max(0,start-3))+lum(Math.min(W-1,x+2)))/2;if(outer>135)runs.push({c:(start+x)/2,w:len,l:outer});}start=-1}}return runs}
-function darkScore(data,W,y,x,w){let off=Math.round(y*W)*4;let avg=(from,to)=>{let s=0,n=0;for(let i=Math.max(0,Math.round(from));i<Math.min(W,Math.round(to));i+=2){let k=off+i*4;s+=.2126*data[k]+.7152*data[k+1]+.0722*data[k+2];n++}return n?s/n:0};let mid=avg(x-w*.26,x+w*.26),outside=(avg(x-w*.85,x-w*.57)+avg(x+w*.57,x+w*.85))/2;return outside-mid}
-function estimateAtRow(data,W,H,y){let runs=findDarkRuns(data,W,H,y);if(runs.length<7)return null;let candidates=[];
- for(let a=0;a<runs.length;a++)for(let b=a+1;b<Math.min(a+5,runs.length);b++){let d=runs[b].c-runs[a].c;if(d<6)continue;for(let q of [1,2,3,4,5,7]){let step=d/q;if(step>=7&&step<=Math.min(85,W/9))candidates.push({step,base:runs[a].c});}}
+function findDarkRuns(data,W,y){const minimum=W<390?2:3;const lum=x=>{let p=(y*W+x)*4;return .2126*data[p]+.7152*data[p+1]+.0722*data[p+2]};let runs=[],start=-1;for(let x=0;x<=W;x++){let dark=x<W&&lum(x)<93;if(dark&&start<0)start=x;if(!dark&&start>=0){let len=x-start;if(len>=minimum&&len<=W*.065){let outer=(lum(Math.max(0,start-minimum))+lum(Math.min(W-1,x+minimum-1)))/2;if(outer>135)runs.push({c:(start+x)/2,w:len,l:outer});}start=-1}}return runs}
+function estimateAtRow(data,W,y){const minimumStep=W<390?4:7;const runs=findDarkRuns(data,W,y);if(runs.length<7)return null;const candidates=[];
+ for(let a=0;a<runs.length;a++)for(let b=a+1;b<Math.min(a+5,runs.length);b++){let d=runs[b].c-runs[a].c;if(d<minimumStep)continue;for(let q of [1,2,3,4,5,7]){let step=d/q;if(step>=minimumStep&&step<=Math.min(100,W/9))candidates.push({step,base:runs[a].c});}}
  if(!candidates.length)return null;let best=null;
  // Widely separated runs provide a stable scale even with asymmetric black keys.
  const nearbyGaps=runs.slice(1).map((run,i)=>run.c-runs[i].c).sort((a,b)=>a-b);
@@ -384,17 +388,17 @@ function estimateAtRow(data,W,H,y){let runs=findDarkRuns(data,W,H,y);if(runs.len
   const approximate=Math.round(distance/(typicalGap*.87));
   for(let keys=Math.max(7,approximate-8);keys<=approximate+8;keys++){
    const step=distance/keys;
-   if(step>=7&&step<=Math.min(85,W/9))candidates.push({step,base:left.c});
+   if(step>=minimumStep&&step<=Math.min(100,W/9))candidates.push({step,base:left.c});
   }
  }
  // Seven-note phase is implicit in the template: five black keys per seven white keys.
- for(const c of candidates){const step=c.step,compatible=runs.filter(r=>r.w>=step*.36&&r.w<=step*.94).length;for(let phase=0;phase<7;phase++){for(let i=-1;i<8;i++){if(!hasSharp[(phase+i+70)%7])continue;let anchor=c.base-(i+1)*step;let match=0,missing=0,expected=0,offsets=[];
- for(let j=Math.floor((-anchor)/step)-1;j<Math.ceil((W-anchor)/step)+1;j++){let p=(phase+j%7+7)%7;if(!hasSharp[p])continue;let x=anchor+(j+1)*step;if(x<5||x>W-5)continue;expected++;let nearest=null,dist=Infinity;for(const r of runs){let d=Math.abs(r.c-x);if(d<dist){dist=d;nearest=r;}}
+ for(const c of candidates){const step=c.step,compatible=runs.filter(r=>r.w>=step*.36&&r.w<=step*.94).length;for(const phase of [0,1,3,4,5]){let anchor=c.base-step;let match=0,missing=0,expected=0,offsets=[],nearestIndex=0;
+ for(let j=Math.floor((-anchor)/step)-1;j<Math.ceil((W-anchor)/step)+1;j++){let p=(phase+j%7+7)%7;if(!hasSharp[p])continue;let x=anchor+(j+1)*step;if(x<5||x>W-5)continue;expected++;while(nearestIndex+1<runs.length&&Math.abs(runs[nearestIndex+1].c-x)<Math.abs(runs[nearestIndex].c-x))nearestIndex++;const nearest=runs[nearestIndex],dist=Math.abs(nearest.c-x);
  if(dist<step*.27){match++;offsets.push(nearest.c-x)}else missing++;
  }
  if(expected<7)continue;let purity=match/expected;
  let quality=match-1.5*missing-.75*Math.max(0,compatible-match);if(!best||quality>best.quality){best={step,anchor,phase,quality,purity,match,expected,offsets,runs,y}}}
- }}
+ }
  if(!best||best.purity<.46||best.match<7)return null;
  best.offsets.sort((a,b)=>a-b);best.anchor+=best.offsets[Math.floor(best.offsets.length/2)]||0;
  // Refine width with detected black-key widths; reject wrong harmonic spacing.
@@ -419,25 +423,24 @@ cv.addEventListener('pointermove',e=>{if(!drag)return;const p=pointerXY(e),dx=p.
 });
 cv.addEventListener('pointerup',e=>{if(!drag)return;const p=pointerXY(e);if(!drag.moved&&drag.mode==='tap'){referenceIndex=Math.floor((p.x-anchorX)/whiteStep);refresh();}drag=null});
 cv.addEventListener('pointercancel',()=>drag=null);
-$('autofit').onclick=async()=>{if(!ready||busy)return;busy=true;$('autofit').disabled=true;$('autoResult').textContent='鍵盤の黒鍵パターンを解析しています…';try{
+function fitKeyboard(data,W,H,wideSearch=false){
  const fitShift=[-.02,-.045,.045,.015,.035];
- const W=src.width,H=src.height;sx.drawImage(v,0,0,W,H);const data=sx.getImageData(0,0,W,H).data;let results=[];
- // Rows are sampled from lower half where white keys usually appear.
- for(let y=Math.round(H*.53);y<Math.round(H*.94);y+=Math.max(3,Math.round(H*.012))){let candidate=estimateAtRow(data,W,H,y);if(candidate)results.push(candidate)}
- if(!results.length){$('autoResult').textContent='自動位置合わせに失敗しました。鍵盤の白鍵と黒鍵が見えるフレームで再試行するか、手動調整してください。';return}
+ const results=[];
+ // Start near the bottom for common layouts and search higher on fallback.
+ for(let y=Math.round(H*(wideSearch?.12:.53));y<Math.round(H*(wideSearch?.97:.94));y+=Math.max(wideSearch?2:3,Math.round(H*.012))){let candidate=estimateAtRow(data,W,y);if(candidate)results.push(candidate)}
+ if(!results.length){return null}
  // Prefer consistent rows, not a single accidental pattern on the background.
  let best=null;for(let a of results){let agreement=results.filter(b=>Math.abs(a.step-b.step)<a.step*.08&&Math.abs((a.anchor-b.anchor)/a.step-Math.round((a.anchor-b.anchor)/a.step))<.18).length;let rank=agreement*2+a.quality*.6;if(!best||rank>best.rank)best={...a,rank,agreement}}
- if(best.agreement<2){$('autoResult').textContent='黒鍵パターンが複数の高さで一致しませんでした。誤配置を避けるため、手動設定は変更していません。';return}
+ if(best.agreement<3)return null;
  // Strong horizontal boundary between dark note area and white keyboard surface.
  // A valid row must have many bright pixels in spaces between predicted black keys,
  // and black key centres must remain dark a short distance BELOW the boundary.
  const lum=(x,y)=>{let p=(Math.round(y)*W+Math.round(x))*4;return .2126*data[p]+.7152*data[p+1]+.0722*data[p+2]};
  let edges=[];let step=best.step;
- for(let y=Math.round(H*.53);y<Math.round(H*.95);y+=2){
-   let below=0,above=0,dark=0,count=0;
+ for(let y=Math.round(H*(wideSearch?.05:.53));y<(wideSearch?Math.min(Math.round(H*.95),best.y):Math.round(H*.95));y+=2){
+   let below=0,above=0,count=0;
    for(let j=Math.floor(-best.anchor/step);j<Math.ceil((W-best.anchor)/step);j++){
       let x=best.anchor+(j+.48)*step;if(x<5||x>W-5)continue;
-      let p=(best.phase+j%7+7)%7;
       // White-key midpoints are reliable even where black keys have irregular edges.
       let a=lum(x,Math.max(0,y-5)),b=lum(x,Math.min(H-1,y+5));
       above+=a;below+=b;count++;
@@ -448,20 +451,20 @@ $('autofit').onclick=async()=>{if(!ready||busy)return;busy=true;$('autofit').dis
    if(avgB>115&&avgB-avgA>28){edges.push({y,score:avgB-avgA+Math.min(50,avgB-115)*.3})}
  }
  edges.sort((a,b)=>b.score-a.score);
- if(!edges.length){$('autoResult').textContent='鍵盤の上端を十分な信頼度で検出できませんでした。ガイドを動かさず、手動で調整できます。';return}
- // Prefer candidates in the lower region, but allow keyboard around mid-screen.
+ if(!edges.length){return null}
+ // Select the strongest bright boundary supported by the keyboard pattern.
  let top=edges[0].y;
  // Check white keyboard remains bright at several points below the selected edge.
  let good=0,valid=0;
- for(let d=9;d<Math.min(H*.14,H-top-3);d+=7){let avg=0,count=0;for(let j=1;j<Math.floor(W/step)-1;j++){let x=best.anchor+(j+.5)*step;if(x<0||x>=W)continue;avg+=lum(x,top+d);count++}if(count){valid++;if(avg/count>112)good++;}}
- if(valid<2||good/valid<.55){$('autoResult').textContent='鍵盤らしい領域が見つかりましたが、白鍵の連続性が確認できなかったため自動変更を中止しました。';return}
+ for(let d=9;d<Math.min(H*.14,H-top-3,wideSearch?Math.max(20,best.y-top+5):H);d+=7){let avg=0,count=0;for(let j=1;j<Math.floor(W/step)-1;j++){let x=best.anchor+(j+.5)*step;if(x<0||x>=W)continue;avg+=lum(x,top+d);count++}if(count){valid++;if(avg/count>112)good++;}}
+ if(valid<2||good/valid<.55){return null}
  const boundary=PianoRollGuideCore.refineTop(data,W,H,top,best.anchor,best.step);
- if(!boundary){$('autoResult').textContent='鍵盤上端の境界が不明瞭です。手動で上端を合わせてください。';return;}
- top=boundary.y;let newY=clamp(top/H*100,0,97);
- if(best.agreement<3){$('autoResult').textContent='黒鍵パターンの一致行が少ないため、自動変更は行いませんでした。';return}
+ if(!boundary)return null;
+ top=boundary.y;
  // Template-based subpixel refinement: score dark-black centers and lighter neighboring white-key pixels.
  // Evaluate near the candidate at several rows inside the known black-key region.
- const ySamples=[.18,.28,.38,.48].map(t=>Math.min(H-3,Math.round(top+(H-top)*t)));
+ const ySamples=wideSearch?[.35,.55,.75,.95].map(t=>Math.round(top+(best.y-top)*t)):
+  [.18,.28,.38,.48].map(t=>Math.min(H-3,Math.round(top+(H-top)*t)));
  const sample=(x,y)=>{if(x<1||x>=W-2||y<1||y>=H-2)return 0;let x0=Math.floor(x),y0=Math.floor(y),tx=x-x0,ty=y-y0;
  const l=(xx,yy)=>{let z=(yy*W+xx)*4;return .2126*data[z]+.7152*data[z+1]+.0722*data[z+2]};
  return (1-ty)*((1-tx)*l(x0,y0)+tx*l(x0+1,y0))+ty*((1-tx)*l(x0,y0+1)+tx*l(x0+1,y0+1));};
@@ -507,18 +510,114 @@ $('autofit').onclick=async()=>{if(!ready||busy)return;busy=true;$('autofit').dis
   }
  }
  for(let i=0;i<5;i++)if(measured[i].length>=3){measured[i].sort((a,b)=>a-b);fitShift[i]=clamp(measured[i][Math.floor(measured[i].length/2)],-.23,.23);}
- for(let i=0;i<5;i++){document.querySelector(`[data-shift="${i}"]`).value=(fitShift[i]*100).toFixed(2);document.querySelector(`[data-shift-number="${i}"]`).value=(fitShift[i]*100).toFixed(2);}
 
  // Normalize template's anchor and preserve the black-key phase.
  const normalized=PianoRollGuideCore.normalizePattern(best.anchor,best.step,best.phase);let anchor=normalized.anchor,phase=normalized.phase;
  const dimensions=PianoRollGuideCore.measureKeyboard(data,W,H,{top,anchor,step:best.step,phase,shifts:fitShift});
- if(dimensions){anchor=dimensions.anchor;phase=dimensions.phase;best.step=dimensions.step;best.blackRatio=dimensions.blackWidthPct;blackHeightPct=dimensions.blackHeightPct;for(let i=0;i<5;i++){fitShift[i]=dimensions.shifts[i];document.querySelector(`[data-shift="${i}"]`).value=(fitShift[i]*100).toFixed(2);document.querySelector(`[data-shift-number="${i}"]`).value=(fitShift[i]*100).toFixed(2);}}
- blackShift=fitShift;anchorX=anchor;whiteStep=best.step;keyboardY=newY;keyboardHeight=dimensions?dimensions.keyboardHeight:clamp(100-keyboardY,3,100-keyboardY);blackWidthPct=best.blackRatio;
- // Choose the same geometric phase by making the reference marker's white key match its name.
- referenceIndex=Math.round(W/(2*whiteStep)-anchorX/whiteStep);keyboardPhase=phase;referenceName=(phase+referenceIndex)%7;
- $('refName').value=String(referenceName);refresh();
- $('autoResult').textContent=`位置合わせ完了（推定）\n白鍵幅 ${whiteStep.toFixed(2)}px / 横位置 ${anchorX.toFixed(2)}px / 上端 ${keyboardY.toFixed(2)}%\n鍵盤の下端・黒鍵の幅と長さも観測できる範囲で合わせました。音名とオクターブは確認してください。ずれがある場合は手動で微調整できます。`;
- }catch(err){$('autoResult').textContent='自動解析中にエラーが発生しました：'+err.message}finally{busy=false;$('autofit').disabled=false}};
+ if(!dimensions)return null;
+ return {...dimensions,top};
+}
+function fitKeyboardWithContrast(data,width,height){
+ const standard=fitKeyboard(data,width,height)||fitKeyboard(data,width,height,true);
+ if(standard)return standard;
+ // Normalize dim white keys only as a fallback. Keep the pattern and
+ // boundary checks identical to those used at the original brightness.
+ const levels=new Uint32Array(256);
+ const pixelCount=width*height;
+ let sampled=0;
+ for(let pixel=0;pixel<pixelCount;pixel+=11){
+  const i=pixel*4;
+  levels[Math.round(.2126*data[i]+.7152*data[i+1]+.0722*data[i+2])]++;
+  sampled++;
+ }
+ let white=255,bright=0;
+ while(white>0&&(bright+=levels[white])<sampled*.035)white--;
+ if(white<65||white>=175)return null;
+ const factor=220/white,adjusted=new Uint8ClampedArray(data.length);
+ for(let i=0;i<data.length;i+=4){
+  adjusted[i]=data[i]*factor;
+  adjusted[i+1]=data[i+1]*factor;
+  adjusted[i+2]=data[i+2]*factor;
+  adjusted[i+3]=data[i+3];
+ }
+ return fitKeyboard(adjusted,width,height,true);
+}
+function detectKeyboard(data,width,height){
+ const area=PianoRollGuideCore.contentBounds(data,width,height);
+ if(area.width===width&&area.height===height){
+  return fitKeyboardWithContrast(data,width,height);
+ }
+ const cropped=new Uint8ClampedArray(area.width*area.height*4);
+ for(let row=0;row<area.height;row++){
+  const start=((area.y+row)*width+area.x)*4;
+  cropped.set(data.subarray(start,start+area.width*4),row*area.width*4);
+ }
+ const result=fitKeyboardWithContrast(cropped,area.width,area.height);
+ if(!result)return fitKeyboard(data,width,height,true);
+ return {...result,...PianoRollGuideCore.normalizePattern(result.anchor+area.x,result.step,result.phase),
+  top:result.top+area.y,bottom:result.bottom+area.y};
+}
+function readGuideFrame(time,serial){
+ if(serial!==loadSerial)return Promise.resolve(false);
+ if(!v.seeking&&Math.abs(v.currentTime-time)<.005)return Promise.resolve(v.readyState>=2);
+ return new Promise(resolve=>{
+  const finish=ok=>{clearTimeout(timer);v.removeEventListener('seeked',loaded);resolve(ok)};
+  const loaded=()=>finish(serial===loadSerial&&v.readyState>=2&&Math.abs(v.currentTime-time)<.08);
+  const timer=setTimeout(()=>finish(false),1500);
+  v.addEventListener('seeked',loaded);
+  try{v.currentTime=time}catch{finish(false)}
+ });
+}
+$('autofit').onclick=async()=>{
+ if(!ready||busy)return;
+ busy=true;$('autofit').disabled=true;
+ $('autoResult').textContent='鍵盤を解析しています…';
+ const serial=loadSerial,start=v.currentTime,wasPaused=v.paused,W=src.width,H=src.height;
+ guideFitSerial=serial;
+ const capture=()=>{if(v.readyState<2)return null;sx.drawImage(v,0,0,W,H);return detectKeyboard(sx.getImageData(0,0,W,H).data,W,H)};
+ let moved=false,message;
+ try{
+  let result=capture();
+  if(!result){
+   v.pause();
+   const times=[start+.5,start+2,start+5,v.duration*.15,v.duration*.4];
+   for(const time of times){
+    if(serial!==loadSerial)break;
+    if(time>=v.duration-.03)continue;
+    moved=true;
+    if(await readGuideFrame(time,serial))result=capture();
+    if(result)break;
+   }
+  }
+  if(serial!==loadSerial||!ready)return;
+  if(!result){
+   $('autoResult').textContent='鍵盤の位置を確認できませんでした。鍵盤が見える場面で再実行するか、手動で調整してください。';
+   return;
+  }
+  anchorX=result.anchor;whiteStep=result.step;keyboardY=result.top/H*100;
+  keyboardHeight=(result.bottom-result.top)/H*100;
+  blackShift=result.shifts;blackWidthPct=result.blackWidthPct;blackHeightPct=result.blackHeightPct;
+  for(let i=0;i<5;i++){
+   document.querySelector(`[data-shift="${i}"]`).value=(blackShift[i]*100).toFixed(2);
+   document.querySelector(`[data-shift-number="${i}"]`).value=(blackShift[i]*100).toFixed(2);
+  }
+  referenceIndex=Math.round((W/2-anchorX)/whiteStep);keyboardPhase=result.phase;
+  referenceName=((keyboardPhase+referenceIndex)%7+7)%7;
+  $('refName').value=String(referenceName);refresh();
+  message=`位置合わせ完了（推定）\n白鍵幅 ${whiteStep.toFixed(2)}px / 横位置 ${anchorX.toFixed(2)}px / 上端 ${keyboardY.toFixed(2)}%\n基準鍵の音名とオクターブを確認してください。`;
+ }catch(err){
+  if(serial===loadSerial)$('autoResult').textContent='自動解析中にエラーが発生しました：'+err.message;
+ }finally{
+  if(moved&&serial===loadSerial&&ready)await readGuideFrame(start,serial);
+  if(message&&serial===loadSerial)$('autoResult').textContent=message;
+  guideFitSerial=null;
+  busy=false;$('autofit').disabled=!ready;
+  if(moved&&!wasPaused&&serial===loadSerial&&ready)v.play().catch(()=>{});
+  const retry=pendingGuideFit===loadSerial&&ready;
+  pendingGuideFit=null;
+  if(retry)$('autofit').click();
+ }
+};
 function seekTo(t){return new Promise(resolve=>{if(Math.abs(v.currentTime-t)<.005){resolve();return}const done=()=>{v.removeEventListener('seeked',done);resolve()};v.addEventListener('seeked',done);v.currentTime=t})}
 // Guided two-width note detection: match each row against the actual white/black
 // lane geometry, rather than extracting large connected dark regions.
@@ -874,7 +973,7 @@ $('tempoSuppressSpikes').onclick=()=>{
 };
 $('tempoUndoCleanup').onclick=()=>{if(!tempoCleanupBackup)return;tempoPoints=tempoCleanupBackup;tempoCleanupBackup=null;$('tempoUndoCleanup').disabled=true;$('tempoCleanupInfo').textContent='除外前のテンポマップに戻しました。';renderTempoPoints()};
 
-$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.7.62',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.7.63',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 // Audio-first tempo analysis: spectral-flux onset envelope, local autocorrelation,
 // and a Viterbi-style dynamic tempo path. All computation stays on device.
 // This is a new implementation inspired by common onset/beat tracking concepts;
@@ -1302,7 +1401,7 @@ $('aiMeter').onchange=refreshBeatInfo;
 $('aiBeatUnit').onchange=()=>{refreshBeatInfo();updateAiQuality();};
 $('aiExportGrid').onclick=()=>{
  if(aiBeatTimes.length<2){$('aiRuntimeStatus').textContent='拍を解析してから保存してください。';return;}
- const obj={version:'PianoRoll MIDI Converter v0.7.62',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
+ const obj={version:'PianoRoll MIDI Converter v0.7.63',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
  const a=document.createElement('a');const uri=URL.createObjectURL(blob);a.href=uri;a.download='pianoroll-beat-grid-v0.6.json';a.click();setTimeout(()=>URL.revokeObjectURL(uri),5000);
 };

@@ -89,5 +89,27 @@ function safeHitLine(data,width,height,top,anchor,step){
  // A resampled keyboard edge can bleed into the pixel just above it.
  return Math.max(0,top-(values[mid]>45&&rises[mid]>20?2:1));
 }
-const api={refineTop,safeHitLine,normalizePattern,measureKeyboard};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollGuideCore=api;
+// Strip uniform near-black padding before applying keyboard geometry.
+function contentBounds(data,width,height){
+ const darkLine=(fixed,length,vertical)=>{
+  let visible=0,samples=0;
+  const stride=Math.max(1,Math.floor(length/160));
+  for(let sample=0;sample<length;sample+=stride){
+   const index=(vertical?sample*width+fixed:fixed*width+sample)*4;
+   if(Math.max(data[index],data[index+1],data[index+2])>19)visible++;
+   samples++;
+  }
+  return visible<=samples*.018;
+ };
+ const inset=(size,length,vertical,reverse)=>{
+  const limit=Math.floor(size*.44);
+  let offset=0;
+  while(offset<limit&&darkLine(reverse?size-1-offset:offset,length,vertical))offset++;
+  return offset>=4&&offset<limit?offset:0;
+ };
+ const x=inset(width,height,true,false),right=inset(width,height,true,true);
+ const y=inset(height,width,false,false),bottom=inset(height,width,false,true);
+ return {x,y,width:width-x-right,height:height-y-bottom};
+}
+const api={refineTop,safeHitLine,normalizePattern,measureKeyboard,contentBounds};if(typeof module==='object'&&module.exports)module.exports=api;else root.PianoRollGuideCore=api;
 })(globalThis);
