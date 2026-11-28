@@ -241,17 +241,19 @@ function findChromaCuts(note,seams,v,fps,pairOnly){
    median(inliers.map(s=>s.strength))<(pairOnly ? .115 : .135))continue;
   cuts.push(median(inliers.map(s=>s.startSeconds)));
  }
- if(pairOnly){
+ // A narrow seam can divide a balanced pair inside an already split surface note.
+ if(pairOnly||(cuts.length===1&&note.evidence.timingSource==='local-surface-split')){
   if(cuts.length!==1)return [];
   const before=cuts[0]-note.startSeconds,after=note.endSeconds-cuts[0];
-  return Math.min(before,after)>=.062&&Math.max(before,after)<=.205&&
+  return Math.min(before,after)>=(pairOnly ? .062 : .075)&&Math.max(before,after)<=(pairOnly ? .205 : .16)&&
    Math.max(before,after)<=2.3*Math.min(before,after)?cuts:[];
  }
  // Two or more consecutive moving seams confirm a repeated-note chain.
+ // The final strike can sustain for two intervals after the repeat ends.
  if(cuts.length<2)return [];
  const intervals=cuts.slice(1).map((t,i)=>t-cuts[i]),spacing=median(intervals);
  if(spacing<minimum||spacing>.21||intervals.some(d=>d<spacing*.74||d>spacing*1.32)||
-  cuts[0]-note.startSeconds>spacing*1.9||note.endSeconds-cuts.at(-1)>spacing*1.95)return [];
+  cuts[0]-note.startSeconds>spacing*1.9||note.endSeconds-cuts.at(-1)>spacing*2.2)return [];
  return cuts;
 }
 
