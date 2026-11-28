@@ -43,7 +43,12 @@ export async function* videoPackets(file,configure,inspect=()=>{}){
    if(!Number.isFinite(track.timescale)||track.timescale<=0||!Number.isSafeInteger(track.nb_samples)||track.nb_samples<(fragmented?0:1)||track.nb_samples>1000000)throw Error('映像の時刻情報が不正です');
    const configurationRange={start:box.start+box.hdr_size,end:box.start+box.size},mediaTime=edits[0]?.media_time||0;
    if(!Number.isSafeInteger(configurationRange.start)||!Number.isSafeInteger(configurationRange.end)||configurationRange.start<0||configurationRange.end>file.size||configurationRange.end<=configurationRange.start||configurationRange.end-configurationRange.start>1024*1024)throw Error('映像デコード設定が不正です');
-   track={...track,fragmented,mediaTime,configurationRange,display,...(/^av01\./i.test(track.codec)?{av1ConfigOBUs:box.configOBUs?.slice()||new Uint8Array()}:{}),config:{codec:track.codec,codedWidth:track.video.width,codedHeight:track.video.height,hardwareAcceleration:'no-preference'}};ready=true;
+   const {stts,ctts}=raw.mdia.minf.stbl;
+   const delta=stts?.sample_deltas?.length===1?stts.sample_deltas[0]:0;
+   const gridRate=!fragmented&&delta>0&&stts.sample_counts[0]===track.nb_samples&&
+    mediaTime%delta===0&&(!ctts||ctts.sample_offsets.every(offset=>offset%delta===0))?
+    track.timescale/delta:null;
+   track={...track,fragmented,mediaTime,configurationRange,display,gridRate,...(/^av01\./i.test(track.codec)?{av1ConfigOBUs:box.configOBUs?.slice()||new Uint8Array()}:{}),config:{codec:track.codec,codedWidth:track.video.width,codedHeight:track.video.height,hardwareAcceleration:'no-preference'}};ready=true;
    mp4.setExtractionOptions(track.id,null,{nbSamples:16});mp4.start();
   }catch(e){problem=e;}
  };

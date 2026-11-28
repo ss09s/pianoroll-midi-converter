@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 
-<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/><title>PianoRoll MIDI Converter v0.7.64</title>
+<html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/><title>PianoRoll MIDI Converter v0.7.65</title>
 <script src="rhythm-core.js?v=0.7.57"></script>
 <script src="guide-core.js?v=0.7.63"></script>
 <script src="note-core.js?v=0.7.57"></script>
 <script src="text-overlay.js?v=0.7.57"></script>
-<script src="motion-core.js?v=0.7.64"></script>
+<script src="motion-core.js?v=0.7.65"></script>
 <script src="frame-reader.js?v=0.7.57"></script>
 <script defer="" src="mov-audio.js"></script>
 <script defer="" src="ai-beat.js?v=0.7.57"></script>
@@ -42,8 +42,8 @@
 .listen-warn{background:#fff0e3;border:1px solid #f0cda8;color:#6b3c10;border-radius:9px;padding:10px;margin:10px 0;white-space:pre-wrap}
 @media(max-width:560px){.listen-grid,.listen-volumes{grid-template-columns:1fr}.listen-actions button{flex:1 1 auto}.listen-panel{padding:10px}}
 summary{list-style:none!important;display:flex;align-items:center;gap:10px}summary::-webkit-details-marker{display:none}summary::before{content:'▸';font-size:1.2em;flex:none}details[open]>summary::before{content:'▾'}#meterMapRows>div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}#meterMapRows input{width:90px}
-</style><script defer="" src="simple-ui.js?v=0.7.57"></script><link href="simple-ui.css?v=0.7.57" rel="stylesheet"/><script defer src="scan-performance.js?v=0.7.57"></script><script defer="" src="video-notes.js?v=0.7.64"></script><link rel="stylesheet" href="note-review.css?v=0.7.57"><script src="editor-gesture.js?v=0.7.57"></script>
-<script defer src="note-review.js?v=0.7.57"></script></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.7.64</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
+</style><script defer="" src="simple-ui.js?v=0.7.57"></script><link href="simple-ui.css?v=0.7.57" rel="stylesheet"/><script defer src="scan-performance.js?v=0.7.57"></script><script defer="" src="video-notes.js?v=0.7.65"></script><link rel="stylesheet" href="note-review.css?v=0.7.57"><script src="editor-gesture.js?v=0.7.57"></script>
+<script defer src="note-review.js?v=0.7.57"></script></head><body><main class="wrap"><h1>PianoRoll MIDI Converter <small>Ver.0.7.65</small></h1><p class="muted">動画・画像解析を端末内で行います。</p>
 <section class="box"><h2>1. 動画を読み込む</h2><input accept="video/*,.mov,video/quicktime" id="file" type="file"/><div aria-live="polite" class="status" id="status">動画ファイルを選択してください。</div><video controls="" id="v" playsinline="" preload="metadata"></video><p class="muted" id="videoHelp">MOVは内部の映像コーデックによって再生可否が異なります。ファイルを選択したあと、読み込み状況とエラーをここに表示します。</p><button class="secondary" hidden="" id="retryVideo" type="button">同じファイルを再試行</button><div class="row"><button disabled="" id="prev">−1フレーム</button><button disabled="" id="next">＋1フレーム</button><label>時刻(秒) <input id="t" min="0" step=".01" type="number" value="0"/></label><button disabled="" id="seek">移動</button></div></section>
 <section class="box"><h2>2. 鍵盤ガイドの位置合わせ</h2><p class="muted">白鍵・黒鍵を規則的に並べたガイドです。動画の読み込み時に自動で位置合わせします。ずれている箇所だけ手動で調整してください。赤線＝白鍵境界、青枠＝黒鍵。黄色の「基準」だけが音名マーカーです。</p>
 <div class="auto-panel"><strong>✨ 自動位置合わせ</strong><p class="muted">現在の動画フレームから黒鍵の配置を探してガイドを調整します。白鍵の画像領域が見える場面で実行してください。</p><button disabled="" id="autofit">鍵盤に自動で合わせる</button><div aria-live="polite" class="auto-result" id="autoResult">動画の読み込み後に利用できます。</div></div>
@@ -90,7 +90,7 @@ summary{list-style:none!important;display:flex;align-items:center;gap:10px}summa
 <canvas aria-label="時間ごとのBPMを表示する操作可能なグラフ" height="350" id="tempoChart" role="img" width="1100"></canvas>
 <p class="muted">青：編集済みの区間テンポ。灰：独立した音声解析の局所推定。緑の破線：AI拍から生成した候補（未採用でも表示）。青線は変更時刻まで前のBPMを保持します。変更点ごとの編集はグラフのタップか下の一覧で行えます。</p>
 <h3>テンポ区間（手動修正可能）</h3><div class="row"><button class="secondary" id="addTempoPoint" type="button">中央に変更点追加</button><button class="secondary" id="clearTempoEdits" type="button">自動推定に戻す</button><button class="secondary" id="tempoSuppressSpikes" type="button">短いBPM異常を除外</button><button class="secondary" disabled="" id="tempoUndoCleanup" type="button">除外を元に戻す</button><button class="secondary" id="exportTempo" type="button">テンポマップをJSON出力</button></div><div aria-live="polite" class="muted" id="tempoCleanupInfo">短時間だけ突出したBPMは手動で除外できます。実際にテンポが急変する曲もあるため、元に戻せます。</div><details class="group"><summary>テンポ区間を編集</summary><div class="tempoSegments" id="tempoSegments"></div></details><p class="muted">AIから生成したBPMは拍との同期を保つため内部精度を保持します。手動編集時は選択した刻み幅で丸めます。AI拍グリッドを下のセクションで解析・編集できます。MIDI出力はまだ未実装です。</p></div><details class="group"><summary>解析の限界と設定について</summary><div style="padding:10px 14px;line-height:1.7"><p>音声の立ち上がりから局所的な周期を求め、前後のつながりでBPM推移を推定します。整数BPMに丸めず小数まで推定します。</p><p>80.5と161のような倍・半テンポは音声だけでは一意に決まらない場合があります。「テンポ解釈」とマップ全体の倍率操作を利用してください。テンポ変化時刻・拍位置はまだ参考値です。</p></div></details>
-</section><section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.7.64）</h2>
+</section><section class="box" id="aiBeatPanel"><h2>5. AIによる拍・小節頭の検出（Ver.0.7.65）</h2>
 <p class="muted">実際の学習済み <b>Beat This!</b> モデルを端末上で実行し、楽曲全体の拍・小節頭を推定します。AIモデルはサイトに同梱しています。処理用ライブラリはネットから取得しますが、<b>動画・音声ファイルは送信しません。</b> AIの結果は拍の欠落や倍・半テンポの誤判定を含む場合があります。テンポマップは必ず確認してから採用してください。</p>
 <div class="auto-panel">
 <div class="row"><label>AIモデル <select id="aiModelKind" style="width:auto;max-width:100%;padding:8px"><option value="light">軽量</option><option selected="" value="full">高精度</option></select></label><label>処理方式 <select id="aiBackend" style="width:auto;padding:8px"><option selected="" value="wasm">CPU / WASM（iPhone対応）</option><option value="webgpu">WebGPU（対応PC向け）</option></select></label></div>
@@ -112,7 +112,7 @@ summary{list-style:none!important;display:flex;align-items:center;gap:10px}summa
 <details class="group"><summary>拍の時刻を編集</summary><div class="beat-table" id="aiBeatTable"></div></details>
 <p class="muted">表の時刻を変更するとグラフの拍位置も更新されます。「小節頭」にチェックすると、その拍を小節の先頭として記録します。拍子はAIの小節頭の数だけでは一意に確定できません。</p>
 </div></details>
-</section><section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.7.64）</h2>
+</section><section class="box" id="listenSection"><h2>6. 原曲と拍クリックを聴き比べる（Ver.0.7.65）</h2>
 <p class="muted">元の音源を再生しながら、<strong>AIで検出した拍</strong>または<strong>編集済みBPMマップから計算した拍</strong>をクリック音で重ねます。イヤホンで聴いて、ズレや半テンポ判定を確認してください。動画・音声は端末内で処理します。</p>
 <div class="listen-panel">
 <div class="listen-grid">
@@ -973,7 +973,7 @@ $('tempoSuppressSpikes').onclick=()=>{
 };
 $('tempoUndoCleanup').onclick=()=>{if(!tempoCleanupBackup)return;tempoPoints=tempoCleanupBackup;tempoCleanupBackup=null;$('tempoUndoCleanup').disabled=true;$('tempoCleanupInfo').textContent='除外前のテンポマップに戻しました。';renderTempoPoints()};
 
-$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.7.64',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+$('exportTempo').onclick=()=>{if(!tempoAnalysisRange)return;const data={version:'0.7.65',format:'tempo-map-draft',rangeSeconds:tempoAnalysisRange,points:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0]??0,quarterNotesPerAiBeat:Number($('aiBeatUnit').value),notice:'Unverified tempo estimate; not MIDI tempo events'};const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='pianoroll_tempo_map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 // Audio-first tempo analysis: spectral-flux onset envelope, local autocorrelation,
 // and a Viterbi-style dynamic tempo path. All computation stays on device.
 // This is a new implementation inspired by common onset/beat tracking concepts;
@@ -1401,7 +1401,7 @@ $('aiMeter').onchange=refreshBeatInfo;
 $('aiBeatUnit').onchange=()=>{refreshBeatInfo();updateAiQuality();};
 $('aiExportGrid').onclick=()=>{
  if(aiBeatTimes.length<2){$('aiRuntimeStatus').textContent='拍を解析してから保存してください。';return;}
- const obj={version:'PianoRoll MIDI Converter v0.7.64',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
+ const obj={version:'PianoRoll MIDI Converter v0.7.65',format:'seconds',source:aiSourceLabel||'manual',timeSignature:$('aiMeter').value,timeSignatures:meterPoints,beatAnchorSeconds:aiBeatTimes[0],quarterNotesPerAiBeat:Number($('aiBeatUnit').value),beats:aiBeatTimes,downbeats:aiDownbeatTimes,tempoMap:tempoPoints.map(p=>({timeSeconds:p.t,bpm:p.bpm})),note:'推定値です。MIDI変換時には拍位置とテンポマップを検証してください。'};
  const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
  const a=document.createElement('a');const uri=URL.createObjectURL(blob);a.href=uri;a.download='pianoroll-beat-grid-v0.6.json';a.click();setTimeout(()=>URL.revokeObjectURL(uri),5000);
 };

@@ -212,6 +212,85 @@ function chromaSeams(rows,hits,lanes,time,top,pairOnly=false){
  return found;
 }
 
+// At a rounded repeat boundary, brightness can drop while the hue and
+// saturation barely change. Track that dip over successive decoded images.
+function brightnessSeams(rows,hits,lanes,time,top){
+ const pitches=new Set(),found=[];
+ for(const row of hits)for(const hit of row)pitches.add(hit.pitch);
+ const levels=new Float32Array(rows.length);
+ for(const pitch of pitches){
+  const {left,right}=lanes.get(pitch);
+  for(let y=0;y<rows.length;y++){
+   const row=rows[y];
+   let sum=0;
+   for(let x=left;x<=right;x++){
+    const i=x*4;
+    sum+=Math.max(row[i],row[i+1],row[i+2]);
+   }
+   levels[y]=sum/(right-left+1);
+  }
+  for(let y=4;y<rows.length-4;y++){
+   const valley=levels[y];
+   if(valley>levels[y-1]||valley>=levels[y+1])continue;
+   const before=Math.max(levels[y-4],levels[y-3],levels[y-2]);
+   const after=Math.max(levels[y+2],levels[y+3],levels[y+4]);
+   const shoulder=Math.min(before,after),drop=shoulder-valley;
+   if(shoulder<90||drop<Math.max(27,shoulder*.22))continue;
+   found.push({pitch,time,y:top+y+.5,drop});
+  }
+ }
+ return found;
+}
+
+function brightnessCuts(seams,v,{fps,referenceY}){
+ const byPitch=indexChromaSeams(seams,v,referenceY),cuts=new Map();
+ const clusterSeconds=Math.max(.028,1/fps);
+ for(const [pitch,values] of byPitch){
+  const valid=[];
+  let i=0;
+  while(i<values.length){
+   const first=values[i].startSeconds;
+   let j=i+1;
+   while(j<values.length&&values[j].startSeconds<first+clusterSeconds)j++;
+   const group=values.slice(i,j),center=median(group.map(s=>s.startSeconds));
+   const nearby=values.slice(lowerBound(values,center-clusterSeconds*.62),lowerBound(values,center+clusterSeconds*.62));
+   const times=new Set(nearby.map(s=>s.time)),ys=nearby.map(s=>s.y);
+   if(times.size>=8&&Math.max(...ys)-Math.min(...ys)>=25){
+    const position=median(nearby.map(s=>s.startSeconds)),strength=median(nearby.map(s=>s.drop));
+    if(valid.length&&position-valid.at(-1).time<.045){
+     if(nearby.length>valid.at(-1).support)valid[valid.length-1]={time:position,support:nearby.length,strength};
+    }else valid.push({time:position,support:nearby.length,strength});
+   }
+   i=j;
+  }
+  if(valid.length)cuts.set(pitch,valid);
+ }
+ return cuts;
+}
+
+function repairBrightnessSeams(notes,cuts,isNeighborEdge){
+ let split=0;
+ const uncertain=[];
+ const repaired=notes.flatMap(note=>{
+  if(note.truncatedStart||note.truncatedEnd||!note.evidence.verified||note.durationSeconds<.145)return[note];
+  const candidates=(cuts.get(note.midiPitch)||[]).filter(cut=>
+   cut.time>=note.startSeconds+.058&&cut.time<=note.endSeconds-.058&&cut.strength>=32);
+  if(!candidates.length)return[note];
+  const times=[note.startSeconds,...candidates.map(cut=>cut.time),note.endSeconds];
+  const durations=times.slice(1).map((end,i)=>end-times[i]);
+  if(Math.min(...durations)<.058)return[note];
+  split+=candidates.length;
+  const parts=durations.map((durationSeconds,i)=>({...note,startSeconds:times[i],endSeconds:times[i+1],durationSeconds,
+   evidence:{...note.evidence,timingSource:'moving-brightness-seam',splitParts:durations.length}}));
+  return parts.filter((part,i)=>{
+   if(i===0||i===parts.length-1||!isNeighborEdge(part))return true;
+   uncertain.push({...part,evidence:{...part.evidence,verified:false,rejectionReason:'seam-between-neighbor-edges'}});
+   return false;
+  });
+ });
+ return {notes:repaired.sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),split,uncertain};
+}
+
 function indexChromaSeams(seams,v,referenceY){
  const byPitch=new Map();
  for(const seam of seams){
@@ -753,7 +832,9 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   if(n.startSeconds>=duration){uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'outside-video'}});return false;}
   if(n.durationSeconds>=2/30||n.truncatedStart||n.truncatedEnd)return true;
   const v=diagnostics.boundaryVelocityPixelsPerSecond||median(inliers.map(x=>x.v)),starts=[],ends=[];let opportunities=0;
-  const tol=1/fps,fullBody=[];
+  const tol=1/fps,fullBody=[],visibleBody=[];
+  const faint=c=>Math.max(...c)<78&&Math.max(...c)-Math.min(...c)<22;
+  const darkFragment=n.durationSeconds<.055&&faint(n.colorRGB)&&faint(n.rawColorRGB||n.colorRGB);
   const nearSemitone=[-1,1].some(step=>{
    const nearby=notePitches.get(n.midiPitch+step)||[],i=lowerBound(nearby,n.startSeconds-.25-tol);
    for(let j=i;j<nearby.length&&nearby[j].startSeconds<=n.endSeconds+tol;j++){
@@ -772,6 +853,8 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
     strongFit&&(sameBodyHue(b,n)||sameBodyHue(b,{colorRGB:n.rawColorRGB||n.colorRGB})))&&b.startSeconds+shift<n.endSeconds+tol&&b.endSeconds+shift>n.startSeconds-tol);
    if(same.some(b=>!b.truncatedStart&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol))starts.push(lines[i]);
    if(same.some(b=>!b.truncatedEnd&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol))ends.push(lines[i]);
+   if(darkFragment&&same.some(b=>!faint(b.colorRGB)&&!b.truncatedStart&&!b.truncatedEnd&&
+    Math.abs(b.startSeconds+shift-n.startSeconds)<=tol&&Math.abs(b.endSeconds+shift-n.endSeconds)<=tol))visibleBody.push(lines[i]);
    if(nearSemitone&&same.some(b=>!b.truncatedStart&&!b.truncatedEnd&&Math.abs(b.startSeconds+shift-n.startSeconds)<=tol&&
     Math.abs(b.endSeconds+shift-n.endSeconds)<=tol&&b.durationSeconds<=n.durationSeconds+tol))fullBody.push(lines[i]);
   }
@@ -785,6 +868,10 @@ function fuse(lines,observations,{fps,duration,height,referenceY=lines.at(-1),lo
   if(nearSemitone&&opportunities>=12&&(!supports(fullBody)||
    new Set(fullBody.map(y=>Math.floor(y/(height/16)))).size<5||Math.max(...fullBody)-Math.min(...fullBody)<height*.22)){
    uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-independent-adjacent-body',supportRows:fullBody.length}});return false;
+  }
+  if(darkFragment&&opportunities>=12&&!supports(visibleBody)){
+   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-visible-body',supportRows:visibleBody.length}});
+   return false;
   }
   if(supports(starts)&&supports(ends))return true;
   uncertain.push({...n,evidence:{...n.evidence,verified:false,rejectionReason:'short-without-separated-motion',supportRows:ys.length,supportRegions:bins.size}});return false;
@@ -912,8 +999,8 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
     shoulders[index>>2]=(shoulders[index>>2]&~(3<<shift))|(flags<<shift);
    }
   }
- },repair(notes,v){
-  if(last<1||!v||v<10)return {notes,added:0,split:0};
+ },repair(notes,v,cuts){
+  if(last<1||!v||v<10)return {notes,added:0,split:0,brightnessSplits:0,uncertain:[],recolored:0};
   const hz=120,ticks=Math.ceil(duration*hz),chroma=new Uint8Array(ticks),colors=new Uint16Array(ticks);
   const offsets=rows.map(row=>(referenceY-row.y)*fps/v);
   const lut=new Uint8Array(65536);
@@ -927,7 +1014,7 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
    byPitch.get(note.midiPitch).push(note);
   }
   const samples=new Uint16Array(rows.length);
-  const additions=[],splits=new Map();
+  const additions=[],splits=new Map(),recolored=new Map();
   // On the side facing away from an overlapping neighbor, a true body
   // should still be visible across several heights and interior times.
   const hasOuterBody=(laneIndex,flag,start,end)=>{
@@ -945,6 +1032,50 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
     if(total>=8&&count>=Math.ceil(total*.6))supported++;
    }
    return supported>=2;
+  };
+  const laneIndexByPitch=new Map(lanes.map((lane,index)=>[lane.pitch,index]));
+  const isNeighborEdge=n=>{
+   if(n.durationSeconds>.22)return false;
+   const index=laneIndexByPitch.get(n.midiPitch);
+   return [-1,1].some(side=>(byPitch.get(n.midiPitch+side)||[]).some(neighbor=>
+    neighbor.evidence.verified&&neighbor.laneType!==n.laneType&&sameBodyHue(n,neighbor)&&
+    Math.abs(neighbor.startSeconds-n.startSeconds)<=.035&&Math.abs(neighbor.endSeconds-n.endSeconds)<=.035&&
+    !hasOuterBody(index,side>0?1:2,n.startSeconds,n.endSeconds)));
+  };
+  // A joined projected band can contain an undetected middle or last strike.
+  // Recover only a part bounded by a moving seam and supported by its body.
+  const recoverSeamBodies=(laneIndex,existing,begin,end,observed)=>{
+   const lane=lanes[laneIndex];
+   const seams=(cuts.get(lane.pitch)||[]).filter(cut=>cut.strength>=40&&
+    cut.time>begin/hz+.045&&cut.time<=end/hz+.025);
+   for(let i=0;i<seams.length;i++){
+    const startBoundary=seams[i],endBoundary=seams[i+1];
+    const start=startBoundary.time,endSeconds=endBoundary?.time??end/hz;
+    if(start>=end/hz-.045)continue;
+    const durationSeconds=endSeconds-start;
+    if(durationSeconds<.065||durationSeconds>(endBoundary ? .75 : .27))continue;
+    const previous=existing.find(note=>note.evidence.verified&&
+     Math.abs(note.endSeconds-start)<=.027&&note.startSeconds<start-.055);
+    if(!previous||existing.some(note=>Math.min(endSeconds,note.endSeconds)-
+     Math.max(start,note.startSeconds)>.019))continue;
+    let body=0,sampled=0;
+    const first=Math.ceil((start+durationSeconds*.2)*hz),last=Math.floor((endSeconds-durationSeconds*.2)*hz);
+    for(let j=first;j<=last;j++){
+     if(!observed[j])continue;
+     sampled++;
+     if(chroma[j]>=90&&sameBodyHue(previous,{colorRGB:rgb(colors[j])}))body++;
+    }
+    if(sampled<4||body<(last-first+1)*.8)continue;
+    const leak=[-1,1].some(side=>(byPitch.get(lane.pitch+side)||[]).some(n=>
+     n.evidence.verified&&n.laneType!==lane.type&&sameBodyHue(n,previous)&&
+     Math.min(n.endSeconds,endSeconds)-Math.max(n.startSeconds,start)>=durationSeconds*.55&&
+     !hasOuterBody(laneIndex,side>0?1:2,start,endSeconds)));
+    if(leak)continue;
+    const colorRGB=rgb(colors[Math.round((start+endSeconds)*hz*.5)]);
+    additions.push({...previous,startSeconds:start,endSeconds,durationSeconds,colorRGB,rawColorRGB:colorRGB,
+     colorSamples:1,observationSamples:0,truncatedStart:false,truncatedEnd:false,
+     evidence:{timingSource:'upstream-seam-body',verified:true,seamImages:startBoundary.support,bodySamples:body}});
+   }
   };
   for(let k=0;k<lanes.length;k++){
    const lane=lanes[k],existing=byPitch.get(lane.pitch);
@@ -998,6 +1129,7 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
     while(end<ticks&&chroma[end]>=76){if(chroma[end]>chroma[peak])peak=end;end++;}
     const s=start/hz,e=end/hz,color=rgb(colors[peak]);
     if(end-start>=7&&chroma[peak]>=120){
+     recoverSeamBodies(k,existing,start,end,observed);
      const body={start:s,end:e,endTick:end,peak:chroma[peak],colorRGB:color};
      const gapLength=previousBody?start-previousBody.endTick:0;
      if(gapLength>=3&&gapLength<=12){
@@ -1027,7 +1159,8 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
     if(end-start>=7&&end-start<=31&&chroma[peak]>=120){
      const overlapping=existing.some(n=>n.startSeconds<e-.017&&n.endSeconds>s+.017);
      const anchor=existing.find(n=>Math.min(Math.abs(n.startSeconds-s),Math.abs(n.endSeconds-e))<=.6&&sameBodyHue(n,{colorRGB:color}));
-     if(!overlapping&&anchor&&!existing.some(n=>Math.abs(n.startSeconds-s)<.055)){
+     if(!overlapping&&anchor&&!existing.some(n=>Math.abs(n.startSeconds-s)<.055)&&
+      !additions.some(n=>n.midiPitch===lane.pitch&&Math.min(n.endSeconds,e)-Math.max(n.startSeconds,s)>.017)){
       const leaking=[-1,1].some(side=>{
        const neighbor=byPitch.get(lane.pitch+side)||[];
        return neighbor.some(n=>n.evidence.verified&&n.laneType!==lane.type&&
@@ -1045,16 +1178,33 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
    for(const note of existing){
     if(splits.has(note))continue;
     const parts=splitProjectedRepeats(note,chroma,observed,colors,rgb,hz,v,hasMovingSeam);
-    if(parts)splits.set(note,parts);
+    if(parts){splits.set(note,parts);continue;}
+    // A split used to inherit its parent's modal color. Read only the
+    // interior of the individual body, away from blended boundary pixels.
+    if(!note.evidence.verified||!(note.evidence.splitParts>1)||note.durationSeconds<.08)continue;
+    const low=Math.max(0,Math.ceil((note.startSeconds+note.durationSeconds*.22)*hz));
+    const high=Math.min(ticks-1,Math.floor((note.endSeconds-note.durationSeconds*.22)*hz));
+    const colorRGB=rgb(colors[(low+high)>>1]);
+    if(sameBodyHue(note,{colorRGB}))continue;
+    const bodyColors=[];
+    for(let i=low;i<=high;i++){
+     if(!observed[i]||chroma[i]<46)continue;
+     const rgbAtTime=rgb(colors[i]);
+     if(sameBodyHue({colorRGB},{colorRGB:rgbAtTime}))bodyColors.push(rgbAtTime);
+    }
+    if(bodyColors.length<6||bodyColors.length<(high-low+1)*.8)continue;
+    const bodyColor=[0,1,2].map(k=>median(bodyColors.map(c=>c[k])));
+    recolored.set(note,{...note,colorRGB:bodyColor,rawColorRGB:bodyColor,
+     evidence:{...note.evidence,colorSource:'projected-note-interior',colorBodySamples:bodyColors.length}});
    }
   }
-  return {notes:notes.flatMap(note=>splits.get(note)||[note]).concat(additions)
-   .sort((a,b)=>a.startSeconds-b.startSeconds||a.midiPitch-b.midiPitch),added:additions.length,split:splits.size};
+  const repeats=repairBrightnessSeams(notes.flatMap(note=>splits.get(note)||[recolored.get(note)||note]).concat(additions),cuts,isNeighborEdge);
+  return {notes:repeats.notes,added:additions.length,split:splits.size,brightnessSplits:repeats.split,uncertain:repeats.uncertain,recolored:recolored.size};
  }};
 }
 
 function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',primaryPercent=20,textOverlay=null}){
- const localGaps=[],seams=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));
+ const localGaps=[],seams=[],brightness=[],laneCenters=new Map(lanes.map(l=>[l.pitch,clamp(Math.round(l.x),0,width-1)*4]));
  const baseLines=linePlan(hitLineY,height,mode,primaryPercent);
  const primary=baseLines[0],bottom=Math.min(Math.round(hitLineY)-1,primary+24);
  const denseBand={top:Math.max(0,Math.min(primary-24,bottom-48)),bottom};
@@ -1072,17 +1222,19 @@ function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',prim
   new OcclusionTracker({fps,duration},new Map(lanes.map(l=>[l.pitch,l])),width):new core.Tracker({fps,duration}));
  const detect=core.createRowDetector(width,lanes),textGuard=textCore?.createGuard(guardLines,lanes,textOverlay,{fps});
  const laneRanges=new Map(lanes.map(l=>[l.pitch,{left:Math.max(0,Math.round(l.x-l.w*.45)),right:Math.min(width-1,Math.round(l.x+l.w*.45))}]));
+ const innerRanges=new Map(lanes.map(l=>[l.pitch,{left:clamp(Math.round(l.x-l.w*.22),0,width-1),right:clamp(Math.round(l.x+l.w*.22),0,width-1)}]));
  const pairRanges=new Map(lanes.map(l=>[l.pitch,{left:Math.max(0,Math.round(l.x-l.w*.55)),right:Math.min(width-1,Math.round(l.x+l.w*.55))}]));
  const seamRows=seamLines.map(y=>lines.indexOf(y));
  const projection=mode==='motion'?createBodyProjection(lines,lanes,hitLineY,width,fps,duration):null;
  let lastPairTime=-Infinity;
  return{lines,detect,push(time,rows,rawRows=null,imageTime=time){
   if(rawRows)projection?.push(time,rawRows);
-  if(rawRows&&seamRows.length&&seams.length<400000){
+  if(rawRows&&seamRows.length&&(seams.length<400000||brightness.length<400000)){
    const raw=seamRows.map(i=>rawRows[i]),hits=seamRows.map(i=>rows[i]);
-   seams.push(...chromaSeams(raw,hits,laneRanges,time,seamTop));
+   if(seams.length<400000)seams.push(...chromaSeams(raw,hits,laneRanges,time,seamTop));
    if(imageTime>lastPairTime){
-    seams.push(...chromaSeams(raw,hits,pairRanges,imageTime,seamTop,true));
+    if(seams.length<400000)seams.push(...chromaSeams(raw,hits,pairRanges,imageTime,seamTop,true));
+    if(brightness.length<400000)brightness.push(...brightnessSeams(raw,hits,innerRanges,imageTime,seamTop));
     lastPairTime=imageTime;
    }
   }
@@ -1090,10 +1242,16 @@ function createScan({width,height,hitLineY,lanes,fps,duration,mode='single',prim
   const observations=trackers.map((t,i)=>{const ns=t.finish();return textGuard?textGuard.filter(ns,i):ns;}),discarded=trackers[0].discarded;
   if(mode!=='motion')return{notes:observations[0],unconfirmedNotes:[],discarded,diagnostics:{...(textGuard?textGuard.diagnostics():{}),method:mode==='upper'?'upper-single':'single-line',lineYs:baseLines,calibrated:mode==='single',offsetSeconds:0,timingReference:mode==='upper'?'upper-line':'keyboard-line'}};
   const result=fuse(baseLines,observations,{fps,duration,height,referenceY:hitLineY,localGaps,colorOverlays:trackers.map(t=>t.inner.overlays),seams,fallbackRow});if(projection&&result.diagnostics.calibrated){
-   const recovered=projection.repair(result.notes,result.diagnostics.boundaryVelocityPixelsPerSecond);
+   const velocity=result.diagnostics.boundaryVelocityPixelsPerSecond;
+   const cuts=brightnessCuts(brightness,velocity,{fps,referenceY:hitLineY});
+   const recovered=projection.repair(result.notes,velocity,cuts);
    result.notes=recovered.notes;
    result.diagnostics.profileRecovered=recovered.added;
    result.diagnostics.profileSplit=recovered.split;
+   result.unconfirmedNotes.push(...recovered.uncertain);
+   result.diagnostics.brightnessSeamSplits=recovered.brightnessSplits;
+   result.diagnostics.brightnessSeamNeighborEdges=recovered.uncertain.length;
+   result.diagnostics.projectedColorReassignments=recovered.recolored;
   }
   if(textGuard)Object.assign(result.diagnostics,textGuard.diagnostics());result.diagnostics.brightOcclusionBridgedSamples=trackers.reduce((s,t)=>s+(t.bridged||0),0);result.diagnostics.denseBand={...denseBand,rows:denseBand.bottom-denseBand.top+1};result.diagnostics.occlusionRecoveredCandidates=result.notes.filter(n=>n.occlusionRecovered).length;return{...result,discarded};
  }};
