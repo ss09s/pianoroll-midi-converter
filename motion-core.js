@@ -836,6 +836,46 @@ class OcclusionTracker {
  }
  finish(){for(const f of this.queue)this.inner.push(f.time,f.hits);this.queue=[];const notes=this.inner.finish();this.discarded=this.inner.discarded;return notes;}
 }
+// Recover rounded repeat boundaries that remain connected at the lane center.
+function splitProjectedRepeats(note,chroma,observed,colors,rgb,hz,v,hasMovingSeam){
+ if(note.truncatedStart||note.truncatedEnd||!note.evidence.verified||
+  note.durationSeconds<.16||note.durationSeconds>1.8)return null;
+ const begin=Math.max(0,Math.round(note.startSeconds*hz));
+ const end=Math.min(chroma.length,Math.round(note.endSeconds*hz));
+ const longParent=note.durationSeconds>.6;
+ const minPart=Math.ceil(.061*hz),shoulder=Math.ceil(.052*hz),cuts=[];
+ for(let t=begin+minPart;t<=end-minPart;t++){
+  const valley=chroma[t];
+  if(valley<45||valley>chroma[t-1]||valley>=chroma[t+1])continue;
+  let left=t-2,right=t+2,complete=Boolean(observed[t]);
+  for(let d=2;d<=shoulder;d++){
+   complete=complete&&Boolean(observed[t-d]&&observed[t+d]);
+   if(chroma[t-d]>chroma[left])left=t-d;
+   if(chroma[t+d]>chroma[right])right=t+d;
+  }
+  if(!complete)continue;
+  const level=Math.min(chroma[left],chroma[right]);
+  if(level<105||valley>level*.86||level-valley<18)continue;
+  const weak=level<115||valley>level*.76||level-valley<26;
+  if(weak&&!hasMovingSeam(left,t,right))continue;
+  const reference={colorRGB:rgb(colors[left])};
+  if(!sameBodyHue(reference,note)||!sameBodyHue(reference,{colorRGB:rgb(colors[right])}))continue;
+  if(longParent&&(valley>level*.69||level-valley<36))continue;
+  const position=t/hz;
+  if(cuts.length&&position-cuts.at(-1).position<.063){
+   if(valley<cuts.at(-1).valley)cuts[cuts.length-1]={position,valley};
+  }else cuts.push({position,valley});
+ }
+ if(!cuts.length)return null;
+ const points=[note.startSeconds,...cuts.map(cut=>cut.position+Math.min(.014,1/v)),note.endSeconds];
+ const parts=points.slice(1).map((end,i)=>end-points[i]);
+ const shortPartLimit=longParent ? .34 : .155;
+ const longPartLimit=longParent ? .92 : .43;
+ if(parts.some(length=>length<.055)||Math.min(...parts)>shortPartLimit||Math.max(...parts)>longPartLimit)return null;
+ return parts.map((durationSeconds,i)=>({...note,startSeconds:points[i],endSeconds:points[i+1],durationSeconds,
+  evidence:{...note.evidence,timingSource:'upstream-repeat-boundary',splitParts:parts.length}}));
+}
+
 // Read a few upstream rows already in the image band. Align their raw
 // lane-center colors with the measured scroll speed so a transient flare in
 // one row cannot mask a body, or create an onset, across the whole band.
@@ -931,6 +971,26 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
     const mid=sorted[count>>1],j=mid&31,f=Math.round(t-offsets[j]);
     observed[i]=1;chroma[i]=mid>>5;colors[i]=frames[f*stride+j*lanes.length+k];
    }
+   // A subtle dip must travel down the lane. Count it in both halves of
+   // the upstream rows, with independent sampling phases at each height.
+   const hasMovingSeam=(left,middle,right)=>{
+    const support=[0,0],counts=[0,0];
+    const scoreAt=(rowIndex,exact)=>{
+     const f=Math.floor(exact);
+     if(f<0||f>=last||!present[f]||!present[f+1])return NaN;
+     const index=f*stride+rowIndex*lanes.length+k;
+     return lut[frames[index]]+(lut[frames[index+stride]]-lut[frames[index]])*(exact-f);
+    };
+    for(let rowIndex=0;rowIndex<rows.length;rowIndex++){
+     const offset=offsets[rowIndex];
+     const before=scoreAt(rowIndex,left*fps/hz-offset),dip=scoreAt(rowIndex,middle*fps/hz-offset),after=scoreAt(rowIndex,right*fps/hz-offset);
+     if(!Number.isFinite(before+dip+after))continue;
+     const half=rowIndex<rows.length/2?0:1;
+     counts[half]++;
+     if(Math.min(before,after)-dip>=20)support[half]++;
+    }
+    return counts.every((n,i)=>n>=4&&support[i]>=Math.ceil(n*.5));
+   };
    let start=0,previousBody=null;
    while(start<ticks){
     if(chroma[start]<76){start++;continue;}
@@ -981,6 +1041,11 @@ function createBodyProjection(lines,lanes,referenceY,width,fps,duration){
      }
     }
     start=end;
+   }
+   for(const note of existing){
+    if(splits.has(note))continue;
+    const parts=splitProjectedRepeats(note,chroma,observed,colors,rgb,hz,v,hasMovingSeam);
+    if(parts)splits.set(note,parts);
    }
   }
   return {notes:notes.flatMap(note=>splits.get(note)||[note]).concat(additions)
